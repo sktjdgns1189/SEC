@@ -1306,7 +1306,20 @@ void RenderBlock::layoutBlock(bool relayoutChildren, int pageLogicalHeight)
     }
 
     if (previousHeight != newHeight)
+	{
+	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
+		Node* focusedDNode = document()->focusedNode();
+		Node* currentNode = NULL;
+		if(focusedDNode && focusedDNode->hasTagName(textareaTag)) {
+			if(node())
+				currentNode = node()->shadowAncestorNode();
+			if(currentNode && currentNode == focusedDNode) {
+				document()->setCheckNode(0);
+			}
+		}
+	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
         relayoutChildren = true;
+	}
 
     layoutPositionedObjects(relayoutChildren || isRoot());
 

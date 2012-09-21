@@ -99,8 +99,9 @@ namespace WebCore {
         static V8BindingPerIsolateData* get(v8::Isolate* isolate)
         {
             ASSERT(isolate->GetData());
-//            return static_cast<V8BindingPerIsolateData*>(isolate->GetData());			// OSS_C1
-						return NULL;			// OSS_C1 : insert
+			
+            //OSS_C1 return static_cast<V8BindingPerIsolateData*>(isolate->GetData());
+			return NULL;//OSS_C1 : add return NULL;
         }
 
         static V8BindingPerIsolateData* current()

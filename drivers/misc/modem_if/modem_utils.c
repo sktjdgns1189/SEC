@@ -41,7 +41,7 @@ int mif_dump_dpram(struct io_device *iod)
 {
 	struct link_device *ld = get_current_link(iod);
 	struct dpram_link_device *dpld = to_dpram_link_device(ld);
-	u32 size = dpld->dpctl->dp_size;
+	u32 size = dpld->dp_size;
 	unsigned long read_len = 0;
 	struct sk_buff *skb;
 	char *buff;
@@ -257,7 +257,7 @@ int pr_buffer(const char *tag, const char *data, size_t data_len,
 	dump2hex(hexstr, data, len);
 
 	/* don't change this printk to mif_debug for print this as level7 */
-	return printk(KERN_INFO "%s(%u): %s%s\n", tag, data_len, hexstr,
+	return printk(KERN_INFO "mif: %s(%u): %s%s\n", tag, data_len, hexstr,
 			len == data_len ? "" : " ...");
 }
 
@@ -398,7 +398,7 @@ void iodev_netif_stop(struct io_device *iod, void *args)
 static void iodev_set_tx_link(struct io_device *iod, void *args)
 {
 	struct link_device *ld = (struct link_device *)args;
-	if (iod->io_typ == IODEV_NET && IS_CONNECTED(iod, ld)) {
+	if (iod->format == IPC_RAW && IS_CONNECTED(iod, ld)) {
 		set_current_link(iod, ld);
 		mif_err("%s -> %s\n", iod->name, ld->name);
 	}
@@ -865,20 +865,6 @@ bool is_syn_packet(u8 *ip_pkt)
 		return true;
 	else
 		return false;
-}
-
-int get_sipc5_hdr_size(u8 *buff)
-{
-	u8 config = buff[0];
-
-	if (unlikely(config & SIPC5_EXT_FIELD_EXIST)) {
-		if (config & SIPC5_CTL_FIELD_EXIST)
-			return SIPC5_HEADER_SIZE_WITH_CTL_FLD;
-		else
-			return SIPC5_HEADER_SIZE_WITH_EXT_LEN;
-	} else {
-		return SIPC5_MIN_HEADER_SIZE;
-	}
 }
 
 int memcmp16_to_io(const void __iomem *to, void *from, int size)

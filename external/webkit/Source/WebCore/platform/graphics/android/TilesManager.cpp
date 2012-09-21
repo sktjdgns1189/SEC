@@ -69,7 +69,15 @@
 // number to cap the layer tile texturs, it worked on both phones and tablets.
 // TODO: after merge the pool of base tiles and layer tiles, we should revisit
 // the logic of allocation management.
-#define MAX_TEXTURE_ALLOCATION ((6+TILE_PREFETCH_DISTANCE*2)*(5+TILE_PREFETCH_DISTANCE*2)*4)
+
+//SAMSUNG CHANGES >> Modified Max Texture to 400 as most of the web pages require
+// texture more than 400 but as per open source it was calculating to 224 which was
+// causing white screen issue in most of the pages where layers are used extensively
+//This change may increase memory consumption.TilesManager static instance wiil be shared
+//among all tabs 
+//was:#define MAX_TEXTURE_ALLOCATION ((6+TILE_PREFETCH_DISTANCE*2)*(5+TILE_PREFETCH_DISTANCE*2)*4)
+#define MAX_TEXTURE_ALLOCATION 400
+//SAMSUNG CHANGES <<
 #define TILE_WIDTH 256
 #define TILE_HEIGHT 256
 #define LAYER_TILE_WIDTH 256

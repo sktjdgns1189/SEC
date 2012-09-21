@@ -1218,20 +1218,19 @@ void WebViewCore::contentInvalidate(const WebCore::IntRect &r)
         contentDraw();
 }
 
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press >>
+//SAMSUNG CHANGE: MPSG100003899, MPSG100005262 >>
 void WebViewCore::recalcWidthAndForceLayout()
 {
     if(!m_mainFrame->document()){
+        DBG_SET_LOG("!m_mainFrame->document()");		
         return;
     }
-    if(!m_mainFrame->document()->isXHTMLDocument()) {
-        return;
-    }
+
     WebCore::FrameView* view = m_mainFrame->view();
     m_mainFrame->contentRenderer()->setNeedsLayoutAndPrefWidthsRecalc();
     view->forceLayout();
 }
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press <<
+//SAMSUNG CHANGE <<
 
 void WebViewCore::contentInvalidateAll()
 {
@@ -7275,12 +7274,25 @@ static void Click(JNIEnv *env, jobject obj, int framePtr, int nodePtr, jboolean 
     viewImpl->click(reinterpret_cast<WebCore::Frame*>(framePtr),
         reinterpret_cast<WebCore::Node*>(nodePtr), fake);
 }
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press >>
+//SAMSUNG CHANGE: MPSG100003899, MPSG100005262 >>
 static void RecalcWidthAndForceLayout(JNIEnv *env, jobject obj)
 {
-    GET_NATIVE_VIEW(env, obj)->recalcWidthAndForceLayout();
+    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+
+    WebCore::Settings* s = viewImpl->mainFrame()->page()->settings();
+    if (!s) {
+        DBG_SET_LOG("!viewImpl->mainFrame()->page()->settings()");		
+        return;	
+    }
+
+    //recalculate width and force layout only for mobile pages	
+    if(0 == s->viewportWidth()) {
+        DBG_SET_LOG("Do recalcWidthAndForceLayout");		
+        viewImpl->recalcWidthAndForceLayout();
+    }
 }
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press <<
+//SAMSUNG CHANGE <<
 static void ContentInvalidateAll(JNIEnv *env, jobject obj)
 {
     GET_NATIVE_VIEW(env, obj)->contentInvalidateAll();
@@ -8947,10 +8959,10 @@ static JNINativeMethod gJavaWebViewCoreMethods[] = {
      (void*) SelectClosestWord },
     { "nativeGetSelectedText", "()Ljava/lang/String;",
         (void*) GetSelectedText },
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press >>
+//SAMSUNG CHANGE: MPSG100003899, MPSG100005262 >>
     { "nativeRecalcWidthAndForceLayout", "()V",
      (void*) RecalcWidthAndForceLayout },
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press <<
+//SAMSUNG CHANGE <<
 // Adding for Multicolumn text selection - Begin     
     { "nativeGetSelectionMultiColInfo", "()Z",
      (void*) GetSelectionMultiColInfo },

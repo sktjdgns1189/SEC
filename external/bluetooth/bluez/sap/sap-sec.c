@@ -35,11 +35,6 @@
 #include "log.h"
 #include "sap.h"
 
-#include <ril.h>
-#include <secril-client.h>
-#include <Oem_ril_sap.h>
-//#include <oemril.h>
-
 #define SAP_SEC_IFACE "org.bluez.SimAccessSec"
 #define SAP_SEC_PATH "/org/bluez/sapsec"
 
@@ -57,6 +52,30 @@ static void *sap_data = NULL;  /* SAP server private data.*/
 static gboolean ongoing_call_status = FALSE;
 static int max_msg_size_supported = 512;
 
+#define RIL_OEM_UNSOL_RESPONSE_BASE 11000
+#define RIL_UNSOL_SAP (RIL_OEM_UNSOL_RESPONSE_BASE + 13)
+
+#define RIL_REQUEST_OEM_HOOK_RAW 59
+
+struct RilClient {
+    void *prv;
+};
+
+typedef struct RilClient * HRilClient;
+
+#define RIL_CLIENT_ERR_SUCCESS      0
+#define RIL_CLIENT_ERR_AGAIN        1
+#define RIL_CLIENT_ERR_INIT         2   // Client is not initialized
+#define RIL_CLIENT_ERR_INVAL        3   // Invalid value
+#define RIL_CLIENT_ERR_CONNECT      4   // Connection error
+#define RIL_CLIENT_ERR_IO           5   // IO error
+#define RIL_CLIENT_ERR_RESOURCE     6   // Resource not available
+#define RIL_CLIENT_ERR_UNKNOWN      7
+
+typedef int (*RilOnComplete)(HRilClient handle, const void *data, size_t datalen);
+typedef int (*RilOnUnsolicited)(HRilClient handle, const void *data, size_t datalen);
+typedef int (*RilOnError)(void *data, int error);
+
 /*ril related variables*/
 static HRilClient ril_client = NULL;
 static RilOnComplete req_handler = NULL;
@@ -64,6 +83,73 @@ static RilOnUnsolicited unsol_handler = NULL;
 static RilOnError err_handler = NULL;
 static gboolean ril_connected = FALSE;
 static char err_buf[128];
+
+#define OEM_FUNCTION_ID_SAP								0x14
+
+#define OEM_SAP_CONNECT									0x01
+#define OEM_SAP_STATUS									0x02
+#define OEM_SAP_READER_STATUS							0x03
+#define OEM_SAP_SIM_POWER								0x04
+#define OEM_SAP_TRANSFER_ATR							0x05
+#define OEM_SAP_TRANSFER_APDU							0x06
+#define OEM_SAP_SET_PROTOCOL							0x07
+
+#define MAX_MSG_SIZE									512	
+
+typedef struct {
+	uint8_t		func_id;
+	uint8_t		cmd;
+	uint16_t	len;
+} __attribute__((packed)) oem_ril_sap_hdr;
+
+typedef struct {    
+	uint16_t 	apdu_len;
+	uint8_t 	apdu[MAX_MSG_SIZE];	
+} __attribute__((packed)) ril_sap_req_transfer_apdu;
+
+typedef struct {    
+    uint8_t 	msg_id;
+    uint8_t 	connection_status;
+    uint16_t 	max_msg_size;
+} __attribute__((packed)) ril_sap_res_connect;
+
+typedef struct {    
+    uint8_t 	sap_status;  
+} __attribute__((packed)) ril_sap_res_sap_status;
+
+typedef struct {    
+    uint8_t 	result_code; 
+	uint16_t 	atr_len;
+	uint8_t atr[MAX_MSG_SIZE];	
+} __attribute__((packed)) ril_sap_res_transfer_atr;
+
+typedef struct {    
+    uint8_t 	result_code; 
+	uint16_t 	res_apdu_len;
+	uint8_t res_apdu[MAX_MSG_SIZE];	
+} __attribute__((packed)) ril_sap_res_transfer_apdu;
+
+typedef struct {    
+    uint8_t 	result_code;  
+} __attribute__((packed)) ril_sap_res_transport_protocol;
+
+typedef struct {    
+	uint8_t 	msg_id;
+    uint8_t 	result_code;  
+} __attribute__((packed)) ril_sap_res_sim_power;
+
+typedef struct {    	
+    uint8_t 	result_code;  
+	uint8_t 	card_reader_status;
+} __attribute__((packed)) ril_sap_res_card_reader_status;
+
+typedef struct {
+	uint8_t		disconnect_type;
+} __attribute__((packed)) unsol_sap_connect;
+
+typedef struct {
+	uint8_t		card_status;
+} __attribute__((packed)) unsol_sap_status;
 
 void com_samsung_ril_client_sap_handle_request(int id);
 static void sendSapReq(char cmd, char msgId);
@@ -78,7 +164,6 @@ static int handleSapStatusNoti(unsol_sap_status *noti);
 static int handleSapStatusRes(ril_sap_res_sap_status *rsp);
 static int handleSapSimPowerRes(ril_sap_res_sim_power *rsp);
 static int handleSapReaderStatusRes(ril_sap_res_card_reader_status *rsp);
-
 
 /*I had to go for this variable, do I have a better choice?*/
 void *sap_device_needed;
@@ -321,37 +406,37 @@ void com_samsung_ril_client_sap_handle_request(int id)
     // connect Req ..
     case SAPS_RIL_SIM_CONNECT_EVT:
         DBG("SAPS_RIL_SIM_CONNECT_EVT ");
-        sendSapReq(OEM_SAP_CONNECT, OEM_SAP_CONNECT_REQ);
+        sendSapReq(OEM_SAP_CONNECT, SAP_CONNECT_REQ);
         break;
     // disconnect Req ..
     case SAPS_RIL_SIM_DISCONNECT_EVT:
         DBG("SAPS_RIL_SIM_DISCONNECT_EVT ");
-        sendSapReq(OEM_SAP_CONNECT, OEM_SAP_DISCONNECT_REQ);
+        sendSapReq(OEM_SAP_CONNECT, SAP_DISCONNECT_REQ);
         break;
     // Transfer ATR Req ..
     case SAPS_RIL_SIM_ATR_EVT:
         DBG("SAPS_RIL_SIM_ATR_EVT ");
-        sendSapReq(OEM_SAP_TRANSFER_ATR, OEM_SAP_TRANSFER_ATR_REQ);
+        sendSapReq(OEM_SAP_TRANSFER_ATR, SAP_TRANSFER_ATR_REQ);
         break;
     // SIM OFF ..
     case SAPS_RIL_SIM_OFF_EVT:
         DBG("SAPS_RIL_SIM_OFF_EVT ");
-        sendSapReq(OEM_SAP_SIM_POWER, OEM_SAP_POWER_SIM_OFF_REQ);
+        sendSapReq(OEM_SAP_SIM_POWER, SAP_POWER_SIM_OFF_REQ);
         break;
     // SIM ON..
     case SAPS_RIL_SIM_ON_EVT:
         DBG("SAPS_RIL_SIM_ON_EVT ");
-        sendSapReq(OEM_SAP_SIM_POWER, OEM_SAP_POWER_SIM_ON_REQ);
+        sendSapReq(OEM_SAP_SIM_POWER, SAP_POWER_SIM_ON_REQ);
         break;
     // SIM RESET ..
     case SAPS_RIL_SIM_RESET_EVT:
         DBG("SAPS_RIL_SIM_RESET_EVT ");
-        sendSapReq(OEM_SAP_SIM_POWER, OEM_SAP_RESET_SIM_REQ);
+        sendSapReq(OEM_SAP_SIM_POWER, SAP_RESET_SIM_REQ);
         break;
     // CARD READER STATUS ..
     case SAPS_RIL_SIM_CARD_READER_STATUS_EVT:
         DBG("SAPS_RIL_SIM_CARD_READER_STATUS_EVT ");
-        sendSapReq(OEM_SAP_READER_STATUS, OEM_SAP_TRANSFER_CARD_READER_STATUS_REQ);
+        sendSapReq(OEM_SAP_READER_STATUS, SAP_TRANSFER_CARD_READER_STATUS_REQ);
         break;
     //Transfer APDU req ..
     case SAPS_RIL_SIM_APDU_EVT:
@@ -476,14 +561,14 @@ static int handleSapConnectRes(ril_sap_res_connect *rsp)
         rsp->msg_id, rsp->connection_status, rsp->max_msg_size);
 
     switch (rsp->msg_id) {
-        case OEM_SAP_CONNECT_RESP:
+        case SAP_CONNECT_RESP:
             switch (rsp->connection_status) {
-                case OEM_SAP_CONNECT_OK:
+                case SAP_STATUS_OK:
                     DBG("SIM card connected ok. max_msg_size = %d",rsp->max_msg_size);
                     break;
-                case OEM_SAP_CONNECT_UNABLE_ESTABLISH:
-                case OEM_SAP_CONNECT_NOT_SUPPORT_MAX_SIZE:
-                case OEM_SAP_CONNECT_TOO_SMALL_MAX_SIZE:
+                case SAP_STATUS_CONNECTION_FAILED:
+                case SAP_STATUS_MAX_MSG_SIZE_NOT_SUPPORTED:
+                case SAP_STATUS_MAX_MSG_SIZE_TOO_SMALL:
                     DBG("SIM card connection failed, connection_status = %d",
                         rsp->connection_status);
                     DBG("Send gracefully disconnect command to BTA");
@@ -495,17 +580,17 @@ static int handleSapConnectRes(ril_sap_res_connect *rsp)
                     break;
                 }
                 break;
-        case OEM_SAP_DISCONNECT_RESP:
+        case SAP_DISCONNECT_RESP:
             DBG("SIM card disconnection, connection_status = %d",rsp->connection_status);
         break;
     }
 
-    if(rsp->msg_id == OEM_SAP_CONNECT_RESP){
+    if(rsp->msg_id == SAP_CONNECT_RESP){
         sap_connect_rsp(sap_device_needed, rsp->connection_status,
             rsp->max_msg_size);
         sap_reset_sim_req(sap_device_needed);
         sap_status_ind(sap_device_needed, SAP_STATUS_CHANGE_CARD_RESET);
-    } else if(rsp->msg_id == OEM_SAP_DISCONNECT_RESP){
+    } else if(rsp->msg_id == SAP_DISCONNECT_RESP){
         sap_disconnect_rsp(sap_device_needed);
     }
 
@@ -576,13 +661,13 @@ static int handleSapSimPowerRes(ril_sap_res_sim_power *rsp)
 		rsp->msg_id, rsp->result_code);
 
     switch (rsp->msg_id) {
-        case OEM_SAP_POWER_SIM_OFF_RESP:
+        case SAP_POWER_SIM_OFF_RESP:
             sap_power_sim_off_rsp(sap_device_needed, rsp->result_code);
             break;
-        case OEM_SAP_POWER_SIM_ON_RESP:
+        case SAP_POWER_SIM_ON_RESP:
             sap_power_sim_on_rsp(sap_device_needed,rsp->result_code);
             break;
-        case OEM_SAP_RESET_SIM_RESP:
+        case SAP_RESET_SIM_RESP:
             sap_reset_sim_rsp(sap_device_needed, rsp->result_code);
 			       break;
         default:

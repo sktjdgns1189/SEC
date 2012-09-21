@@ -48,6 +48,8 @@
 #define WM8994_NUM_DRC 3
 #define WM8994_NUM_EQ  3
 
+extern int get_sec_debug_level(void);
+
 static int wm8994_drc_base[] = {
 	WM8994_AIF1_DRC1_1,
 	WM8994_AIF1_DRC2_1,
@@ -199,6 +201,15 @@ static int wm8994_write(struct snd_soc_codec *codec, unsigned int reg,
 	int ret;
 
 	BUG_ON(reg > WM8994_MAX_REGISTER);
+
+	if ((reg == WM8994_GPIO_1) && (value != WM8994_GP_FN_IRQ)) {
+		if (get_sec_debug_level())
+			panic("INVALID Register: Funciton Write Fail");
+		else {
+			dev_err(codec->dev, "Invalide Register 700\n");
+			return 0;
+		}
+	}
 
 	if (!wm8994_volatile(codec, reg)) {
 		ret = snd_soc_cache_write(codec, reg, value);
@@ -2392,6 +2403,20 @@ static int opclk_divs[] = { 10, 20, 30, 40, 55, 60, 80, 120, 160 };
 static int wm8994_set_fll(struct snd_soc_dai *dai, int id, int src,
 			  unsigned int freq_in, unsigned int freq_out)
 {
+#if 1
+	/* EarJack Workaround for test, 2012-08-09 */
+	struct snd_soc_codec *codec = dai->codec;
+	unsigned int val = 0;
+
+	val = snd_soc_read(codec, WM8994_GPIO_1);
+	dev_info(codec->dev, "%s: gp1 val[%#x]\n", __func__, val);
+
+	if ((val & WM8994_GPN_FN_MASK) != WM8994_GP_FN_IRQ) {
+		dev_err(codec->dev, "%s: val[%#x]\n", __func__, val);
+		snd_soc_write(codec, WM8994_GPIO_1, WM8994_GP_FN_IRQ);
+	}
+#endif
+
 	return _wm8994_set_fll(dai->codec, id, src, freq_in, freq_out);
 }
 
@@ -3592,6 +3617,8 @@ static irqreturn_t wm1811_jackdet_irq(int irq, void *data)
 	int reg;
 	bool present;
 
+	dev_info(codec->dev, "%s() ++\n", __func__);
+
 	mutex_lock(&wm8994->accdet_lock);
 
 	reg = snd_soc_read(codec, WM1811_JACKDET_CTRL);
@@ -3601,12 +3628,12 @@ static irqreturn_t wm1811_jackdet_irq(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	dev_dbg(codec->dev, "JACKDET %x\n", reg);
+	dev_info(codec->dev, "JACKDET %x\n", reg);
 
 	present = reg & WM1811_JACKDET_LVL;
 
 	if (present) {
-		dev_dbg(codec->dev, "Jack detected\n");
+		dev_info(codec->dev, "Jack detected\n");
 
 		wm8958_micd_set_rate(codec);
 
@@ -3627,7 +3654,7 @@ static irqreturn_t wm1811_jackdet_irq(int irq, void *data)
 		snd_soc_update_bits(codec, WM8958_MIC_DETECT_1,
 				    WM8958_MICD_ENA, WM8958_MICD_ENA);
 	} else {
-		dev_dbg(codec->dev, "Jack not detected\n");
+		dev_info(codec->dev, "Jack not detected\n");
 
 		snd_soc_update_bits(codec, WM8958_MICBIAS2,
 				    WM8958_MICB2_DISCH, WM8958_MICB2_DISCH);
@@ -3666,6 +3693,8 @@ static irqreturn_t wm1811_jackdet_irq(int irq, void *data)
 		snd_soc_jack_report(wm8994->micdet[0].jack, 0,
 				    SND_JACK_MECHANICAL | SND_JACK_HEADSET |
 				    wm8994->btn_mask);
+
+	dev_info(codec->dev, "%s() --\n", __func__);
 
 	return IRQ_HANDLED;
 }
@@ -3770,6 +3799,8 @@ static irqreturn_t wm8958_mic_irq(int irq, void *data)
 	struct snd_soc_codec *codec = wm8994->codec;
 	int reg, count;
 
+	dev_info(codec->dev, "%s() ++\n", __func__);
+
 	/*
 	 * Jack detection may have detected a removal simulataneously
 	 * with an update of the MICDET status; if so it will have
@@ -3802,6 +3833,8 @@ static irqreturn_t wm8958_mic_irq(int irq, void *data)
 		msleep(1);
 	} while (count--);
 
+	dev_info(codec->dev, "%s() before callback\n", __func__);
+
 	if (count == 0)
 		dev_warn(codec->dev, "No impedence range reported for jack\n");
 
@@ -3815,6 +3848,7 @@ static irqreturn_t wm8958_mic_irq(int irq, void *data)
 		dev_warn(codec->dev, "Accessory detection with no callback\n");
 
 out:
+	dev_info(codec->dev, "%s() --\n", __func__);
 	return IRQ_HANDLED;
 }
 

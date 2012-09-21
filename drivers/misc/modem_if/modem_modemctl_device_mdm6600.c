@@ -264,6 +264,42 @@ int mdm6600_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 #define PIF_TIMEOUT		(180 * HZ)
 #define DPRAM_INIT_TIMEOUT	(30 * HZ)
 
+#if defined(CONFIG_MACH_M0_DUOSCTC)
+static void mdm6600_vbus_on(void)
+{
+	struct regulator *regulator;
+
+	pr_info("[MSM] <%s>\n", __func__);
+
+	regulator = regulator_get(NULL, "vusbhub_osc_1.8v");
+	if (IS_ERR(regulator)) {
+		pr_err("[MSM] error getting regulator_get <%s>\n", __func__);
+		return ;
+	}
+	regulator_enable(regulator);
+	regulator_put(regulator);
+
+	pr_info("[MSM] <%s> enable\n", __func__);
+}
+
+static void mdm6600_vbus_off(void)
+{
+	struct regulator *regulator;
+
+	pr_info("[MSM] <%s>\n", __func__);
+
+	regulator = regulator_get(NULL, "vusbhub_osc_1.8v");
+	if (IS_ERR(regulator)) {
+		pr_err("[MSM] error getting regulator_get <%s>\n", __func__);
+		return ;
+	}
+	regulator_disable(regulator);
+	regulator_put(regulator);
+
+	pr_info("[MSM] <%s> disable\n", __func__);
+}
+#endif
+
 static int mdm6600_on(struct modem_ctl *mc)
 {
 	struct link_device *ld = get_current_link(mc->iod);
@@ -341,6 +377,10 @@ static int mdm6600_boot_on(struct modem_ctl *mc)
 		pr_err("[MSM] no gpio data\n");
 		return -ENXIO;
 	}
+
+#if defined(CONFIG_MACH_M0_DUOSCTC)
+	mdm6600_vbus_on();
+#endif
 
 	pr_info("[MSM] <%s> %s\n", __func__, "USB_BOOT_EN initializing");
 
@@ -442,6 +482,10 @@ static int mdm6600_boot_off(struct modem_ctl *mc)
 		pr_err("[MSM] no gpio data\n");
 		return -ENXIO;
 	}
+
+#if defined(CONFIG_MACH_M0_DUOSCTC)
+	mdm6600_vbus_off();
+#endif
 
 	if (system_rev < 11) {
 		gpio_direction_output(GPIO_USB_BOOT_EN, 0);
@@ -564,6 +608,22 @@ static irqreturn_t phone_active_irq_handler(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
+#if defined(CONFIG_SIM_DETECT)
+static irqreturn_t sim_detect_irq_handler(int irq, void *_mc)
+{
+	struct modem_ctl *mc = (struct modem_ctl *)_mc;
+
+	pr_info("[MSM] <%s> gpio_sim_detect = %d\n",
+		__func__, mc->gpio_sim_detect);
+
+	if (mc->iod && mc->iod->sim_state_changed)
+		mc->iod->sim_state_changed(mc->iod,
+		!gpio_get_value(mc->gpio_sim_detect));
+
+	return IRQ_HANDLED;
+}
+#endif
+
 static void mdm6600_get_ops(struct modem_ctl *mc)
 {
 	mc->ops.modem_on = mdm6600_on;
@@ -617,6 +677,36 @@ int mdm6600_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 		free_irq(mc->irq_phone_active, mc);
 		return ret;
 	}
+
+#if defined(CONFIG_SIM_DETECT)
+	mc->irq_sim_detect = platform_get_irq_byname(pdev, "sim_irq");
+	pr_info("[MSM] <%s> SIM_DECTCT IRQ# = %d\n",
+		__func__, mc->irq_sim_detect);
+
+	if (mc->irq_sim_detect) {
+		ret = request_irq(mc->irq_sim_detect, sim_detect_irq_handler,
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+			"msm_sim_detect", mc);
+		if (ret) {
+			mif_err("[MSM] failed to request_irq: %d\n", ret);
+			mc->sim_state.online = false;
+			mc->sim_state.changed = false;
+			return ret;
+		}
+
+		ret = enable_irq_wake(mc->irq_sim_detect);
+		if (ret) {
+			mif_err("[MSM] failed to enable_irq_wake: %d\n", ret);
+			free_irq(mc->irq_sim_detect, mc);
+			mc->sim_state.online = false;
+			mc->sim_state.changed = false;
+			return ret;
+		}
+
+		/* initialize sim_state => insert: gpio=0, remove: gpio=1 */
+		mc->sim_state.online = !gpio_get_value(mc->gpio_sim_detect);
+	}
+#endif
 
 	return ret;
 }

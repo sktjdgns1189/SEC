@@ -176,8 +176,8 @@ LOCAL_C_INCLUDES := \
 	external/zlib \
 	frameworks/base/core/jni/android/graphics \
 	frameworks/base/include \
-  vendor/samsung/feature/CscFeature/libsecnativefeature \
-  vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   
+       vendor/samsung/feature/CscFeature/libsecnativefeature \
+       vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   
 
 # Add Source/ for the include of <JavaScriptCore/config.h> from WebCore/config.h
 LOCAL_C_INCLUDES := $(LOCAL_C_INCLUDES) \
@@ -407,8 +407,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libEGL \
 	libGLESv2 \
 	libgui \
-	libz 
-#	libsecnativefeature 
+	libz #\
+#OSS_C1	libsecnativefeature 
 
 ifeq ($(PLATFORM_VERSION),3.1.4.1.5.9.2.6.5)
 LOCAL_SHARED_LIBRARIES += libsurfaceflinger_client

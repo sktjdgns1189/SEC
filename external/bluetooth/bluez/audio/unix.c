@@ -228,8 +228,14 @@ static void stream_state_changed(struct avdtp_stream *stream,
 					void *user_data)
 {
 	struct unix_client *client = user_data;
-	struct a2dp_data *a2dp = &client->d.a2dp;
+	struct a2dp_data *a2dp;
 
+	if (!g_slist_find(clients, client)) {
+		DBG("Client disconnected");
+		return;
+	}
+
+	a2dp = &client->d.a2dp;
 	switch (new_state) {
 	case AVDTP_STATE_IDLE:
 		if (a2dp->sep) {
@@ -718,18 +724,20 @@ static void a2dp_discovery_complete(struct avdtp *session, GSList *seps,
 	struct unix_client *client = user_data;
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_get_capabilities_rsp *rsp = (void *) buf;
-	struct a2dp_data *a2dp = &client->d.a2dp;
+	struct a2dp_data *a2dp;
 
 	if (!g_slist_find(clients, client)) {
 		DBG("Client disconnected during discovery");
 		return;
 	}
 
+	a2dp = &client->d.a2dp;
+	client->req_id = 0;
+
 	if (err)
 		goto failed;
 
 	memset(buf, 0, sizeof(buf));
-	client->req_id = 0;
 
 	rsp->h.type = BT_RESPONSE;
 	rsp->h.name = BT_GET_CAPABILITIES;
@@ -816,12 +824,18 @@ static void a2dp_config_complete(struct avdtp *session, struct a2dp_sep *sep,
 	struct unix_client *client = user_data;
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_set_configuration_rsp *rsp = (void *) buf;
-	struct a2dp_data *a2dp = &client->d.a2dp;
+	struct a2dp_data *a2dp;
 	uint16_t imtu, omtu;
 	GSList *caps;
 #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
 	struct avdtp_service_capability *protection_cap;
 #endif
+
+	if (!g_slist_find(clients, client)) {
+		DBG("Some old cb. Shouldnt happen as we do cancel in free");
+		return;
+	}
+	a2dp = &client->d.a2dp;
 	client->req_id = 0;
 
 	if (err)
@@ -835,7 +849,7 @@ static void a2dp_config_complete(struct avdtp *session, struct a2dp_sep *sep,
 	if (client->cb_id > 0)
 		avdtp_stream_remove_cb(a2dp->session, a2dp->stream,
 								client->cb_id);
-
+	client->cb_id = 0;
 	a2dp->sep = sep;
 	a2dp->stream = stream;
 
@@ -861,9 +875,9 @@ static void a2dp_config_complete(struct avdtp *session, struct a2dp_sep *sep,
 	if (protection_cap != NULL) {
 		if (protection_cap->length >= 2) {
 			struct avdtp_cp_cap *prot = (void *)protection_cap->data;
-
 			rsp->content_protection = (prot->cp_type_msb << 8) | prot->cp_type_lsb;
 		}
+		rsp->content_protection = 2; //This is SET to SCMS-T if the protection capability is received
 	}
 #endif
 
@@ -899,12 +913,15 @@ static void a2dp_resume_complete(struct avdtp *session,
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_start_stream_rsp *rsp = (void *) buf;
 	struct bt_new_stream_ind *ind = (void *) buf;
-	struct a2dp_data *a2dp = &client->d.a2dp;
+	struct a2dp_data *a2dp;
 
 	if (!g_slist_find(clients, client)) {
-		error("Some old cb. Shouldnt happen as we do cancel in free");
+		DBG("Some old cb. Shouldnt happen as we do cancel in free");
 		return;
 	}
+
+	a2dp = &client->d.a2dp;
+	client->req_id = 0;
 
 	if (err)
 		goto failed;
@@ -957,6 +974,13 @@ static void a2dp_suspend_complete(struct avdtp *session,
 	struct unix_client *client = user_data;
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_stop_stream_rsp *rsp = (void *) buf;
+
+	if (!g_slist_find(clients, client)) {
+		DBG("Some old cb. Shouldnt happen as we do cancel in free");
+		return;
+	}
+
+	client->req_id = 0;
 
 	if (err)
 		goto failed;
@@ -1028,6 +1052,11 @@ static void open_complete(struct audio_device *dev, void *user_data)
 	struct unix_client *client = user_data;
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_open_rsp *rsp = (void *) buf;
+
+	if (!g_slist_find(clients, client)) {
+		DBG("Client disconnected during discovery");
+		return;
+	}
 
 	memset(buf, 0, sizeof(buf));
 
@@ -1335,7 +1364,7 @@ static void start_suspend(struct audio_device *dev, struct unix_client *client)
 		error("No known services for device");
 		goto failed;
 	}
-
+	client->req_id = id;
 	if (id == 0) {
 		error("suspend failed");
 		goto failed;
@@ -1352,11 +1381,16 @@ failed:
 	unix_ipc_error(client, BT_STOP_STREAM, EIO);
 }
 
-static void close_complete(struct audio_device *dev, void *user_data)
+static gboolean close_complete(void *user_data)
 {
 	struct unix_client *client = user_data;
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_close_rsp *rsp = (void *) buf;
+
+	if (!g_slist_find(clients, client)) {
+		DBG("Client disconnected");
+		return FALSE;
+	}
 
 	memset(buf, 0, sizeof(buf));
 
@@ -1366,7 +1400,8 @@ static void close_complete(struct audio_device *dev, void *user_data)
 
 	unix_ipc_sendmsg(client, &rsp->h);
 
-	return;
+	// return FALSE in order to make it a one time timeout handler
+	return FALSE;
 }
 
 static void start_close(struct audio_device *dev, struct unix_client *client,
@@ -1416,9 +1451,20 @@ static void start_close(struct audio_device *dev, struct unix_client *client,
 	if (!reply)
 		return;
 
-	close_complete(dev, client);
-	client->dev = NULL;
+	if (client->req_id && client->cancel) {
+		client->cancel(client->dev, client->req_id);
+		client->req_id = 0;
+		/* Cancel initiates abort req, which will not be notified
+		* over callback. The abort cfm operation will clean SEP
+		* after which client free is expected for proper opertion.
+		* This cancel operation is must in failure cases as the
+		* callback registered with a2dp.c can be called at later
+		* point of time.*/
+		g_timeout_add(500, close_complete, client);
+	} else
+		close_complete(client);
 
+	client->dev = NULL;
 	return;
 
 failed:
@@ -1869,6 +1915,11 @@ static gboolean client_cb(GIOChannel *chan, GIOCondition cond, gpointer data)
 		DBG("Unix client disconnected (fd=%d)", client->sock);
 
 		goto failed;
+	}
+
+	if (!g_slist_find(clients, client)) {
+		DBG("Some old cb, can be some client running ");
+		return FALSE;
 	}
 
 	memset(buf, 0, sizeof(buf));

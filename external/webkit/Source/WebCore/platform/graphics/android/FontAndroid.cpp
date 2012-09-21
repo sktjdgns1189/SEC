@@ -48,7 +48,7 @@
 #include <ThaiReshaper.h>
 #endif
 
-//#include "SecNativeFeature.h"			// OSS_C1
+//OSS_C1 #include "SecNativeFeature.h"
 
 #ifdef SUPPORT_COMPLEX_SCRIPTS
 #include "HarfbuzzSkia.h"
@@ -575,8 +575,7 @@ TextRunWalker::TextRunWalker(const TextRun& run, unsigned startingX, const Font*
 
     m_item.item.bidiLevel = m_run.rtl();
 //SNMC_HindiOverlapIssue_P120227-5355_FIX_Start
-// OSS_C1
-#if 0
+	/*OSS_C1
     if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLEHARFBUZZ)) {
         removeJunkChars();
     }
@@ -587,12 +586,11 @@ TextRunWalker::TextRunWalker(const TextRun& run, unsigned startingX, const Font*
        //SNMC_Thai reshaping issue in Email and Browser FIX_end
     } 
 #endif
-    else
-#endif
-    	{
+    else{
         m_item.string = m_run.characters();
         m_item.stringLength = m_run.length();
     }
+	OSS_C1*/
 //SNMC_HindiOverlapIssue_P120227-5355_FIX_Start		
     reset();
 }

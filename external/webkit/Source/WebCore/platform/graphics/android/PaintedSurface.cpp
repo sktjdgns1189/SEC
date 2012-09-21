@@ -56,6 +56,7 @@
 #define MAX_UNCLIPPED_AREA 4194304
 //SAMSUNG CHANGES >>
 #define MAX_TRANSFORM_LAYER_HEIGHT (5 * 1024)
+#define MIN_TRANSFORM_LAYER_HEIGHT (2 * 1024)
 #define LAYER_PREFETCH_HEIGHT_FACTOR 2
 #define MAX_MOBILESITE_UNCLIPPED_AREA 393216
 //SAMSUNG CHANGES <<
@@ -243,7 +244,7 @@ IntRect PaintedSurface::computePrepareArea(LayerAndroid* layer) {
         // handle prepare area separately for mobile sites
     	if (layer->state()->isMobileSite() && layer->state()->layersRenderingMode() == GLWebViewState::kClippedTextures 
             && !layer->contentIsScrollable() && layer->drawTransform()->isIdentityOrTranslation()) {
-	        IntRect VisArea;
+	        IntRect VisArea, oldArea;
 	        VisArea = layer->visibleArea();
 		    area = layer->unclippedArea();
 		    area.setWidth(VisArea.width());
@@ -251,9 +252,12 @@ IntRect PaintedSurface::computePrepareArea(LayerAndroid* layer) {
 		    double VisTotal = ((double) VisArea.width()) * ((double) VisArea.height());
 		    area.setX(VisArea.x());
 		    area.setY(0);
-		    if (area.height() < (MAX_TRANSFORM_LAYER_HEIGHT)) {
+		    // SAMSUNG CHANGE : modified the exsisting code for issue ID MPSG100005096
+		    oldArea = area;
+		    if (area.height() > MIN_TRANSFORM_LAYER_HEIGHT) {
 		    	area = VisArea;
-		    } else {
+			if((VisArea.y() == 0) && (area.height() < (MAX_TRANSFORM_LAYER_HEIGHT))) {
+			    area = oldArea;
 		 	    int y, height;
 			    height = area.height()/5;
 			    y = VisArea.y() - height;
@@ -262,7 +266,9 @@ IntRect PaintedSurface::computePrepareArea(LayerAndroid* layer) {
 			    }
 			    area.setY(y);
 			    area.setHeight(height * LAYER_PREFETCH_HEIGHT_FACTOR);
+			}
 		    }
+    		    // SAMSUNG CHANGE : modified the exsisting code for issue ID MPSG100005096 end
 		} else {
 			area = layer->visibleArea();
 		}

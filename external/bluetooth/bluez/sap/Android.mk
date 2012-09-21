@@ -1,7 +1,6 @@
-LOCAL_PATH:= $(call my-dir)
+ifeq ($(USE_BLUETOOTH_SAP),true)
 
-# Relative path from <mydroid> to ril
-RIL_BT_INC_ROOT_PATH := $(LOCAL_PATH)/../../../../hardware/ril
+LOCAL_PATH:= $(call my-dir)
 
 # sap plugin
 
@@ -23,9 +22,6 @@ LOCAL_C_INCLUDES:= \
 	$(LOCAL_PATH)/../gdbus \
 	$(call include-path-for, glib) \
 	$(call include-path-for, dbus) \
-	$(RIL_BT_INC_ROOT_PATH)/include/telephony/ \
-	$(RIL_BT_INC_ROOT_PATH)/libsecril-client/ \
-	$(RIL_BT_INC_ROOT_PATH)/secril_multi/
 
 LOCAL_SHARED_LIBRARIES := \
 	libbluetoothd \
@@ -34,7 +30,9 @@ LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	libdbus \
 	libglib \
-	libsecril-client \
+
+LOCAL_SHARED_LIBRARIES += \
+	libsecril-client-sap
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/bluez-plugin
 LOCAL_UNSTRIPPED_PATH := $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/bluez-plugin
@@ -42,3 +40,5 @@ LOCAL_MODULE := sap
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+
+endif

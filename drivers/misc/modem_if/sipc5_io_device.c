@@ -132,40 +132,37 @@ static struct device_attribute attr_txlink =
 
 /**
  * rx_check_frame_cfg
- * @buff: pointer to the data
+ * @cfg: configuration field of a link layer header
  * @frm: pointer to the sipc5_frame_data buffer
  *
- * 1) Verifies the configuration field of a link layer header
- * 2) Checks whether or not an extended field exists
- * 3) Calculates and stores the length of a link layer header
+ * 1) Checks whether or not an extended field exists
+ * 2) Calculates the length of a link layer header
  *
- * Returns SIPC5_CONFIG_SIZE if no error or -EBADMSG if any error
+ * Returns the size of a link layer header
+ *
+ * Must be invoked only when the configuration field of the link layer header
+ * is validated with sipc5_start_valid() function
  */
-static int rx_check_frame_cfg(u8 *buff, struct sipc5_frame_data *frm)
+static int rx_check_frame_cfg(u8 cfg, struct sipc5_frame_data *frm)
 {
-	u8 config = buff[0];
+	frm->config = cfg;
 
-	if ((config & SIPC5_START_MASK) != SIPC5_START_MASK)
-		return -EBADMSG;
-
-	frm->config = config;
-	frm->hdr_len = SIPC5_MIN_HEADER_SIZE;
-
-	if (config & SIPC5_PADDING_EXIST)
+	if (likely(cfg & SIPC5_PADDING_EXIST))
 		frm->padding = true;
 
-	if (unlikely(config & SIPC5_EXT_FIELD_EXIST)) {
-		frm->ext_fld = true;
-		if (config & SIPC5_CTL_FIELD_EXIST) {
+	if (unlikely(cfg & SIPC5_EXT_FIELD_EXIST)) {
+		if (cfg & SIPC5_CTL_FIELD_EXIST) {
 			frm->ctl_fld = true;
 			frm->hdr_len = SIPC5_HEADER_SIZE_WITH_CTL_FLD;
 		} else {
 			frm->ext_len = true;
 			frm->hdr_len = SIPC5_HEADER_SIZE_WITH_EXT_LEN;
 		}
+	} else {
+		frm->hdr_len = SIPC5_MIN_HEADER_SIZE;
 	}
 
-	return SIPC5_CONFIG_SIZE;
+	return frm->hdr_len;
 }
 
 /**
@@ -187,14 +184,14 @@ static void rx_build_meta_data(struct link_device *ld,
 	u32 *sz32 = (u32 *)(frm->hdr + SIPC5_LEN_OFFSET);
 
 	frm->ch_id = frm->hdr[SIPC5_CH_ID_OFFSET];
-	frm->len = *sz16;
 
-	if (unlikely(frm->ext_fld)) {
-		if (frm->ctl_fld)
-			frm->control = frm->hdr[SIPC5_CTL_OFFSET];
-		else
-			frm->len = *sz32;
-	}
+	if (unlikely(frm->ext_len))
+		frm->len = *sz32;
+	else
+		frm->len = *sz16;
+
+	if (unlikely(frm->ctl_fld))
+		frm->control = frm->hdr[SIPC5_CTL_OFFSET];
 
 	frm->data_len = frm->len - frm->hdr_len;
 
@@ -231,17 +228,13 @@ static unsigned tx_build_link_header(struct sipc5_frame_data *frm,
 	frm->config = SIPC5_START_MASK;
 
 	if (iod->format == IPC_FMT && count > 2048) {
-		frm->ext_fld = true;
 		frm->ctl_fld = true;
-
 		frm->config |= SIPC5_EXT_FIELD_EXIST;
 		frm->config |= SIPC5_CTL_FIELD_EXIST;
 	}
 
 	if (iod->id >= SIPC5_CH_ID_RFS_0 && count > 0xFFFF) {
-		frm->ext_fld = true;
 		frm->ext_len = true;
-
 		frm->config |= SIPC5_EXT_FIELD_EXIST;
 	}
 
@@ -250,111 +243,39 @@ static unsigned tx_build_link_header(struct sipc5_frame_data *frm,
 
 	frm->ch_id = iod->id;
 
-	frm->hdr_len = sipc5_get_hdr_size(frm->config);
+	frm->hdr_len = sipc5_get_hdr_len(frm->config);
 	frm->data_len = count;
 	frm->len = frm->hdr_len + frm->data_len;
 
 	buff[SIPC5_CONFIG_OFFSET] = frm->config;
 	buff[SIPC5_CH_ID_OFFSET] = frm->ch_id;
 
-	if (frm->ext_fld) {
-		if (frm->ctl_fld) {
-			*sz16 = (u16)frm->len;
-			buff[SIPC5_CTL_OFFSET] = frm->control;
-		} else {
-			*sz32 = (u32)frm->len;
-		}
-	} else {
+	if (unlikely(frm->ext_len))
+		*sz32 = (u32)frm->len;
+	else
 		*sz16 = (u16)frm->len;
-	}
+
+	if (unlikely(frm->ctl_fld))
+		buff[SIPC5_CTL_OFFSET] = frm->control;
 
 	return frm->hdr_len;
 }
 
-/* Check and store link layer header, then alloc an skb */
-static int rx_header_from_serial(struct io_device *iod, struct link_device *ld,
-		u8 *buff, unsigned size, struct sipc5_frame_data *frm)
-{
-	char *link = ld->name;
-	int len = 0;
-
-	mif_debug("%s: size %d\n", link, size);
-
-	if (likely(!frm->config)) {
-		len = rx_check_frame_cfg(buff, frm);
-		if (len < 0) {
-			u8 cfg = buff[0];
-			mif_info("%s: ERR! wrong start (0x%02x)\n", link, cfg);
-			return len;
-		}
-
-		/* Copy the link layer header to the header buffer */
-		len = min(frm->hdr_len, size);
-		memcpy(frm->hdr, buff, len);
-	} else {
-		/* Copy the link layer header to the header buffer */
-		len = min((frm->hdr_len - frm->hdr_rcvd), size);
-		memcpy((frm->hdr + frm->hdr_rcvd), buff, len);
-	}
-
-	frm->hdr_rcvd += len;
-
-	mif_debug("%s: FRM hdr_len:%d, hdr_rcvd:%d\n",
-		link, frm->hdr_len, frm->hdr_rcvd);
-
-	if (frm->hdr_rcvd >= frm->hdr_len) {
-		struct sk_buff *skb;
-		rx_build_meta_data(ld, frm);
-		skb = rx_alloc_skb(frm->data_len, iod, ld);
-		fragdata(iod, ld)->skb_recv = skb;
-	}
-
-	return len;
-}
-
-/* copy data to skb */
-static int rx_payload_from_serial(struct io_device *iod, struct link_device *ld,
-		u8 *buff, unsigned size, struct sipc5_frame_data *frm)
-{
-	struct sk_buff *skb = fragdata(iod, ld)->skb_recv;
-	char *link = ld->name;
-	unsigned rest = frm->data_len - frm->data_rcvd;
-	unsigned len;
-
-	/* rest == (frm->data_len - frm->data_rcvd) == tailroom of skb */
-	rest = frm->data_len - frm->data_rcvd;
-	mif_debug("%s: FRM data.len:%d data.rcvd:%d rest:%d size:%d\n",
-		link, frm->data_len, frm->data_rcvd, rest, size);
-
-	/* If there is no skb, data must be dropped. */
-	len = min(rest, size);
-	if (skb)
-		memcpy(skb_put(skb, len), buff, len);
-
-	frm->data_rcvd += len;
-
-	mif_debug("%s: FRM data_len:%d, data_rcvd:%d\n",
-		link, frm->data_len, frm->data_rcvd);
-
-	return len;
-}
-
-static int rx_fmt_frame(struct sk_buff *skb, struct sipc5_frame_data *frm)
+static int rx_fmt_frame(struct sk_buff *skb)
 {
 	struct io_device *iod = skbpriv(skb)->iod;
 	struct link_device *ld = skbpriv(skb)->ld;
 	struct sk_buff_head *rxq = &iod->sk_rx_q;
 	struct sipc_fmt_hdr *fh;
 	struct sk_buff *rx_skb;
-	unsigned id;
-
-	id = frm->control & 0x7F;
+	u8 ctrl = skbpriv(skb)->control;
+	unsigned id = ctrl & 0x7F;
 
 	if (iod->skb[id] == NULL) {
 		/*
 		** There has been no multiple frame with this ID.
 		*/
-		if ((frm->control & 0x80) == 0) {
+		if ((ctrl & 0x80) == 0) {
 			/*
 			** It is a single frame because the "more" bit is 0.
 			*/
@@ -398,7 +319,7 @@ static int rx_fmt_frame(struct sk_buff *skb, struct sipc5_frame_data *frm)
 	memcpy(skb_put(rx_skb, skb->len), skb->data, skb->len);
 	dev_kfree_skb_any(skb);
 
-	if (frm->control & 0x80) {
+	if (ctrl & 0x80) {
 		/* The last frame has not arrived yet. */
 		mif_debug("%s: recv multi-frame (ID:%d rcvd:%d)\n",
 			iod->name, id, rx_skb->len);
@@ -442,6 +363,41 @@ static int rx_rfs_frame(struct sk_buff *skb)
 	wake_up(&iod->wq);
 
 	return 0;
+}
+
+static int rx_loopback(struct sk_buff *skb)
+{
+	struct io_device *iod = skbpriv(skb)->iod;
+	struct link_device *ld = get_current_link(iod);
+	struct sipc5_frame_data frm;
+	unsigned headroom;
+	unsigned tailroom = 0;
+	int ret;
+
+	headroom = tx_build_link_header(&frm, iod, ld, skb->len);
+
+	if (ld->aligned)
+		tailroom = sipc5_calc_padding_size(headroom + skb->len);
+
+	/* We need not to expand skb in here. dev_alloc_skb (in rx_alloc_skb)
+	 * already alloc 32bytes padding in headroom. 32bytes are enough.
+	 */
+
+	/* store IPC link header to start of skb
+	 * this is skb_push not skb_put. different with misc_write.
+	 */
+	memcpy(skb_push(skb, headroom), frm.hdr, headroom);
+
+	/* store padding */
+	if (tailroom)
+		skb_put(skb, tailroom);
+
+	/* forward */
+	ret = ld->send(ld, iod, skb);
+	if (ret < 0)
+		mif_err("%s->%s: ld->send fail: %d\n", iod->name,
+				ld->name, ret);
+	return ret;
 }
 
 static int rx_raw_misc(struct sk_buff *skb)
@@ -513,24 +469,24 @@ static int rx_multi_pdp(struct sk_buff *skb)
 	return ret;
 }
 
-static int rx_demux(struct link_device *ld, struct sk_buff *skb,
-		struct sipc5_frame_data *frm)
+static int rx_demux(struct link_device *ld, struct sk_buff *skb)
 {
 	struct io_device *iod = NULL;
 	char *link = ld->name;
+	u8 ch = skbpriv(skb)->ch_id;
 
-	if (unlikely(frm->ch_id >= SIPC5_CH_ID_MAX || frm->ch_id == 0)) {
-		mif_info("%s: ERR! invalid ch# %d\n", link, frm->ch_id);
+	if (unlikely(ch == SIPC5_CH_ID_MAX || ch == 0)) {
+		mif_info("%s: ERR! invalid ch# %d\n", link, ch);
 		return -ENODEV;
 	}
 
 	/* IP loopback */
-	if (frm->ch_id == DATA_LOOPBACK_CHANNEL && ld->msd->loopback_ipaddr)
-		frm->ch_id = RMNET0_CH_ID;
+	if (ch == DATA_LOOPBACK_CHANNEL && ld->msd->loopback_ipaddr)
+		ch = RMNET0_CH_ID;
 
-	iod = link_get_iod_with_channel(ld, frm->ch_id);
+	iod = link_get_iod_with_channel(ld, ch);
 	if (unlikely(!iod)) {
-		mif_info("%s: ERR! no iod for ch# %d\n", link, frm->ch_id);
+		mif_info("%s: ERR! no iod for ch# %d\n", link, ch);
 		return -ENODEV;
 	}
 
@@ -538,19 +494,93 @@ static int rx_demux(struct link_device *ld, struct sk_buff *skb,
 	skbpriv(skb)->iod = iod;
 	skbpriv(skb)->real_iod = iod;
 
+	/* don't care about CP2AP_LOOPBACK_CHANNEL is opened */
+	if (unlikely(iod->id == CP2AP_LOOPBACK_CHANNEL))
+		return rx_loopback(skb);
+
 	if (atomic_read(&iod->opened) <= 0) {
 		mif_info("%s: ERR! %s is not opened\n", link, iod->name);
 		return -ENODEV;
 	}
 
-	if (frm->ch_id >= SIPC5_CH_ID_RFS_0)
+	if (ch >= SIPC5_CH_ID_RFS_0)
 		return rx_rfs_frame(skb);
-	else if (frm->ch_id >= SIPC5_CH_ID_FMT_0)
-		return rx_fmt_frame(skb, frm);
+	else if (ch >= SIPC5_CH_ID_FMT_0)
+		return rx_fmt_frame(skb);
 	else if (iod->io_typ == IODEV_MISC)
 		return rx_raw_misc(skb);
 	else
 		return rx_multi_pdp(skb);
+}
+
+/* Check and store link layer header, then alloc an skb */
+static int rx_header_from_serial(struct io_device *iod, struct link_device *ld,
+		u8 *buff, unsigned size, struct sipc5_frame_data *frm)
+{
+	char *link = ld->name;
+	struct sk_buff *skb;
+	int len;
+	u8 cfg = buff[0];
+
+	mif_debug("%s: size %d\n", link, size);
+
+	if (!frm->config) {
+		if (unlikely(!sipc5_start_valid(cfg))) {
+			mif_info("%s: ERR! wrong start (0x%02x)\n", link, cfg);
+			return -EBADMSG;
+		}
+		rx_check_frame_cfg(cfg, frm);
+
+		/* Copy the link layer header to the header buffer */
+		len = min(frm->hdr_len, size);
+		memcpy(frm->hdr, buff, len);
+	} else {
+		/* Copy the link layer header to the header buffer */
+		len = min((frm->hdr_len - frm->hdr_rcvd), size);
+		memcpy((frm->hdr + frm->hdr_rcvd), buff, len);
+	}
+
+	frm->hdr_rcvd += len;
+
+	mif_debug("%s: FRM hdr_len:%d, hdr_rcvd:%d\n",
+		link, frm->hdr_len, frm->hdr_rcvd);
+
+	if (frm->hdr_rcvd >= frm->hdr_len) {
+		rx_build_meta_data(ld, frm);
+		skb = rx_alloc_skb(frm->data_len, iod, ld);
+		fragdata(iod, ld)->skb_recv = skb;
+		skbpriv(skb)->ch_id = frm->ch_id;
+		skbpriv(skb)->control = frm->control;
+	}
+
+	return len;
+}
+
+/* copy data to skb */
+static int rx_payload_from_serial(struct io_device *iod, struct link_device *ld,
+		u8 *buff, unsigned size, struct sipc5_frame_data *frm)
+{
+	struct sk_buff *skb = fragdata(iod, ld)->skb_recv;
+	char *link = ld->name;
+	unsigned rest = frm->data_len - frm->data_rcvd;
+	unsigned len;
+
+	/* rest == (frm->data_len - frm->data_rcvd) == tailroom of skb */
+	rest = frm->data_len - frm->data_rcvd;
+	mif_debug("%s: FRM data.len:%d data.rcvd:%d rest:%d size:%d\n",
+		link, frm->data_len, frm->data_rcvd, rest, size);
+
+	/* If there is no skb, data must be dropped. */
+	len = min(rest, size);
+	if (skb)
+		memcpy(skb_put(skb, len), buff, len);
+
+	frm->data_rcvd += len;
+
+	mif_debug("%s: FRM data_len:%d, data_rcvd:%d\n",
+		link, frm->data_len, frm->data_rcvd);
+
+	return len;
 }
 
 static int rx_frame_from_serial(struct io_device *iod, struct link_device *ld,
@@ -634,7 +664,7 @@ recv_data:
 	skb = fragdata(iod, ld)->skb_recv;
 	if (likely(skb)) {
 		mif_debug("%s: len:%d -> rx_demux()\n", link, skb->len);
-		err = rx_demux(ld, skb, frm);
+		err = rx_demux(ld, skb);
 		if (err < 0)
 			dev_kfree_skb_any(skb);
 	} else {
@@ -674,11 +704,9 @@ err_range:
  * @frm: pointer to the sipc5_frame_data buffer
  *
  * 1) Verifies a link layer header configuration of a frame
- * 2) Verifies the length of the link layer header
- * 3) Stores the link layer header to the header buffer
- * 4) Builds and stores the meta data of the frame into a meta data buffer
- * 5) Verifies the channel ID of the frame
- * 6) Verifies the length of the frame
+ * 2) Stores the link layer header to the header buffer
+ * 3) Builds and stores the meta data of the frame into a meta data buffer
+ * 4) Verifies the length of the frame
  *
  * Returns SIPC5 header length
  */
@@ -686,34 +714,21 @@ static int rx_header_from_mem(struct link_device *ld, u8 *buff, unsigned rest,
 		struct sipc5_frame_data *frm)
 {
 	char *link = ld->name;
-	int len;
+	u8 cfg = buff[0];
 
 	/* Verify link layer header configuration */
-	len = rx_check_frame_cfg(buff, frm);
-	if (unlikely(len < 0)) {
-		mif_info("%s: ERR! wrong start 0x%02x\n", link, buff[0]);
-		return len;
-	}
-
-	/* Verify header length */
-	len = frm->hdr_len;
-	if (unlikely(len > SIPC5_MAX_HEADER_SIZE)) {
-		mif_info("%s: ERR! wrong header length %d\n", link, len);
+	if (unlikely(!sipc5_start_valid(cfg))) {
+		mif_info("%s: ERR! wrong start (0x%02x)\n", link, cfg);
 		return -EBADMSG;
 	}
+	rx_check_frame_cfg(cfg, frm);
 
-	/* Copy the link layer header to the header buffer */
-	memcpy(frm->hdr, buff, len);
-	frm->hdr_rcvd = len;
+	/* Store the link layer header to the header buffer */
+	memcpy(frm->hdr, buff, frm->hdr_len);
+	frm->hdr_rcvd = frm->hdr_len;
 
 	/* Build and store the meta data of this frame */
 	rx_build_meta_data(ld, frm);
-
-	/* Verify channel ID */
-	if (unlikely(frm->ch_id == 0 || frm->ch_id == SIPC5_CH_ID_MAX)) {
-		mif_info("%s: ERR! invalid ch# %d\n", link, frm->ch_id);
-		return -EBADMSG;
-	}
 
 	/* Verify frame length */
 	if (unlikely(frm->len > rest)) {
@@ -771,6 +786,10 @@ static int rx_frame_from_mem(struct io_device *iod, struct link_device *ld,
 		len = frm->data_len;
 		skb = rx_alloc_skb(len, iod, ld);
 
+		/* Store channel ID and control fields to the CB of the skb */
+		skbpriv(skb)->ch_id = frm->ch_id;
+		skbpriv(skb)->control = frm->control;
+
 		/* Receive payload */
 		mif_debug("%s: done:%d rest:%d len:%d -> rx_payload()\n",
 			link, done, rest, len);
@@ -801,7 +820,7 @@ static int rx_frame_from_mem(struct io_device *iod, struct link_device *ld,
 
 		if (likely(skb)) {
 			mif_debug("%s: len:%d -> rx_demux()\n", link, skb->len);
-			if (rx_demux(ld, skb, frm) < 0)
+			if (rx_demux(ld, skb) < 0)
 				dev_kfree_skb_any(skb);
 		} else {
 			mif_debug("%s: len:%d -> drop\n", link, skb->len);
@@ -876,6 +895,81 @@ static int io_dev_recv_data_from_link_dev(struct io_device *iod,
 
 	default:
 		mif_info("%s: ERR! unknown format %d\n", link, iod->format);
+		return -EINVAL;
+	}
+}
+
+static int rx_frame_from_skb(struct io_device *iod, struct link_device *ld,
+		struct sk_buff *skb)
+{
+	struct sipc5_frame_data *frm = &fragdata(iod, ld)->f_data;
+	u8 cfg = skb->data[0];
+
+	/* Initialize the frame data buffer */
+	memset(frm, 0, sizeof(struct sipc5_frame_data));
+
+	/*
+	** The start of a link layer header has already been checked in the
+	** link device.
+	*/
+
+	/* Analyze the configuration of the link layer header */
+	rx_check_frame_cfg(cfg, frm);
+
+	/* Store the link layer header to the header buffer */
+	memcpy(frm->hdr, skb->data, frm->hdr_len);
+	frm->hdr_rcvd = frm->hdr_len;
+
+	/* Build and store the meta data of this frame */
+	rx_build_meta_data(ld, frm);
+
+	/*
+	** The length of the frame has already been checked in the link device.
+	*/
+
+	/* Trim the link layer header off the frame */
+	skb_pull(skb, frm->hdr_len);
+
+	/* Store channel ID and control fields to the CB of the skb */
+	skbpriv(skb)->ch_id = frm->ch_id;
+	skbpriv(skb)->control = frm->control;
+
+	/* Demux the frame */
+	if (rx_demux(ld, skb) < 0) {
+		mif_err("%s: ERR! rx_demux fail\n", ld->name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/* called from link device when a packet arrives for this io device */
+static int io_dev_recv_skb_from_link_dev(struct io_device *iod,
+		struct link_device *ld, struct sk_buff *skb)
+{
+	char *link = ld->name;
+	enum dev_format dev = iod->format;
+	int err;
+
+	switch (dev) {
+	case IPC_FMT:
+	case IPC_RAW:
+	case IPC_RFS:
+	case IPC_MULTI_RAW:
+		if (iod->waketime)
+			wake_lock_timeout(&iod->wakelock, iod->waketime);
+
+		err = rx_frame_from_skb(iod, ld, skb);
+		if (err < 0) {
+			dev_kfree_skb_any(skb);
+			mif_info("%s: ERR! rx_frame_from_skb fail (err %d)\n",
+				link, err);
+		}
+
+		return err;
+
+	default:
+		mif_info("%s: ERR! unknown device %d\n", link, dev);
 		return -EINVAL;
 	}
 }
@@ -1211,7 +1305,6 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 	struct sk_buff *skb;
 	int copied = 0;
 	struct timespec epoch;
-	u8 str[32];
 
 	skb = skb_dequeue(rxq);
 	if (!skb) {
@@ -1333,10 +1426,10 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	struct sipc5_frame_data frm;
 
 	/* When use `handover' with Network Bridge,
-	 * user -> TCP/IP(kernel) -> bridge device -> TCP/IP(kernel) -> this.
-	 *
-	 * We remove the one ethernet header of skb before using skb->len,
-	 * because the skb has two ethernet headers.
+	 * user -> bridge device(rmnet0) -> real rmnet(xxxx_rmnet0) -> here.
+	 * bridge device is ethernet device unlike xxxx_rmnet(net device).
+	 * We remove the an ethernet header of skb before using skb->len,
+	 * because bridge device added an ethernet header to skb.
 	 */
 	if (iod->use_handover) {
 		if (iod->id >= PS_DATA_CH_0 && iod->id <= PS_DATA_CH_LAST)
@@ -1347,7 +1440,8 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	/* ip loop-back */
 	ip_header = (struct iphdr *)skb->data;
-	if (ip_header->daddr == iod->msd->loopback_ipaddr) {
+	if (iod->msd->loopback_ipaddr &&
+		ip_header->daddr == iod->msd->loopback_ipaddr) {
 		swap(ip_header->saddr, ip_header->daddr);
 		frm.ch_id = DATA_LOOPBACK_CHANNEL;
 		frm.hdr[SIPC5_CH_ID_OFFSET] = DATA_LOOPBACK_CHANNEL;
@@ -1433,6 +1527,7 @@ int sipc5_init_io_device(struct io_device *iod)
 	/* Get data from link device */
 	mif_debug("%s: SIPC version = %d\n", iod->name, iod->ipc_version);
 	iod->recv = io_dev_recv_data_from_link_dev;
+	iod->recv_skb = io_dev_recv_skb_from_link_dev;
 
 	/* Register misc or net device */
 	switch (iod->io_typ) {

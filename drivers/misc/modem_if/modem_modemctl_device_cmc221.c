@@ -125,7 +125,6 @@ static int cmc221_on(struct modem_ctl *mc)
 
 static int cmc221_off(struct modem_ctl *mc)
 {
-	struct link_device *ld = get_current_link(mc->iod);
 	int cp_on = gpio_get_value(mc->gpio_cp_on);
 
 	mif_err("%s\n", mc->name);

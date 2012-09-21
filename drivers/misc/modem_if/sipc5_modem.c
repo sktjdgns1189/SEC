@@ -44,6 +44,7 @@
 static struct modem_shared *create_modem_shared_data(void)
 {
 	struct modem_shared *msd;
+	int size = MAX_MIF_BUFF_SIZE;
 
 	msd = kzalloc(sizeof(struct modem_shared), GFP_KERNEL);
 	if (!msd)
@@ -57,14 +58,16 @@ static struct modem_shared *create_modem_shared_data(void)
 	msd->iodevs_tree_fmt = RB_ROOT;
 
 	msd->storage.cnt = 0;
-	msd->storage.addr =
-		kzalloc(MAX_MIF_BUFF_SIZE + MAX_MIF_SEPA_SIZE, GFP_KERNEL);
+	msd->storage.addr = kzalloc(MAX_MIF_BUFF_SIZE +
+		(MAX_MIF_SEPA_SIZE * 2), GFP_KERNEL);
 	if (!msd->storage.addr) {
 		mif_err("IPC logger buff alloc failed!!\n");
 		return NULL;
 	}
-	memset(msd->storage.addr, 0, MAX_MIF_BUFF_SIZE);
+	memset(msd->storage.addr, 0, size + (MAX_MIF_SEPA_SIZE * 2));
 	memcpy(msd->storage.addr, MIF_SEPARATOR, MAX_MIF_SEPA_SIZE);
+	msd->storage.addr += MAX_MIF_SEPA_SIZE;
+	memcpy(msd->storage.addr, &size, MAX_MIF_SEPA_SIZE);
 	msd->storage.addr += MAX_MIF_SEPA_SIZE;
 	spin_lock_init(&msd->lock);
 

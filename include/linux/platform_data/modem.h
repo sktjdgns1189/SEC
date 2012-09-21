@@ -131,6 +131,11 @@ struct modemlink_pm_link_activectl {
 	int gpio_request_host_active;
 };
 
+#define RES_CP_ACTIVE_IRQ_ID	0
+#define RES_DPRAM_MEM_ID	1
+#define RES_DPRAM_IRQ_ID	2
+#define RES_DPRAM_SFR_ID	3
+
 enum dpram_type {
 	EXT_DPRAM,
 	AP_IDPRAM,

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Header file describing the internal (inter-module) DHD interfaces.
  *
  * Provides type definitions and function prototypes used to link the
@@ -49,8 +49,17 @@
 #define WRITE_MACADDR
 #endif
 
+#ifdef CONFIG_ARCH_MSM7X30
+#define HW_OOB
+#define READ_MACADDR
+#endif
+
 #ifdef CONFIG_MACH_GC1
 #undef USE_CID_CHECK
+#define READ_MACADDR
+#endif
+
+#ifdef CONFIG_MACH_P10
 #define READ_MACADDR
 #endif
 

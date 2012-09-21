@@ -100,8 +100,8 @@
 #include <wtf/text/CString.h>
 #include <wtf/text/StringConcatenate.h>
 
-//#include "SecNativeFeature.h"			// OSS_C1
-//#include "SecNativeFeatureTagWeb.h"	// OSS_C1
+//OSS_C1 #include "SecNativeFeature.h"
+//OSS_C1 #include "SecNativeFeatureTagWeb.h"
 #include <cutils/properties.h>
 #include <string>
 #if ENABLE(SHARED_WORKERS)
@@ -2768,13 +2768,14 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
     }
 
     if (mainResource) {
-// OSS_C1
-#if 0
-        if (strcmp(SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4), "") != 0 ){
-            const char *sCscValue = SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4);
-            const char *WMLAcceptHeader = "text/html,application/xhtml+xml,text/vnd.wap.wml,application/xml;q=0.9,*/*;q=0.8";
+		/*OSS_C1
+		if (strcmp(SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4), "") != 0 ){
+            const char *sCscValue = SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4); 
+			OSS_C1*/
+            //OSS_C1 const char *WMLAcceptHeader = "text/html,application/xhtml+xml,text/vnd.wap.wml,application/xml;q=0.9,*/*;q=0.8";
 
-            int length = (int)strlen(sCscValue);
+            /*OSS_C1 
+			int length = (int)strlen(sCscValue);
             char* tokenBuffer = new char[length+1];
             memset(tokenBuffer, 0, sizeof(char)*(length+1));
             strncpy(tokenBuffer, sCscValue ,length);
@@ -2794,11 +2795,10 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
             } else {
                 request.setHTTPAccept(defaultAcceptHeader);
             }
-        } else 
-#endif
-        	{
+        } else {
             request.setHTTPAccept(defaultAcceptHeader);
-        }
+        } 
+		OSS_C1*/
     }
 
 	#ifdef VZW_LTE
@@ -2811,9 +2811,9 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
     //add Operator UAP.
     char UAPStr[100] = {0,};	
     char Model[30] = {0,};
-// OSS_C1
-#if 0
-       if(strcmp(SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUAProfile), "") != 0 ){
+
+       /*OSS_C1
+	   if(strcmp(SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUAProfile), "") != 0 ){
 	   	
 	   	if(strcmp(SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUserAgent), "SPR") == 0 ){
 			char Ver[30]={0,};
@@ -2846,9 +2846,11 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
 	        	}		 
 			request.setHTTPHeaderField("x-wap-profile", UAPStr);	 
 	       }	
-       }	 
+       }
+	   OSS_C1*/	 
 	
 //+Enable DeviceID at Header(USA ATT Requirement) NAGSM_HYKim
+   /*OSS_C1
    if(SecNativeFeature::getInstance()->getEnableStatus(CscFeatureTag_Web_Bool_DeviceID) ==true) {
 		char buf1[PROPERTY_VALUE_MAX];
 		char StrDeviceID[PROPERTY_VALUE_MAX];
@@ -2867,8 +2869,9 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
 		
 		request.setHTTPHeaderField("x-att-deviceid",StrDeviceID);
    }
+   OSS_C1*/
 //-Enable DeviceID at Header(USA ATT Requirement) NAGSM_HYKim
-#endif
+
     // Make sure we send the Origin header.
     addHTTPOriginIfNeeded(request, String());
 

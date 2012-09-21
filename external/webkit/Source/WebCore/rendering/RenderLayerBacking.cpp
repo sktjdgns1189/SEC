@@ -1257,6 +1257,8 @@ void RenderLayerBacking::paintContents(const GraphicsLayer* graphicsLayer, Graph
 #endif
 
         // We have to use the same root as for hit testing, because both methods can compute and cache clipRects.
+        if((m_owningLayer==NULL) || (m_owningLayer->renderer()==NULL) || (m_owningLayer->renderer()->layer() == NULL))  // P120614-0161
+            return;
         paintIntoLayer(m_owningLayer, &context, dirtyRect, PaintBehaviorNormal, paintingPhase, renderer());
 
         InspectorInstrumentation::didPaint(cookie);

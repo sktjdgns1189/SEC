@@ -60,7 +60,6 @@
 #define WM1811_JACKDET_BTN1	0x10
 #define WM1811_JACKDET_BTN2	0x08
 
-
 static struct wm8958_micd_rate midas_det_rates[] = {
 	{ MIDAS_DEFAULT_MCLK2,     true,  0,  0 },
 	{ MIDAS_DEFAULT_MCLK2,    false,  0,  0 },
@@ -494,6 +493,7 @@ static void midas_micdet(u16 status, void *data)
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(wm1811->codec);
 	int report;
 
+	dev_info(wm1811->codec->dev, "%s() ++\n", __func__);
 
 	wake_lock_timeout(&wm1811->jackdet_wake_lock, 5 * HZ);
 
@@ -501,7 +501,7 @@ static void midas_micdet(u16 status, void *data)
 	if (!(status & WM8958_MICD_STS)) {
 		if (!wm8994->jackdet) {
 			/* If nothing present then clear our statuses */
-			dev_dbg(wm1811->codec->dev, "Detected open circuit\n");
+			dev_err(wm1811->codec->dev, "Detected open circuit\n");
 			wm8994->jack_mic = false;
 			wm8994->mic_detecting = true;
 
@@ -514,6 +514,9 @@ static void midas_micdet(u16 status, void *data)
 		/*ToDo*/
 		/*return;*/
 	}
+
+	dev_info(wm1811->codec->dev, "%s: %d %d\n",
+				__func__, status, wm8994->mic_detecting);
 
 	/* If the measurement is showing a high impedence we've got a
 	 * microphone.
@@ -588,6 +591,8 @@ static void midas_micdet(u16 status, void *data)
 		snd_soc_jack_report(wm8994->micdet[0].jack, report,
 				    wm8994->btn_mask);
 	}
+
+	dev_info(wm1811->codec->dev, "%s() --\n", __func__);
 }
 
 #ifdef CONFIG_SND_SAMSUNG_RECOVERY
@@ -1646,7 +1651,6 @@ static int midas_wm1811_init_paiftx(struct snd_soc_pcm_runtime *rtd)
 	if (device_create_file(jack_dev, &dev_attr_reselect_jack) < 0)
 		pr_err("Failed to create device file (%s)!\n",
 			dev_attr_reselect_jack.attr.name);
-
 #endif /* CONFIG_SEC_DEV_JACK */
 	return snd_soc_dapm_sync(&codec->dapm);
 }

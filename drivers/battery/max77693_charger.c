@@ -229,6 +229,9 @@ static void max77693_dump_reg(struct max77693_charger_data *chg_data)
 }
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
+static bool max77693_charger_unlock(struct max77693_charger_data *chg_data);
+static void max77693_charger_reg_init(struct max77693_charger_data *chg_data);
+
 static int max77693_is_topoff_state(struct max77693_charger_data *chg_data)
 {
 	struct i2c_client *i2c = chg_data->max77693->i2c;
@@ -246,20 +249,17 @@ static int max77693_is_topoff_state(struct max77693_charger_data *chg_data)
 		return 0;
 }
 
-static bool check_charger_unlock_state(struct max77693_charger_data *chg_data)
+static void check_charger_unlock_state(struct max77693_charger_data *chg_data)
 {
 	struct i2c_client *i2c = chg_data->max77693->i2c;
-	u8 reg_data;
+	bool need_reg_init = false;
 	pr_debug("%s\n", __func__);
 
-	max77693_read_reg(i2c, MAX77693_CHG_REG_CHG_CNFG_06, &reg_data);
-	pr_debug("%s: chgprot = %d\n", __func__, reg_data);
-
-	if ((reg_data&0x0C) != 0x0C) {
-		pr_info("%s: NOT unlock!(%d)\n", __func__, reg_data);
-		return false;
-	} else
-		return true;
+	need_reg_init = max77693_charger_unlock(chg_data);
+	if (need_reg_init) {
+		pr_err("%s: charger locked state, reg init\n", __func__);
+		max77693_charger_reg_init(chg_data);
+	}
 }
 #endif
 
@@ -448,8 +448,7 @@ void max77693_set_input_current(struct max77693_charger_data *chg_data,
 	pr_debug("%s: set input current as %dmA\n", __func__, set_current);
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
-	if (!check_charger_unlock_state(chg_data))
-		pr_err("%s: charger NOT unlock state!!!\n", __func__);
+	check_charger_unlock_state(chg_data);
 #endif
 
 	if (set_current == OFF_CURR) {
@@ -529,8 +528,7 @@ void max77693_set_charge_current(struct max77693_charger_data *chg_data,
 	pr_debug("%s: set charge current as %dmA\n", __func__, set_current);
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
-	if (!check_charger_unlock_state(chg_data))
-		pr_err("%s: charger NOT unlock state!!!\n", __func__);
+	check_charger_unlock_state(chg_data);
 #endif
 
 	max77693_read_reg(i2c, MAX77693_CHG_REG_CHG_CNFG_02, &reg_data);
@@ -661,8 +659,7 @@ static int max77693_get_cable_type(struct max77693_charger_data *chg_data)
 	mutex_lock(&chg_data->ops_lock);
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
-	if (!check_charger_unlock_state(chg_data))
-		pr_err("%s: charger NOT unlock state!!!\n", __func__);
+	check_charger_unlock_state(chg_data);
 #endif
 
 	/* If OTG enabled, skip detecting charger cable */
@@ -905,6 +902,10 @@ static int max77693_get_battery_state(struct max77693_charger_data *chg_data)
 void max77693_set_muic_cb_type(struct max77693_charger_data *chg_data, int data)
 {
 	pr_info("%s: muic cable type(%d)\n", __func__, data);
+
+#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
+	check_charger_unlock_state(chg_data);
+#endif
 
 	cancel_delayed_work(&chg_data->update_work);
 	wake_lock(&chg_data->update_wake_lock);
@@ -1558,7 +1559,7 @@ static ssize_t max77693_debugfs_read_registers(struct file *filp,
 	if (!buf)
 		return -ENOMEM;
 
-	for (i = 0xB2; i <= 0xC6; i++) {
+	for (i = 0xB0; i <= 0xC6; i++) {
 		max77693_read_reg(chg_data->max77693->i2c, i, &val);
 		len += snprintf(buf + len, PAGE_SIZE - len,
 			"%x=%02x", i, val);
@@ -1621,6 +1622,9 @@ static __devinit int max77693_charger_probe(struct platform_device *pdev)
 	chg_data->irq_charge = max77693->irq_base + MAX77693_CHG_IRQ_CHG_I;
 	chg_data->irq_chargin = max77693->irq_base + MAX77693_CHG_IRQ_CHGIN_I;
 
+	INIT_DELAYED_WORK(&chg_data->update_work, max77693_update_work);
+	INIT_DELAYED_WORK(&chg_data->softreg_work, max77693_softreg_work);
+
 	chg_data->charger.name = "max77693-charger",
 	chg_data->charger.type = POWER_SUPPLY_TYPE_BATTERY,
 	chg_data->charger.properties = max77693_charger_props,
@@ -1633,10 +1637,6 @@ static __devinit int max77693_charger_probe(struct platform_device *pdev)
 		pr_err("%s: failed: power supply register\n", __func__);
 		goto err_kfree;
 	}
-
-	INIT_DELAYED_WORK(&chg_data->update_work, max77693_update_work);
-
-	INIT_DELAYED_WORK(&chg_data->softreg_work, max77693_softreg_work);
 
 	ret = request_threaded_irq(chg_data->irq_bypass, NULL,
 			max77693_bypass_irq, 0, "bypass-irq", chg_data);

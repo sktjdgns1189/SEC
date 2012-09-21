@@ -95,6 +95,9 @@
 
 #define SOURCE_MAC_ADDR		{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC}
 
+/* loopback: CP -> AP -> CP */
+#define CP2AP_LOOPBACK_CHANNEL	30
+
 /* ip loopback */
 #define RMNET0_CH_ID		10
 #define DATA_LOOPBACK_CHANNEL	31
@@ -277,7 +280,10 @@ struct sipc5_link_hdr {
 	u8 cfg;
 	u8 ch;
 	u16 len;
-	u8 ctl;
+	union {
+		u8 ctl;
+		u16 ext_len;
+	};
 } __packed;
 
 struct sipc5_frame_data {
@@ -292,7 +298,6 @@ struct sipc5_frame_data {
 
 	/* Frame configuration set by header analysis */
 	bool padding;
-	bool ext_fld;
 	bool ctl_fld;
 	bool ext_len;
 
@@ -315,24 +320,6 @@ struct sipc5_frame_data {
 	u8 hdr[SIPC5_MAX_HEADER_SIZE];
 };
 
-static inline unsigned sipc5_get_hdr_size(u8 cfg)
-{
-	if (cfg & SIPC5_EXT_FIELD_EXIST) {
-		if (cfg & SIPC5_CTL_FIELD_EXIST)
-			return SIPC5_HEADER_SIZE_WITH_CTL_FLD;
-		else
-			return SIPC5_HEADER_SIZE_WITH_EXT_LEN;
-	} else {
-		return SIPC5_MIN_HEADER_SIZE;
-	}
-}
-
-static inline unsigned sipc5_calc_padding_size(unsigned len)
-{
-	unsigned residue = len & 0x3;
-	return residue ? (4 - residue) : 0;
-}
-
 struct vnet {
 	struct io_device *iod;
 };
@@ -354,7 +341,9 @@ struct skbuff_private {
 	struct io_device *iod;
 	struct link_device *ld;
 	struct io_device *real_iod; /* for rx multipdp */
-};
+	u8 ch_id;
+	u8 control;
+} __packed;
 
 static inline struct skbuff_private *skbpriv(struct sk_buff *skb)
 {
@@ -408,6 +397,8 @@ struct io_device {
 	/* called from linkdevice when a packet arrives for this iodevice */
 	int (*recv)(struct io_device *iod, struct link_device *ld,
 					const char *data, unsigned int len);
+	int (*recv_skb)(struct io_device *iod, struct link_device *ld,
+					struct sk_buff *skb);
 
 	/* inform the IO device that the modem is now online or offline or
 	 * crashing or whatever...
@@ -641,5 +632,87 @@ struct modem_ctl {
 int sipc4_init_io_device(struct io_device *iod);
 int sipc5_init_io_device(struct io_device *iod);
 
+/**
+ * sipc5_start_valid
+ * @cfg: configuration field of an SIPC5 link frame
+ *
+ * Returns TRUE if the start (configuration field) of an SIPC5 link frame
+ * is valid or returns FALSE if it is not valid.
+ *
+ */
+static inline int sipc5_start_valid(u8 cfg)
+{
+	return (cfg & SIPC5_START_MASK) == SIPC5_START_MASK;
+}
+
+/**
+ * sipc5_get_hdr_len
+ * @cfg: configuration field of an SIPC5 link frame
+ *
+ * Returns the length of SIPC5 link layer header in an SIPC5 link frame
+ *
+ */
+static inline unsigned sipc5_get_hdr_len(u8 cfg)
+{
+	if (cfg & SIPC5_EXT_FIELD_EXIST) {
+		if (cfg & SIPC5_CTL_FIELD_EXIST)
+			return SIPC5_HEADER_SIZE_WITH_CTL_FLD;
+		else
+			return SIPC5_HEADER_SIZE_WITH_EXT_LEN;
+	} else {
+		return SIPC5_MIN_HEADER_SIZE;
+	}
+}
+
+/**
+ * sipc5_get_ch_id
+ * @frm: pointer to an SIPC5 frame
+ *
+ * Returns the channel ID in an SIPC5 link frame
+ *
+ */
+static inline u8 sipc5_get_ch_id(u8 *frm)
+{
+	return *(frm + SIPC5_CH_ID_OFFSET);
+}
+
+/**
+ * sipc5_get_frame_sz16
+ * @frm: pointer to an SIPC5 link frame
+ *
+ * Returns the length of an SIPC5 link frame without the extended length field
+ *
+ */
+static inline unsigned sipc5_get_frame_sz16(u8 *frm)
+{
+	return *((u16 *)(frm + SIPC5_LEN_OFFSET));
+}
+
+/**
+ * sipc5_get_frame_sz32
+ * @frm: pointer to an SIPC5 frame
+ *
+ * Returns the length of an SIPC5 link frame with the extended length field
+ *
+ */
+static inline unsigned sipc5_get_frame_sz32(u8 *frm)
+{
+	return *((u32 *)(frm + SIPC5_LEN_OFFSET));
+}
+
+/**
+ * sipc5_calc_padding_size
+ * @len: length of an SIPC5 link frame
+ *
+ * Returns the padding size for an SIPC5 link frame
+ *
+ */
+static inline unsigned sipc5_calc_padding_size(unsigned len)
+{
+	unsigned residue = len & 0x3;
+	return residue ? (4 - residue) : 0;
+}
+
 extern void set_sromc_access(bool access);
+
 #endif

@@ -21,7 +21,8 @@
 
 #define MAX_MIF_BUFF_SIZE 0x80000 /* 512kb */
 #define MAX_MIF_SEPA_SIZE 32
-#define MIF_SEPARATOR "IPC_LOGGER(VER1.0)"
+#define MIF_SEPARATOR "IPC_LOGGER(VER1.1)"
+#define MIF_SEPARATOR_DPRAM "DPRAM_LOGGER(VER1.1)"
 #define MAX_IPC_SKB_SIZE 4096
 #define MAX_LOG_SIZE 64
 
@@ -284,8 +285,6 @@ void print_sipc5_link_fmt_frame(const u8 *psrc);
 void print_ip4_packet(u8 *ip_pkt, bool tx);
 bool is_dns_packet(u8 *ip_pkt);
 bool is_syn_packet(u8 *ip_pkt);
-
-int get_sipc5_hdr_size(u8 *buff);
 
 int memcmp16_to_io(const void __iomem *to, void *from, int size);
 int mif_test_dpram(char *dp_name, u8 __iomem *start, u32 size);

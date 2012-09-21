@@ -102,6 +102,12 @@ struct max17047_fuelgauge_data {
 
 #if defined(CONFIG_TARGET_LOCALE_KOR)
 	int				full_soc;
+
+#ifdef USE_TRIM_ERROR_DETECTION
+	/* trim error state */
+	bool				trim_err;
+#endif
+
 #ifdef CONFIG_DEBUG_FS
 	struct dentry			*fg_debugfs_dir;
 #endif
@@ -488,7 +494,6 @@ static void max17047_update_work(struct work_struct *work)
 
 	if (!battery_psy || !battery_psy->set_property) {
 		pr_err("%s: fail to get battery power supply\n", __func__);
-		mutex_unlock(&fg_data->irq_lock);
 		return;
 	}
 
@@ -539,8 +544,9 @@ static enum power_supply_property max17047_fuelgauge_props[] = {
 /* Temp: Init max17047 sample has trim value error. For detecting that. */
 #define TRIM_ERROR_DETECT_VOLTAGE1	2500000
 #define TRIM_ERROR_DETECT_VOLTAGE2	3600000
-static int max17047_detect_trim_error(struct max17047_fuelgauge_data *fg_data)
+static bool max17047_detect_trim_error(struct max17047_fuelgauge_data *fg_data)
 {
+	bool ret = false;
 	int vcell, soc;
 
 	vcell = max17047_get_vcell(fg_data->client);
@@ -548,12 +554,12 @@ static int max17047_detect_trim_error(struct max17047_fuelgauge_data *fg_data)
 
 	if (((vcell < TRIM_ERROR_DETECT_VOLTAGE1) ||
 		(vcell == TRIM_ERROR_DETECT_VOLTAGE2)) && (soc == 0)) {
-		pr_debug("%s: (maybe)It's a trim error version. "
+		pr_err("%s: (maybe)It's a trim error version. "
 			"VCELL(%d), SOC(%d)\n", __func__, vcell, soc);
-		return 1;
+		ret = true;
 	}
 
-	return 0;
+	return ret;
 }
 #endif
 
@@ -566,7 +572,7 @@ static int max17047_get_property(struct power_supply *psy,
 						  fuelgauge);
 
 #ifdef USE_TRIM_ERROR_DETECTION
-	if (max17047_detect_trim_error(fg_data)) {
+	if (fg_data->trim_err == true) {
 		switch (psp) {
 		case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		case POWER_SUPPLY_PROP_VOLTAGE_AVG:
@@ -607,18 +613,18 @@ static int max17047_get_property(struct power_supply *psy,
 		switch (val->intval) {
 		case SOC_TYPE_ADJUSTED:
 			val->intval = max17047_get_soc(fg_data->client);
-		break;
+			break;
 		case SOC_TYPE_RAW:
 			val->intval = max17047_get_rawsoc(fg_data->client);
-		break;
+			break;
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
 		case SOC_TYPE_FULL:
 			val->intval = fg_data->full_soc;
-		break;
+			break;
 #endif
 		default:
 			val->intval = max17047_get_soc(fg_data->client);
-		break;
+			break;
 		}
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
@@ -663,7 +669,6 @@ static irqreturn_t max17047_fuelgauge_isr(int irq, void *data)
 {
 	struct max17047_fuelgauge_data *fg_data = data;
 	struct i2c_client *client = fg_data->client;
-	union power_supply_propval value;
 	u8 i2c_data[2];
 	pr_info("%s: irq(%d)\n", __func__, irq);
 	mutex_lock(&fg_data->irq_lock);
@@ -672,6 +677,7 @@ static irqreturn_t max17047_fuelgauge_isr(int irq, void *data)
 	pr_info("%s: MAX17047_REG_STATUS(0x%02x%02x)\n", __func__,
 					i2c_data[1], i2c_data[0]);
 
+	cancel_delayed_work(&fg_data->update_work);
 	wake_lock(&fg_data->update_wake_lock);
 	schedule_delayed_work(&fg_data->update_work, msecs_to_jiffies(1000));
 
@@ -891,6 +897,11 @@ static int __devinit max17047_fuelgauge_i2c_probe(struct i2c_client *client,
 							       "fuel-update");
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
+#ifdef USE_TRIM_ERROR_DETECTION
+	/* trim error detect */
+	fg_data->trim_err = max17047_detect_trim_error(fg_data);
+#endif
+
 	/* Initialize full_soc, set this before fisrt SOC reading */
 	fg_data->full_soc = FULL_SOC_DEFAULT;
 	/* first full_soc update */
@@ -927,6 +938,9 @@ static int __devinit max17047_fuelgauge_i2c_probe(struct i2c_client *client,
 	/* Initialize fuelgauge alert */
 	max17047_alert_init(fg_data);
 
+	INIT_DELAYED_WORK_DEFERRABLE(&fg_data->update_work,
+					max17047_update_work);
+
 	/* Request IRQ */
 	fg_data->irq = gpio_to_irq(fg_data->pdata->irq_gpio);
 	ret = gpio_request(fg_data->pdata->irq_gpio, "fuelgauge-irq");
@@ -954,8 +968,6 @@ static int __devinit max17047_fuelgauge_i2c_probe(struct i2c_client *client,
 		goto err_enable_irq;
 	}
 
-	INIT_DELAYED_WORK_DEFERRABLE(&fg_data->update_work,
-					max17047_update_work);
 #ifdef DEBUG_FUELGAUGE_POLLING
 	INIT_DELAYED_WORK_DEFERRABLE(&fg_data->polling_work,
 					max17047_polling_work);

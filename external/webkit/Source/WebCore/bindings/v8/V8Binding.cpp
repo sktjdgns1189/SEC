@@ -63,22 +63,22 @@ V8BindingPerIsolateData* V8BindingPerIsolateData::create(v8::Isolate* isolate)
     ASSERT(isolate);
     ASSERT(!isolate->GetData());
     V8BindingPerIsolateData* data = new V8BindingPerIsolateData(isolate);
-//    isolate->SetData(data);			// OSS_C1
+    //OSS_C1 isolate->SetData(data);
     return data;
 }
 
 void V8BindingPerIsolateData::ensureInitialized(v8::Isolate* isolate)
 {
     ASSERT(isolate);
-    //if (!isolate->GetData())		// OSS_C1
-        create(isolate);
+    //OSS_C1 if (!isolate->GetData())
+        //OSS_C1 create(isolate);
 }
 
 void V8BindingPerIsolateData::dispose(v8::Isolate* isolate)
 {
-    //void* data = isolate->GetData();											// OSS_M0SKT
-    //delete static_cast<V8BindingPerIsolateData*>(data);		// OSS_C1
-    //isolate->SetData(0);																	// OSS_M0SKT
+    //OSS_C1 void* data = isolate->GetData();
+    //OSS_C1 delete static_cast<V8BindingPerIsolateData*>(data);
+    //OSS_C1 isolate->SetData(0);
 }
 //SAMSUNG_WEB_WORKER_CHANGES
 // WebCoreStringResource is a helper class for v8ExternalString. It is used

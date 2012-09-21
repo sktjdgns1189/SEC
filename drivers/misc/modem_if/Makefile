@@ -19,3 +19,5 @@ obj-$(CONFIG_LINK_DEVICE_DPRAM) += modem_link_device_dpram.o modem_link_device_d
 obj-$(CONFIG_LINK_DEVICE_USB) += modem_link_device_usb.o modem_link_pm_usb.o
 obj-$(CONFIG_LINK_DEVICE_HSIC) += modem_link_device_hsic.o
 obj-$(CONFIG_LINK_DEVICE_C2C) += modem_link_device_c2c.o
+
+obj-$(CONFIG_SIM_SLOT_SWITCH)  += modem_sim_slot_switch.o

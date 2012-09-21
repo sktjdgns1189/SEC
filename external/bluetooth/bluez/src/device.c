@@ -186,6 +186,10 @@ struct btd_device {
 
 	GIOChannel      *att_io;
 	guint		cleanup_id;
+
+	//SSBT :: Ajith:BondConceptChange- bool to check if high sec is required by device or not.
+	gboolean		sec_high;
+	gboolean		is_connect_le;
 };
 
 static uint16_t uuid_list[] = {
@@ -2380,6 +2384,18 @@ static void att_connect_cb(GIOChannel *io, GError *gerr, gpointer user_data)
 	device->cleanup_id = g_io_add_watch(io, G_IO_HUP,
 					attrib_disconnected_cb, device);
 
+	//SSBT :: Ajith:BondConceptChange- setting the sec level to high
+	DBG("device->sec_high ==%d && device->is_connect_le==%d",device->sec_high,device->is_connect_le );
+	if ((device->sec_high == TRUE) && (device->is_connect_le != TRUE)) {
+		if (bt_io_set(io, BT_IO_L2CAP, NULL,
+				BT_IO_OPT_SEC_LEVEL, BT_IO_SEC_HIGH,
+								BT_IO_OPT_INVALID)) {
+			DBG("Sec level changed to high");
+		} else {
+			DBG("Sec level still low");
+		}
+	}
+
 	if (attcb->success)
 		attcb->success(user_data);
 done:
@@ -2431,6 +2447,7 @@ static gboolean att_connect(gpointer user_data)
 	struct btd_device *device = user_data;
 	struct btd_adapter *adapter = device->adapter;
 	struct att_callbacks *attcb;
+	BtIOSecLevel sec_level;
 	GIOChannel *io;
 	GError *gerr = NULL;
 	char addr[18];
@@ -2445,6 +2462,10 @@ static gboolean att_connect(gpointer user_data)
 	attcb->error = att_error_cb;
 	attcb->success = att_success_cb;
 	attcb->user_data = device;
+
+	//SSBT :: Ajith:BondConceptChange-re-establish connection with previous sec_level
+	device->is_connect_le = TRUE;
+	sec_level = (device->sec_high == TRUE)?BT_IO_SEC_HIGH:BT_IO_SEC_LOW;
 
 	if (device_is_bredr(device)) {
 		io = bt_io_connect(BT_IO_L2CAP, att_connect_cb,
@@ -2463,7 +2484,7 @@ static gboolean att_connect(gpointer user_data)
 					BT_IO_OPT_CID, ATT_CID,
 // SSBT :: KJH * : to support non security req device
 					//BT_IO_OPT_SEC_LEVEL, BT_IO_SEC_MEDIUM,
-					BT_IO_OPT_SEC_LEVEL, BT_IO_SEC_LOW,
+					BT_IO_OPT_SEC_LEVEL, sec_level,//SSBT :: Ajith:BondConceptChange
 					BT_IO_OPT_INVALID);
 	}
 
@@ -2551,6 +2572,15 @@ int device_browse_primary(struct btd_device *device, DBusConnection *conn,
 	attcb->user_data = device;
 
 	DBG("secure %d", secure);
+
+	/*SSBT :: Ajith:BondConceptChange- - this is requied in case browse_primary of FALSE is sent.
+	 * For ex: In Wahoo HRP case when create device is called
+	 * browse_primary is called with FALSE value.
+	 */
+	if(sec_level == BT_IO_SEC_HIGH)
+		device->sec_high = TRUE;
+	else
+		device->sec_high = FALSE;
 
 	device->att_io = bt_io_connect(BT_IO_L2CAP, att_connect_cb,
 				attcb, NULL, NULL,
@@ -3005,14 +3035,36 @@ DBusMessage *device_create_bonding(struct btd_device *device,
 	}
 
 	if (device_is_le(device)) {
+		struct att_callbacks *attcb;
+		GError *gerr = NULL;
+		bdaddr_t sba;
+		//SSBT :: Ajith:BondConceptChange - If device is not Le only then acrry out create bonding
+		adapter_get_address(adapter, &sba);
 
-		// SSBT :: NEO (0207)
-		adapter_suspend_discovery(device->adapter);
-		err = device_browse_primary(device, conn,
-							msg, FALSE);
-		if (err < 0) {
-			DBG("device_browse_primary failed, so will return");
-			return btd_error_failed(msg, strerror(-err));
+		attcb = g_new0(struct att_callbacks, 1);
+		attcb->user_data = device;
+		DBG("Suspending disoovery");
+		adapter_suspend_discovery(device->adapter); // SSBT -Stop discovery process;
+
+		device->sec_high = TRUE; //By default after SEC LOW, security is set to HIGH.
+		device->is_connect_le = FALSE;
+		device->att_io = bt_io_connect(BT_IO_L2CAP, att_connect_cb,
+				attcb, NULL, &gerr,
+				BT_IO_OPT_SOURCE_BDADDR, &sba,
+				BT_IO_OPT_DEST_BDADDR, &device->bdaddr,
+//				BT_IO_OPT_DEST_TYPE, device->bdaddr_type,
+				BT_IO_OPT_CID, ATT_CID,
+				BT_IO_OPT_SEC_LEVEL, BT_IO_SEC_LOW,//Initiate the connection with low secutiry
+				BT_IO_OPT_INVALID);
+
+		if (device->att_io == NULL) {
+			DBusMessage *reply = btd_error_failed(msg,
+								gerr->message);
+
+			error("Bonding bt_io_connect(): %s", gerr->message);
+			g_error_free(gerr);
+			g_free(attcb);
+			return reply;
 		}
 	}
 
@@ -3092,9 +3144,10 @@ void device_bonding_complete(struct btd_device *device, uint8_t status)
 		if (device_is_bredr(device))
 			device_browse_sdp(device, bonding->conn, bonding->msg,
 					NULL, FALSE);
-		//else
-		//	device_browse_primary(device, bonding->conn,
-		//					bonding->msg, FALSE);
+		else
+			//SSBT :: Ajith:BondConceptChange -By default when using createPairedDevice,TRUE( SEC_HIGH) needs to be used.
+			device_browse_primary(device, bonding->conn,
+							bonding->msg, TRUE);
 
 		bonding_request_free(bonding);
 	} else {

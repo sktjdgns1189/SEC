@@ -506,7 +506,11 @@ void ShaderProgram::clip(const FloatRect& clip)
         screenClip.setY(0);
         screenClip.setHeight(h);
     }
-
+    //SAMSUNG CHANGES >>
+    //This is a hack. Some time sublayer drawing causing 1 pixel error 
+    //on top and right edges of the screen. MPSG100005335
+    screenClip.inflate(1);
+    //SAMSUNG CHANGES <<
     glScissor(screenClip.x(), screenClip.y(), screenClip.width(), screenClip.height());
 
     m_clipRect = clip;

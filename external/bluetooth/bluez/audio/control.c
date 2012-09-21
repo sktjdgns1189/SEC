@@ -1476,7 +1476,7 @@ static uint8_t avrcp_get_player_setting_value(struct control *control,
 					DBUS_TYPE_ARRAY,
 					DBUS_TYPE_BYTE,
 					&ptr,
-					attr_count,
+					(uint32_t) attr_count,
 					DBUS_TYPE_INVALID)) {
 		LOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
@@ -1546,7 +1546,7 @@ static uint8_t avrcp_set_player_setting_value(struct control *control,
 					DBUS_TYPE_ARRAY,
 					DBUS_TYPE_BYTE,
 					&ptr,
-					attr_count * 2,
+					(uint32_t) (attr_count * 2),
 					DBUS_TYPE_INVALID)) {
 		LOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
@@ -1751,7 +1751,7 @@ static uint8_t avrcp_get_element_attr(struct control *control,
 					DBUS_TYPE_ARRAY,
 					DBUS_TYPE_UINT32,
 					&pattr,
-					attr_count,
+					(uint32_t) attr_count,
 					DBUS_TYPE_INVALID)) {
 		LOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);

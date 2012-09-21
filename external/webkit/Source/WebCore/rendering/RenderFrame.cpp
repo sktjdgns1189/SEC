@@ -75,15 +75,27 @@ void RenderFrame::layout()
         return;
     }
 
-    int layoutWidth = width();
+//SAMSUNG CHANGE +
+    /*int layoutWidth = width();
 
     setWidth(max(view->contentsWidth() + borderAndPaddingWidth(), width()));
     setHeight(max(view->contentsHeight() + borderAndPaddingHeight(), height()));
 
     // Trigger a layout of the FrameView which will schedule a relayout of this RenderFrame.
     if (layoutWidth < width())
-        view->layout();
+        view->layout();*/
 
+     m_overflow.clear();
+    view->resize(width(), height());
+    view->layout();
+    if (width() > root->docWidth()) {
+        view->resize(root->docWidth(), 0);
+        view->layout();		
+    }
+    setWidth(max(root->docWidth() + borderAndPaddingWidth(), width()));
+    setHeight(max(root->docHeight() + borderAndPaddingHeight(), height()));
+    
+//SAMSUNG CHANGE -
     setNeedsLayout(false);
 }
 #endif

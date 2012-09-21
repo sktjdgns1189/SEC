@@ -23,6 +23,9 @@ endif
 if (CPU_EXYNOS4210 || CPU_EXYNOS4212 || CPU_EXYNOS4412) && !SLP
 	source "drivers/media/video/samsung/mali/Kconfig"
 endif
+#OSS_C1 if SLP
+#OSS_C1 	source "drivers/media/video/samsung/mali_r3p0/Kconfig"
+#OSS_C1 endif
 
 config VIDEO_FIMG2D
 	bool

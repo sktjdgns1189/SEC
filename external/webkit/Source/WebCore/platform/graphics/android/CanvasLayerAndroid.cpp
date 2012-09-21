@@ -33,7 +33,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if USE(ACCELERATED_COMPOSITING)
 #include "GLUtils.h"
 #include "TilesManager.h"
-//#include "SkAltCanvas.h"		// OSS_C1
+//OSS_C1 #include "SkAltCanvas.h"
 #include "CanvasLayerShader.h"
 #include <wtf/CurrentTime.h>
 #include <map>
@@ -318,18 +318,18 @@ bool CanvasLayerAndroid::drawGL()
 
     SkBitmap& currentBitmap = bmp_it->second;
     SkPicture& currentPicture = pic_it->second;
-// OSS_C1
-#if 0
-    SkAltCanvas canvas(currentBitmap);
+
+    //OSS_C1 SkAltCanvas canvas(currentBitmap);
     if(currentBitmap.isNull() || currentBitmap.empty())
         return drawChildrenGL();
 
     //if(m_canvas_id >= 0 && m_canvas != NULL)
     {
+		
         //m_currentPicture.drawAltCanvas(&canvas);
-		currentPicture.drawAltCanvas(&canvas);
-        int numBitmaps = canvas.getNumBitmaps();
-        int numPrimitives = canvas.getNumPrimitives();
+		//OSS_C1 currentPicture.drawAltCanvas(&canvas);
+        //OSS_C1 int numBitmaps = canvas.getNumBitmaps();
+        //OSS_C1 int numPrimitives = canvas.getNumPrimitives();
         int bitmap_height, bitmap_width;
 
         //Clear content before new run
@@ -344,6 +344,7 @@ bool CanvasLayerAndroid::drawGL()
             s_shader_initialized = true;
         }
 
+		/*OSS_C1 
         for(int jj=0; jj<numBitmaps; ++jj)
         {
             SkBitmap* bmp = canvas.getBitmap(jj);
@@ -419,6 +420,7 @@ bool CanvasLayerAndroid::drawGL()
 
             s_bitmap_map2.insert(std::make_pair(jj, generationID));
         }
+		OSS_C1*/
 
         glUseProgram(s_shader.getProgram());
         glUniform1i(s_shader.getSampler(), 0);
@@ -440,6 +442,7 @@ bool CanvasLayerAndroid::drawGL()
         std::map<int, std::vector<int> > primScaleY_map;
 
         int texture_id;
+		/*OSS_C1 
         for(int ii=0; ii<numPrimitives; ++ii)
         {
             SkRect& rect = canvas.getPrimitive(ii);
@@ -541,7 +544,9 @@ bool CanvasLayerAndroid::drawGL()
                 }
             }
         }
+		OSS_C1*/
 
+		/*OSS_C1 
         for(int jj=0; jj<numBitmaps; ++jj)
         {
             SkBitmap* bmp = canvas.getBitmap(jj);
@@ -581,8 +586,9 @@ bool CanvasLayerAndroid::drawGL()
                 }
             }
         }
+		OSS_C1*/
     }
-#endif
+
     //Need to reset it back to the original shader
     glUseProgram(TilesManager::instance()->shader()->program());
 

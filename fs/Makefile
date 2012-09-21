@@ -127,3 +127,4 @@ obj-$(CONFIG_PSTORE)		+= pstore/
 
 # Patched by YAFFS
 obj-$(CONFIG_YAFFS_FS)		+= yaffs2/
+#OSS_C1 obj-$(CONFIG_J4FS)		+= j4fs/

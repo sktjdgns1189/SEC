@@ -70,9 +70,8 @@ static const struct s5c73m3_frmsizeenum preview_frmsizes[] = {
 	{ S5C73M3_PREVIEW_QVGA,	320,	240,	0x01 },
 	{ S5C73M3_PREVIEW_CIF,	352,	288,	0x0E },
 	{ S5C73M3_PREVIEW_VGA,	640,	480,	0x02 },
-	{ S5C73M3_PREVIEW_704X576,	704,	576,	0x09 },
+	{ S5C73M3_PREVIEW_800X600,	800,	600,	0x09 },
 	{ S5C73M3_PREVIEW_880X720,	880,	720,	0x03 },
-	{ S5C73M3_PREVIEW_960X640,	960,	640,	0x0B },
 	{ S5C73M3_PREVIEW_960X720,	960,	720,	0x04 },
 	{ S5C73M3_PREVIEW_1008X672,	1008,	672,	0x0F },
 	{ S5C73M3_PREVIEW_1184X666,	1184,	666,	0x05 },
@@ -80,10 +79,13 @@ static const struct s5c73m3_frmsizeenum preview_frmsizes[] = {
 	{ S5C73M3_VDIS_720P,	1536,	864,	0x07 },
 	{ S5C73M3_PREVIEW_1080P,	1920,	1080,	0x0A},
 	{ S5C73M3_VDIS_1080P,	2304,	1296,	0x0C},
+	{ S5C73M3_PREVIEW_D1,	720,	480,	0x0B },
 };
 
 static const struct s5c73m3_frmsizeenum capture_frmsizes[] = {
 	{ S5C73M3_CAPTURE_VGA,	640,	480,	0x10 },
+	{ S5C73M3_CAPTURE_960x540,	960,	540,	0x20 },
+	{ S5C73M3_CAPTURE_960x720,	960,	720,	0x30 },
 	{ S5C73M3_CAPTURE_1024X768,	1024,	768,	0xD0 },
 	{ S5C73M3_CAPTURE_HD,	1280,	720,	0x40 },
 	{ S5C73M3_CAPTURE_2MP,	1600,	1200,	0x70 },
@@ -1274,7 +1276,16 @@ static int s5c73m3_set_flash(struct v4l2_subdev *sd, int val, int recording)
 {
 	struct s5c73m3_state *state = to_state(sd);
 	int err;
+	u16 pre_flash = false;
 	cam_dbg("E, value %d\n", val);
+
+	s5c73m3_read(sd, 0x0009, S5C73M3_STILL_PRE_FLASH | 0x5000, &pre_flash);
+	if (pre_flash) {
+		err = s5c73m3_writeb(sd, S5C73M3_STILL_MAIN_FLASH
+			, S5C73M3_STILL_MAIN_FLASH_CANCEL);
+		CHECK_ERR(err);
+		state->isflash = S5C73M3_ISNEED_FLASH_UNDEFINED;
+	}
 
 retry:
 	switch (val) {
@@ -2059,6 +2070,27 @@ static int s5c73m3_aeawb_lock_unlock(struct v4l2_subdev *sd, int val)
 	return 0;
 }
 
+static void s5c73m3_wait_for_preflash_fire(struct v4l2_subdev *sd)
+{
+	u16 pre_flash = false;
+	u16 timeout_cnt = 0;
+
+	do {
+		s5c73m3_read(sd, 0x0009,
+			S5C73M3_STILL_PRE_FLASH | 0x5000, &pre_flash);
+		if (pre_flash || timeout_cnt > 20) {
+			if (!pre_flash) {
+				cam_dbg("pre_Flash = %d, timeout_cnt = %d\n",
+					pre_flash, timeout_cnt);
+			}
+			break;
+		} else
+			timeout_cnt++;
+
+		mdelay(15);
+	} while (1);
+}
+
 static int s5c73m3_start_capture(struct v4l2_subdev *sd, int val)
 {
 	struct s5c73m3_state *state = to_state(sd);
@@ -2072,7 +2104,7 @@ static int s5c73m3_start_capture(struct v4l2_subdev *sd, int val)
 		if (!pre_flash) {
 			err = s5c73m3_writeb(sd, S5C73M3_STILL_PRE_FLASH
 					, S5C73M3_STILL_PRE_FLASH_FIRE);
-			msleep(100);
+			s5c73m3_wait_for_preflash_fire(sd);
 		}
 		err = s5c73m3_writeb(sd, S5C73M3_STILL_MAIN_FLASH
 			, S5C73M3_STILL_MAIN_FLASH_FIRE);
@@ -2086,7 +2118,7 @@ static int s5c73m3_start_capture(struct v4l2_subdev *sd, int val)
 			if (isneed_flash) {
 				err = s5c73m3_writeb(sd, S5C73M3_STILL_PRE_FLASH
 						, S5C73M3_STILL_PRE_FLASH_FIRE);
-				msleep(100);
+				s5c73m3_wait_for_preflash_fire(sd);
 				err = s5c73m3_writeb(sd,
 						S5C73M3_STILL_MAIN_FLASH,
 						S5C73M3_STILL_MAIN_FLASH_FIRE);

@@ -78,3 +78,8 @@ config SIM_DETECT
 	bool "SIM_DETECT pin"
 	depends on SEC_MODEM
 	default n
+
+config SIM_SLOT_SWITCH
+	bool "SIM_SLOT_SWITCH"
+	depends on SEC_MODEM
+	default n

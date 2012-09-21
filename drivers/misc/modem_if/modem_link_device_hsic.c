@@ -983,7 +983,10 @@ static int link_pm_notifier_event(struct notifier_block *this,
 		pm_data->dpm_suspending = true;
 #ifdef CONFIG_UMTS_MODEM_XMM6262
 		/* set PDA Active High if previous state was LPA */
-		gpio_set_value(mc->gpio_pda_active, 1);
+		if (!gpio_get_value(pm_data->gpio_link_active)) {
+			mif_info("PDA active High to LPA suspend spot\n");
+			gpio_set_value(mc->gpio_pda_active, 1);
+		}
 #endif
 		mif_debug("dpm suspending set to true\n");
 		return NOTIFY_OK;
@@ -999,6 +1002,14 @@ static int link_pm_notifier_event(struct notifier_block *this,
 				0);
 			mif_info("post resume\n");
 		}
+#ifdef CONFIG_UMTS_MODEM_XMM6262
+		/* LPA to Kernel suspend and User Freezing task fail resume,
+		restore to LPA GPIO states. */
+		if (!gpio_get_value(pm_data->gpio_link_active)) {
+			mif_info("PDA active low to LPA GPIO state\n");
+			gpio_set_value(mc->gpio_pda_active, 0);
+		}
+#endif
 		mif_debug("dpm suspending set to false\n");
 		return NOTIFY_OK;
 	}
@@ -1440,13 +1451,21 @@ static int usb_link_pm_init(struct usb_link_device *usb_ld, void *data)
 	struct platform_device *pdev = (struct platform_device *)data;
 	struct modem_data *pdata =
 			(struct modem_data *)pdev->dev.platform_data;
-	struct modemlink_pm_data *pm_pdata = pdata->link_pm_data;
+	struct modemlink_pm_data *pm_pdata;
 	struct link_pm_data *pm_data =
 			kzalloc(sizeof(struct link_pm_data), GFP_KERNEL);
+
+	if (!pdata || !pdata->link_pm_data) {
+		mif_err("platform data is NULL\n");
+		return -EINVAL;
+	}
+	pm_pdata = pdata->link_pm_data;
+
 	if (!pm_data) {
 		mif_err("link_pm_data is NULL\n");
 		return -ENOMEM;
 	}
+
 	/* get link pm data from modemcontrol's platform data */
 	pm_data->gpio_link_active = pm_pdata->gpio_link_active;
 	pm_data->gpio_link_enable = pm_pdata->gpio_link_enable;

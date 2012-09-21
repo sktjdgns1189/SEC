@@ -24,5 +24,4 @@ BOARD_HAVE_BLUETOOTH := true
 BOARD_HAVE_BLUETOOTH_BCM := true
 
 5. execute build command
-   - make update-api
-   - make
+   - ./build.sh user

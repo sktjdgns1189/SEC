@@ -2378,7 +2378,10 @@ static int nativeFocusCandidateLayerId(JNIEnv *env, jobject obj)
 
 static bool nativeFocusIsPlugin(JNIEnv *env, jobject obj)
 {
-    const CachedNode* node = getFocusNode(env, obj);
+    //MPSG100005441 ++
+    const CachedNode* node = getFocusCandidate(env, obj, 0);
+    // WAS: const CachedNode* node = getFocusNode(env, obj);
+    //MPSG100005441 --
     return node ? node->isPlugin() : false;
 }
 

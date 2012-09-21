@@ -1213,6 +1213,9 @@ static ssize_t touchkey_menu_show(struct device *dev,
 || (defined(CONFIG_MACH_C1) && defined(CONFIG_TARGET_LOCALE_KOR))
 	u8 data[14] = { 0, };
 	int ret;
+	unsigned char data_sensitivity = 0x40;
+	i2c_touchkey_write(tkey_i2c->client, &data_sensitivity, 1);
+	mdelay(10);
 
 	ret = i2c_touchkey_read(tkey_i2c->client, KEYCODE_REG, data, 14);
 
@@ -1237,6 +1240,9 @@ static ssize_t touchkey_back_show(struct device *dev,
 || (defined(CONFIG_MACH_C1) && defined(CONFIG_TARGET_LOCALE_KOR))
 	u8 data[14] = { 0, };
 	int ret;
+	unsigned char data_sensitivity = 0x40;
+	i2c_touchkey_write(tkey_i2c->client, &data_sensitivity, 1);
+	mdelay(10);
 
 	ret = i2c_touchkey_read(tkey_i2c->client, KEYCODE_REG, data, 14);
 

@@ -36,6 +36,7 @@
 //#include "pidint_defns.h"
 #include "ts_defns.h"
 
+//#define TS_WRITE
 
 #include "PSIApi.h"
 

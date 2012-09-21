@@ -43,7 +43,7 @@
 #include "VisiblePosition.h"
 #include "htmlediting.h"
 #include "visible_units.h"
-// #include "SecNativeFeature.h"			// OSS_C1
+//OSS_C1 #include "SecNativeFeature.h"
 
 
 namespace WebCore {
@@ -532,13 +532,10 @@ void TypingCommand::deleteKeyPressed(TextGranularity granularity, bool killRing)
                 // SAMSUNG CHANGE >>
                 // When there are multiple unicode points like Emoji icons (more than two bytes) we need to treat them as a single character and delete them.
                 // Incase of Emoji icons it should delete the complete icon where as incase of languages like thai which have vowels the delete should delete only the vowel, not the complete character.
-                #if 0
-                if(SecNativeFeature::getInstance()->getEnableStatus(CscFeatureTagWeb_EnableEmoji))
-                    selectionToDelete.setWithoutValidation(selectionToDelete.end(), selectionToDelete.end().previous(Character));
-                else
-                #endif
-                // OSS_C1
-                    selectionToDelete.setWithoutValidation(selectionToDelete.end(), selectionToDelete.end().previous(BackwardDeletion));
+                //OSS_C1 if(SecNativeFeature::getInstance()->getEnableStatus(CscFeatureTagWeb_EnableEmoji))
+                //OSS_C1    selectionToDelete.setWithoutValidation(selectionToDelete.end(), selectionToDelete.end().previous(Character));
+                //OSS_C1 else
+                //OSS_C1     selectionToDelete.setWithoutValidation(selectionToDelete.end(), selectionToDelete.end().previous(BackwardDeletion));
                 // SAMSUNG CHANGE <<
         }
 

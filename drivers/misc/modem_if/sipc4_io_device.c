@@ -1486,7 +1486,8 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	/* ip loop-back */
 	ip_header = (struct iphdr *)skb->data;
-	if (ip_header->daddr == iod->msd->loopback_ipaddr) {
+	if (iod->msd->loopback_ipaddr &&
+		ip_header->daddr == iod->msd->loopback_ipaddr) {
 		swap(ip_header->saddr, ip_header->daddr);
 		hd.channel = DATA_LOOPBACK_CHANNEL;
 	} else {

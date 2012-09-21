@@ -285,7 +285,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			if (oom_adj == selected_oom_adj[i] &&
 				tasksize <= selected_tasksize[i])
 				continue;
-			} else if (selected[i])
+			} else if (selected[i] && oom_adj <= selected_oom_adj[i])
 				continue;
 
 			selected[i] = p;

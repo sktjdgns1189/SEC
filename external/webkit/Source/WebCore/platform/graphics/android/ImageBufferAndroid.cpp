@@ -117,14 +117,13 @@ void ImageBuffer::clearRecording() const
 bool ImageBuffer::canUseGpuRendering()
 {
     SkPicture* canvasRecording = context()->platformContext()->getRecordingPicture();
-    // OSS_C1
-    #if 0
-    if(canvasRecording != NULL)
+    /*OSS_C1
+	if(canvasRecording != NULL)
  	  {
         return canvasRecording->canUseGpuRendering();
     }
     else
-    #endif
+	OSS_C1*/
     {
         return false;
     }
