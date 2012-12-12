@@ -110,15 +110,7 @@ MouseRelatedEvent::MouseRelatedEvent(const AtomicString& eventType, bool canBubb
     m_clientY = clientLocation.y();
     m_pageX = adjustedPageLocation.x();
     m_pageY = adjustedPageLocation.y();
-    //SAMSUNG CHANGES >>
-    //Addition Error check
-    if(screenX == 0 && screenY == 0 && windowX == 0 && windowY == 0) {
-        m_clientX = windowX - contentsX(view());
-        m_clientY = windowY - contentsY(view());
-	m_pageX = windowX;
-   	m_pageY = windowY;
-    }
-    //SAMSUNG CHANGES <<		
+
     initCoordinates();
 }
 

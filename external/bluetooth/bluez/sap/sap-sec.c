@@ -3,9 +3,12 @@
  *
  *  Copyright (C) 2010 ST-Ericsson SA
  *  Copyright (C) 2011 Tieto Poland
+ *  Copyright (C) 2012 Samsung Electronics Co., Ltd
  *
  *  Author: Waldemar Rymarkiewicz <waldemar.rymarkiewicz@tieto.com>
  *          for ST-Ericsson
+ *  Author: C S Bhargava <cs.bhargava@samsung.com>
+ *          for Samsung Electronics
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,701 +48,279 @@ enum {
 	SIM_MISSING	= 0x03
 };
 
-static DBusConnection *connection = NULL;
+typedef struct SAPDataTag {
+	char *dest;
+	unsigned short sim_status;
+	unsigned short max_size;
+	int call_status;
+	void *device;
+	DBusConnection *conn;
+} SAPData;
 
-static int sim_card_conn_status = SIM_DISCONNECTED;
-static void *sap_data = NULL;  /* SAP server private data.*/
-static gboolean ongoing_call_status = FALSE;
-static int max_msg_size_supported = 512;
-
-#define RIL_OEM_UNSOL_RESPONSE_BASE 11000
-#define RIL_UNSOL_SAP (RIL_OEM_UNSOL_RESPONSE_BASE + 13)
-
-#define RIL_REQUEST_OEM_HOOK_RAW 59
-
-struct RilClient {
-    void *prv;
-};
-
-typedef struct RilClient * HRilClient;
-
-#define RIL_CLIENT_ERR_SUCCESS      0
-#define RIL_CLIENT_ERR_AGAIN        1
-#define RIL_CLIENT_ERR_INIT         2   // Client is not initialized
-#define RIL_CLIENT_ERR_INVAL        3   // Invalid value
-#define RIL_CLIENT_ERR_CONNECT      4   // Connection error
-#define RIL_CLIENT_ERR_IO           5   // IO error
-#define RIL_CLIENT_ERR_RESOURCE     6   // Resource not available
-#define RIL_CLIENT_ERR_UNKNOWN      7
-
-typedef int (*RilOnComplete)(HRilClient handle, const void *data, size_t datalen);
-typedef int (*RilOnUnsolicited)(HRilClient handle, const void *data, size_t datalen);
-typedef int (*RilOnError)(void *data, int error);
-
-/*ril related variables*/
-static HRilClient ril_client = NULL;
-static RilOnComplete req_handler = NULL;
-static RilOnUnsolicited unsol_handler = NULL;
-static RilOnError err_handler = NULL;
-static gboolean ril_connected = FALSE;
-static char err_buf[128];
-
-#define OEM_FUNCTION_ID_SAP								0x14
-
-#define OEM_SAP_CONNECT									0x01
-#define OEM_SAP_STATUS									0x02
-#define OEM_SAP_READER_STATUS							0x03
-#define OEM_SAP_SIM_POWER								0x04
-#define OEM_SAP_TRANSFER_ATR							0x05
-#define OEM_SAP_TRANSFER_APDU							0x06
-#define OEM_SAP_SET_PROTOCOL							0x07
-
-#define MAX_MSG_SIZE									512	
-
-typedef struct {
-	uint8_t		func_id;
-	uint8_t		cmd;
-	uint16_t	len;
-} __attribute__((packed)) oem_ril_sap_hdr;
-
-typedef struct {    
-	uint16_t 	apdu_len;
-	uint8_t 	apdu[MAX_MSG_SIZE];	
-} __attribute__((packed)) ril_sap_req_transfer_apdu;
-
-typedef struct {    
-    uint8_t 	msg_id;
-    uint8_t 	connection_status;
-    uint16_t 	max_msg_size;
-} __attribute__((packed)) ril_sap_res_connect;
-
-typedef struct {    
-    uint8_t 	sap_status;  
-} __attribute__((packed)) ril_sap_res_sap_status;
-
-typedef struct {    
-    uint8_t 	result_code; 
-	uint16_t 	atr_len;
-	uint8_t atr[MAX_MSG_SIZE];	
-} __attribute__((packed)) ril_sap_res_transfer_atr;
-
-typedef struct {    
-    uint8_t 	result_code; 
-	uint16_t 	res_apdu_len;
-	uint8_t res_apdu[MAX_MSG_SIZE];	
-} __attribute__((packed)) ril_sap_res_transfer_apdu;
-
-typedef struct {    
-    uint8_t 	result_code;  
-} __attribute__((packed)) ril_sap_res_transport_protocol;
-
-typedef struct {    
-	uint8_t 	msg_id;
-    uint8_t 	result_code;  
-} __attribute__((packed)) ril_sap_res_sim_power;
-
-typedef struct {    	
-    uint8_t 	result_code;  
-	uint8_t 	card_reader_status;
-} __attribute__((packed)) ril_sap_res_card_reader_status;
-
-typedef struct {
-	uint8_t		disconnect_type;
-} __attribute__((packed)) unsol_sap_connect;
-
-typedef struct {
-	uint8_t		card_status;
-} __attribute__((packed)) unsol_sap_status;
-
-void com_samsung_ril_client_sap_handle_request(int id);
-static void sendSapReq(char cmd, char msgId);
-static void sendSapApduReq(unsigned short apdu_len, unsigned char  *apdu_req);
-static int onReqComplete(HRilClient client, const void *data, size_t datalen);
-static int onUnsol(HRilClient client, const void *data, size_t datalen);
-static int onError(void *data, int error);
-static int handleSapConnectRes(ril_sap_res_connect *rsp);
-static int handleSapAtrRes(ril_sap_res_transfer_atr *rsp);
-static int handleSapApduRes(ril_sap_res_transfer_apdu *rsp);
-static int handleSapStatusNoti(unsol_sap_status *noti);
-static int handleSapStatusRes(ril_sap_res_sap_status *rsp);
-static int handleSapSimPowerRes(ril_sap_res_sim_power *rsp);
-static int handleSapReaderStatusRes(ril_sap_res_card_reader_status *rsp);
-
-/*I had to go for this variable, do I have a better choice?*/
-void *sap_device_needed;
+static SAPData sap = {NULL, SIM_DISCONNECTED, 512, FALSE, NULL, NULL};
 
 void sap_connect_req(void *sap_device, uint16_t maxmsgsize)
 {
-    DBG("");
-    sap_device_needed = sap_device;
-
-    com_samsung_ril_client_sap_handle_request(SAPS_RIL_SIM_CONNECT_EVT);
+	DBG("");
+	sap.device = sap_device;
+	sap_request_handler(SAP_CONNECT_REQ, 0, NULL);
 }
 
 void sap_disconnect_req(void *sap_device, uint8_t linkloss)
 {
-    DBG("");
-    sap_device_needed = sap_device;
+	DBG("");
+	sap.device = sap_device;
+	// must be called for SIM RESET
+	sap_request_handler(SAP_DISCONNECT_REQ, 0, NULL);
 
-    // must be called for SIM RESET
-    com_samsung_ril_client_sap_handle_request(SAPS_RIL_SIM_DISCONNECT_EVT);
-
-    if (linkloss) {
-        DBG("Link Loss!!!");
-        return;
-    }
+	if (linkloss) {
+		DBG("Link Loss!!!");
+		return;
+	}
 }
 
 void sap_transfer_apdu_req(void *sap_device, struct sap_parameter *param)
 {
-    DBG("");
-
-    sap_device_needed = sap_device;
-
-    sendSapApduReq(param->len,param->val);
+	DBG("");
+	sap.device = sap_device;
+	sap_request_handler(SAP_TRANSFER_APDU_REQ, param->len, param->val);
 }
 
 void sap_transfer_atr_req(void *sap_device)
 {
-    DBG("");
-    sap_device_needed = sap_device;
-    com_samsung_ril_client_sap_handle_request(SAPS_RIL_SIM_ATR_EVT);
+	DBG("");
+	sap.device = sap_device;
+	sap_request_handler(SAP_TRANSFER_ATR_REQ, 0, NULL);
 }
 
 void sap_power_sim_off_req(void *sap_device)
 {
-    DBG("");
-    sap_device_needed = sap_device;
-    com_samsung_ril_client_sap_handle_request(SAPS_RIL_SIM_OFF_EVT);
+	DBG("");
+	sap.device = sap_device;
+	sap_request_handler(SAP_POWER_SIM_OFF_REQ, 0, NULL);
 }
 
 void sap_power_sim_on_req(void *sap_device)
 {
-    DBG("");
-    sap_device_needed = sap_device;
-    com_samsung_ril_client_sap_handle_request(SAPS_RIL_SIM_ON_EVT);
+	DBG("");
+	sap.device = sap_device;
+	sap_request_handler(SAP_POWER_SIM_ON_REQ, 0, NULL);
 }
 
 void sap_reset_sim_req(void *sap_device)
 {
-    DBG("");
-    sap_device_needed = sap_device;
-    com_samsung_ril_client_sap_handle_request(SAPS_RIL_SIM_RESET_EVT);
+	DBG("");
+	sap.device = sap_device;
+	sap_request_handler(SAP_RESET_SIM_REQ, 0, NULL);
 }
 
 void sap_transfer_card_reader_status_req(void *sap_device)
 {
-    DBG("");
-    sap_device_needed = sap_device;
-    com_samsung_ril_client_sap_handle_request(SAPS_RIL_SIM_CARD_READER_STATUS_EVT);
+	DBG("");
+	sap.device = sap_device;
+	sap_request_handler(SAP_TRANSFER_CARD_READER_STATUS_REQ, 0, NULL);
 }
 
 void sap_set_transport_protocol_req(void *sap_device,
     struct sap_parameter *param)
 {
-    DBG("");
-    sap_device_needed = sap_device;
-    sap_transport_protocol_rsp(sap_device, SAP_RESULT_NOT_SUPPORTED);
+	DBG("");
+	sap.device = sap_device;
+	sap_transport_protocol_rsp(sap_device, SAP_RESULT_NOT_SUPPORTED);
 }
 
-gboolean com_samsung_ril_client_sap_connect()
+// Open RIL connection and return success status
+gboolean sap_open_ril(void)
 {
-    int err;
+	DBusMessage *msg, *reply;
+	gboolean conn_status = FALSE;
 
-    DBG("");
+	DBG("conn %0x, dest %s", sap.conn, sap.dest);
 
-    if (ril_client != NULL || req_handler != NULL || unsol_handler != NULL ||
-        err_handler != NULL || ril_connected) {
-        DBG("Oops, already connected!!!");
-        DBG("ril_client    = 0x%p", ril_client);
-        DBG("req_handler   = 0x%p", req_handler);
-        DBG("unsol_handler = 0x%p", unsol_handler);
-        DBG("err_handler   = 0x%p", err_handler);
-        DBG("ril_connected = %s", ril_connected ? "true" : "false");
-        return FALSE;
-    }
+	msg = dbus_message_new_method_call(sap.dest, SAP_SEC_PATH,
+		SAP_SEC_IFACE, "SapRilOpen");
+	if (msg == NULL) {
+		error("Failed to Call sril_open");
+		return FALSE;
+	}
 
-   ril_client = OpenClient_RILD();
-    if (ril_client == NULL) {
-        DBG("Failed to OpenClient_RILD()");
-        return FALSE;
-    }
+	reply = dbus_connection_send_with_reply_and_block(sap.conn, msg, -1, NULL);
+	dbus_message_unref(msg);
+	if (reply == NULL) {
+		error("Reply NULL");
+		return FALSE;
+	}
+	if (dbus_message_get_args(reply, NULL,
+			DBUS_TYPE_BOOLEAN, &conn_status,
+			DBUS_TYPE_INVALID) == FALSE) {
+		dbus_message_unref(reply);
+		error("Failed to Get reply for sril_open");
+		return FALSE;
+	}
+	DBG("conn_status %d", conn_status);
 
-    err = RegisterRequestCompleteHandler(ril_client, REQ_OEM_HOOK_RAW, onReqComplete);
-    if (err == RIL_CLIENT_ERR_SUCCESS) {
-        req_handler = onReqComplete;
-    }
-    else {
-        DBG("Failed to RegisterRequestCompleteHandler(), err = %d", err);
-        com_samsung_ril_client_sap_disconnect();
-        return FALSE;
-    }
-
-    err = RegisterUnsolicitedHandler(ril_client, RIL_UNSOL_SAP, onUnsol);
-    if (err == RIL_CLIENT_ERR_SUCCESS) {
-        unsol_handler = onUnsol;
-    }
-    else {
-        DBG("Failed to RegisterUnsolicitedHandler(), err = %d", err);
-        com_samsung_ril_client_sap_disconnect();
-        return FALSE;
-    }
-
-    err = RegisterErrorCallback(ril_client, onError, err_buf);
-    if (err == RIL_CLIENT_ERR_SUCCESS) {
-        err_handler = onError;
-    }
-    else {
-        DBG("Failed to RegisterErrorCallback(), err = %d", err);
-        com_samsung_ril_client_sap_disconnect();
-        return FALSE;
-    }
-
-    err = Connect_RILD(ril_client);
-    if (err == RIL_CLIENT_ERR_SUCCESS) {
-        ril_connected = TRUE;
-    }
-    else {
-        DBG("Failed to Connect_RILD(), err = %d", err);
-        com_samsung_ril_client_sap_disconnect();
-        return FALSE;
-    }
-
-    DBG("SAP driver RIL client connected, ril_client = 0x%p", ril_client);
-    return TRUE;
+	dbus_message_unref(reply);
+	return conn_status;
 }
 
-
-/*Request response handler. The response handler is invoked in the client task context.
-* Return is 0 or error code. */
-static int onReqComplete(HRilClient client, const void *data, size_t datalen)
+// Calles RIL methods through DBUS
+void sap_request_handler(uint8_t msg_id, uint16_t req_len, uint8_t *req)
 {
-    const char *c = (const char *) data;
-    oem_ril_sap_hdr *hdr = (oem_ril_sap_hdr *) data;
+	DBusMessage *msg = NULL;
 
-    DBG("datalen = %d, data = %02x %02x %02x %02x %02x %02x %02x %02x",
-          datalen, c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]);
+	DBG(" msg_id %d, msg_len %d", msg_id, req_len);
 
-    if (hdr->func_id != OEM_FUNCTION_ID_SAP) {
-        DBG("Not a SAP request. id = %02x, skip it...", hdr->func_id);
-        return RIL_CLIENT_ERR_INVAL;
-    }
+	switch (msg_id) {
+		case SAP_CONNECT_REQ:
+		case SAP_DISCONNECT_REQ:
+		case SAP_TRANSFER_APDU_REQ:
+		case SAP_TRANSFER_ATR_REQ:
+		case SAP_POWER_SIM_OFF_REQ:
+		case SAP_POWER_SIM_ON_REQ:
+		case SAP_RESET_SIM_REQ:
+		case SAP_TRANSFER_CARD_READER_STATUS_REQ:
+			msg = dbus_message_new_method_call(sap.dest, SAP_SEC_PATH,
+				SAP_SEC_IFACE, "SapHandleReq");
+			if (msg == NULL) {
+				DBG("Failed to Call sril_handle_req");
+				return;
+			}
 
-   DBG("SAP cmd. id = %02x, skip it...", hdr->cmd);
-
-
-    switch (hdr->cmd) {
-    case OEM_SAP_CONNECT:
-        return handleSapConnectRes((ril_sap_res_connect *) &c[4]);
-    case OEM_SAP_TRANSFER_ATR:
-        return handleSapAtrRes((ril_sap_res_transfer_atr *) &c[4]);
-    case OEM_SAP_STATUS:
-        return handleSapStatusRes((ril_sap_res_sap_status *) &c[4]);
-    case OEM_SAP_READER_STATUS:
-        return handleSapReaderStatusRes((ril_sap_res_card_reader_status *) &c[4]);
-    case OEM_SAP_SIM_POWER:
-        return handleSapSimPowerRes((ril_sap_res_sim_power *) &c[4]);
-    case OEM_SAP_TRANSFER_APDU:
-        return handleSapApduRes((ril_sap_res_transfer_apdu *) &c[4]);
-    /*case OEM_SAP_SET_PROTOCOL:
-        return handleSetProtocolRes((ril_sap_res_transport_protocol *) &c[4]);
-    */
-
-    default:
-        DBG("Unknown SAP response. datalen = %d, data = %02x %02x %02x %02x",
-             datalen, c[0], c[1], c[2], c[3]);
-        break;
-
-    }
-
-    return 0;
+			dbus_message_append_args(msg,
+				DBUS_TYPE_BYTE, &msg_id,
+				DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &req, (uint32_t) req_len,
+				DBUS_TYPE_INVALID);
+			dbus_connection_send(sap.conn, msg, NULL);
+			dbus_message_unref(msg);
+			break;
+		case SAP_SET_TRANSPORT_PROTOCOL_REQ:
+		default:
+			DBG("Unknown message Id %d", msg_id);
+			break;
+	}
 }
 
-/* Unsolicited response handler. The response handler is invoked in the client task context.
- * Return is 0 or error code.
- */
-static int onUnsol(HRilClient client, const void *data, size_t datalen)
+// Close RIL connection
+void sap_close_ril(void)
 {
-    const char *c = (const char *) data;
-    oem_ril_sap_hdr *hdr = (oem_ril_sap_hdr *) data;
+	DBusMessage *msg = NULL;
 
-    DBG("datalen = %d, data = %02x %02x %02x %02x %02x",
-          datalen, c[0], c[1], c[2], c[3], c[4]);
+	DBG("conn %0x", sap.conn);
 
-    if (hdr->func_id != OEM_FUNCTION_ID_SAP) {
-        DBG("Not a SAP request. id = %02x, skip it...", hdr->func_id);
-        return RIL_CLIENT_ERR_INVAL;
-    }
-
-    switch (hdr->cmd) {
-   // case OEM_SAP_CONNECT:
-      //  return handleSapConnectNoti((unsol_sap_connect *) &c[4]);
-    case OEM_SAP_STATUS:
-        return handleSapStatusNoti((unsol_sap_status *) &c[4]);
-    default:
-        DBG("Unknown SAP unsolicited response. datalen = %d, data = %02x %02x %02x %02x %02x",
-               datalen, c[0], c[1], c[2], c[3], c[4]);
-        break;
-    }
-
-    return 0;
+	// Send connection request via DBus
+	msg = dbus_message_new_method_call(sap.dest, SAP_SEC_PATH,
+		SAP_SEC_IFACE, "SapRilClose");
+	if (msg == NULL) {
+		DBG("Failed to Call sril_close");
+		return;
+	}
+	dbus_connection_send(sap.conn, msg, NULL);
+	dbus_message_unref(msg);
+	return;
 }
-
-
-/* Error handler. Return is 0 or error code. */
-static int onError(void *data, int error)
-{
-    const char *c = (const char *) data;
-
-    DBG("##########################################");
-    DBG("error = %d, data = %02x %02x %02x %02x",
-         error, c[0], c[1], c[2], c[3]);
-    DBG("##########################################");
-    return 0;
-}
-
-void com_samsung_ril_client_sap_handle_request(int id)
-{
-    DBG("service_sap_SAPService %d id: ", id);
-
-    switch(id){
-    // connect Req ..
-    case SAPS_RIL_SIM_CONNECT_EVT:
-        DBG("SAPS_RIL_SIM_CONNECT_EVT ");
-        sendSapReq(OEM_SAP_CONNECT, SAP_CONNECT_REQ);
-        break;
-    // disconnect Req ..
-    case SAPS_RIL_SIM_DISCONNECT_EVT:
-        DBG("SAPS_RIL_SIM_DISCONNECT_EVT ");
-        sendSapReq(OEM_SAP_CONNECT, SAP_DISCONNECT_REQ);
-        break;
-    // Transfer ATR Req ..
-    case SAPS_RIL_SIM_ATR_EVT:
-        DBG("SAPS_RIL_SIM_ATR_EVT ");
-        sendSapReq(OEM_SAP_TRANSFER_ATR, SAP_TRANSFER_ATR_REQ);
-        break;
-    // SIM OFF ..
-    case SAPS_RIL_SIM_OFF_EVT:
-        DBG("SAPS_RIL_SIM_OFF_EVT ");
-        sendSapReq(OEM_SAP_SIM_POWER, SAP_POWER_SIM_OFF_REQ);
-        break;
-    // SIM ON..
-    case SAPS_RIL_SIM_ON_EVT:
-        DBG("SAPS_RIL_SIM_ON_EVT ");
-        sendSapReq(OEM_SAP_SIM_POWER, SAP_POWER_SIM_ON_REQ);
-        break;
-    // SIM RESET ..
-    case SAPS_RIL_SIM_RESET_EVT:
-        DBG("SAPS_RIL_SIM_RESET_EVT ");
-        sendSapReq(OEM_SAP_SIM_POWER, SAP_RESET_SIM_REQ);
-        break;
-    // CARD READER STATUS ..
-    case SAPS_RIL_SIM_CARD_READER_STATUS_EVT:
-        DBG("SAPS_RIL_SIM_CARD_READER_STATUS_EVT ");
-        sendSapReq(OEM_SAP_READER_STATUS, SAP_TRANSFER_CARD_READER_STATUS_REQ);
-        break;
-    //Transfer APDU req ..
-    case SAPS_RIL_SIM_APDU_EVT:
-        DBG("%s: SAPS_RIL_SIM_APDU_EVT ");
-        //sendSapApduReq(req_len,apdu_req);
-        break;
-    // Unknown req..
-    default:
-        DBG("Oops: unknown event ID %d", id);
-        break;
-    }
-
-}
-
-
-static void sendSapReq(char cmd, char msgId)
-{
-    int  ret;
-    int  len = 5;
-    int  retry_count = 0;
-    char data[8];
-
-    DBG("");
-    DBG("cmd = %d, msgId = %d", cmd, msgId);
-    DBG("ril_client    = 0x%p", ril_client);
-    DBG("req_handler   = 0x%p", req_handler);
-    DBG("unsol_handler = 0x%p", unsol_handler);
-    DBG("err_handler   = 0x%p", err_handler);
-
-    data[0] = OEM_FUNCTION_ID_SAP;
-    data[1] = cmd;
-    data[2] = 0;
-    data[3] = len;
-    data[4] = msgId;
-
-    do {
-        if (retry_count != 0) {
-            DBG("cmd/msgId (%d/%d) retry_count = %d",
-                 cmd, msgId, retry_count);
-        }
-        ret = InvokeOemRequestHookRaw(ril_client, data, len);
-    } while (ret == RIL_CLIENT_ERR_AGAIN && retry_count++ < MAX_RIL_RETRY);
-
-    if (ret == RIL_CLIENT_ERR_SUCCESS) {
-        DBG("cmd/msgId (%d/%d) done! retry_count = %d",
-             cmd, msgId, retry_count);
-    }
-    else if (ret == RIL_CLIENT_ERR_AGAIN) {
-        DBG("cmd/msgId (%d/%d) retried more than %d times. Give up...",
-             cmd, msgId, MAX_RIL_RETRY);
-    }
-    else {
-        DBG("cmd/MSGiD (%d/%d) failed. ret = %d", cmd, msgId, ret);
-    }
-}
-
-
-// Send an SAP APDU request.
-static void sendSapApduReq(unsigned short apdu_len, unsigned char  *apdu_req)
-{
-    int  ret;
-    int  len = apdu_len + 2 + 4;
-    int  retry_count = 0;
-    char data[MAX_MSG_SIZE + 8];
-    ril_sap_req_transfer_apdu *apdu;
-
-    DBG("#################################################");
-    DBG("apdu_len = %d", apdu_len);
-    DBG("#################################################");
-
-
-    if (apdu_len > MAX_MSG_SIZE) {
-        DBG("APDU apdu_len (%d) > MAX_MSG_SIZE (%d)",apdu_len, MAX_MSG_SIZE);
-        return;
-    }
-
-
-    data[0] = OEM_FUNCTION_ID_SAP;
-    data[1] = OEM_SAP_TRANSFER_APDU;
-    data[2] = (len >> 8) & 0xFF;
-    data[3] = len & 0xFF;
-
-    apdu = (ril_sap_req_transfer_apdu *) &data[4];
-    apdu->apdu_len = apdu_len;
-    memcpy(apdu->apdu, apdu_req, apdu_len);
-
-// Samsung SWP Bluetooth feature
-/*{
-    char reqdata[100] ={0,};
-    int i;
-    for(i=0;( i< apdu->apdu_len && i < 18); i++){
-        sprintf(&reqdata[i*5], "0x%02x ", apdu->apdu[i]);
-    }
-    LOGI("SJ APDU req: %s", reqdata);
-    }*/
-// End Samsung SWP Bluetooth feature
-
-
-    do {
-        if (retry_count != 0) {
-            DBG("Send APDU req retry_count = %d", retry_count);
-        }
-        ret = InvokeOemRequestHookRaw(ril_client, data, len);
-    } while (ret == RIL_CLIENT_ERR_AGAIN && retry_count++ < MAX_RIL_RETRY);
-
-    if (ret == RIL_CLIENT_ERR_SUCCESS) {
-        DBG("Send APDU req done! retry_count = %d", retry_count);
-    }else if (ret == RIL_CLIENT_ERR_AGAIN) {
-        DBG("Send APDU req retried more than %d times. Give up...",MAX_RIL_RETRY);
-    }else {
-        DBG("Send APDU req failed. ret = %d", ret);
-    }
-}
-
-
-/* Request response handler. The response handler is invoked in the client task context.
- * Return is 0 or error code. Handle the SAP Connect command response */
-static int handleSapConnectRes(ril_sap_res_connect *rsp)
-{
-
-    DBG("msg_id = %d, connection_status = %d, max_msg_size = %d",
-        rsp->msg_id, rsp->connection_status, rsp->max_msg_size);
-
-    switch (rsp->msg_id) {
-        case SAP_CONNECT_RESP:
-            switch (rsp->connection_status) {
-                case SAP_STATUS_OK:
-                    DBG("SIM card connected ok. max_msg_size = %d",rsp->max_msg_size);
-                    break;
-                case SAP_STATUS_CONNECTION_FAILED:
-                case SAP_STATUS_MAX_MSG_SIZE_NOT_SUPPORTED:
-                case SAP_STATUS_MAX_MSG_SIZE_TOO_SMALL:
-                    DBG("SIM card connection failed, connection_status = %d",
-                        rsp->connection_status);
-                    DBG("Send gracefully disconnect command to BTA");
-
-                    break;
-
-                default:
-                    DBG("Unsupported SIM card connection_status = %d",rsp->connection_status);
-                    break;
-                }
-                break;
-        case SAP_DISCONNECT_RESP:
-            DBG("SIM card disconnection, connection_status = %d",rsp->connection_status);
-        break;
-    }
-
-    if(rsp->msg_id == SAP_CONNECT_RESP){
-        sap_connect_rsp(sap_device_needed, rsp->connection_status,
-            rsp->max_msg_size);
-        sap_reset_sim_req(sap_device_needed);
-        sap_status_ind(sap_device_needed, SAP_STATUS_CHANGE_CARD_RESET);
-    } else if(rsp->msg_id == SAP_DISCONNECT_RESP){
-        sap_disconnect_rsp(sap_device_needed);
-    }
-
-    return 0;
-}
-
-/* Handle the SAP ATR transfer command response */
-static int handleSapAtrRes(ril_sap_res_transfer_atr *rsp)
-{
-    DBG("result_code = %d, atr_len = %d", rsp->result_code, rsp->atr_len);
-
-    int i;
-    for(i=0; i< rsp->atr_len; i++){
-        DBG("@@@@ ATR req: %d", rsp->atr[i]);
-    }
-
-    sap_transfer_atr_rsp(sap_device_needed, rsp->result_code,
-        (uint8_t*)rsp->atr, rsp->atr_len);
-    return 0;
-}
-
-/* Handle the SAP APDU transfer command response */
-static int handleSapApduRes(ril_sap_res_transfer_apdu *rsp)
-{
-    DBG("result_code = %d, res_apdu_len = %d",
-        rsp->result_code, rsp->res_apdu_len);
-
-    int i;
-    for(i=0; (i< rsp->res_apdu_len); i++){
-        DBG("@@@@ APDU req: %d", rsp->res_apdu[i]);
-    }
-
-    int ret = -3;
-    ret = sap_transfer_apdu_rsp(sap_device_needed, rsp->result_code,
-        (uint8_t*)rsp->res_apdu, rsp->res_apdu_len);
-    DBG("sap_transfer_apdu_rsp returned(%d)", ret);
-    //recheck if we need to add padding data...ok?
-    return 0;
-}
-
-
-/* Handle unsolicited SAP status notification */
-static int handleSapStatusNoti(unsol_sap_status *noti)
-{
-    DBG("card_status = %d", noti->card_status);
-    sim_card_conn_status = noti->card_status;
-    sap_status_ind(sap_device_needed, noti->card_status);
-
-    return 0;
-}
-
-/* Handle the SAP Status response */
-static int handleSapStatusRes(ril_sap_res_sap_status *rsp)
-{
-
-    DBG("status = %d", rsp->sap_status);
-
-    sap_status_ind(sap_device_needed, rsp->sap_status);
-
-    return 0;
-}
-
-/* Handle the SAP SIM card power command response */
-static int handleSapSimPowerRes(ril_sap_res_sim_power *rsp)
-{
-
-    DBG("msg_id = %d, result_code = %d",
-		rsp->msg_id, rsp->result_code);
-
-    switch (rsp->msg_id) {
-        case SAP_POWER_SIM_OFF_RESP:
-            sap_power_sim_off_rsp(sap_device_needed, rsp->result_code);
-            break;
-        case SAP_POWER_SIM_ON_RESP:
-            sap_power_sim_on_rsp(sap_device_needed,rsp->result_code);
-            break;
-        case SAP_RESET_SIM_RESP:
-            sap_reset_sim_rsp(sap_device_needed, rsp->result_code);
-			       break;
-        default:
-            DBG("Oops, unknown msg_id = %d", rsp->msg_id);
-            return 0;
-    }
-
-    return 0;
-}
-
-/* Handle the SAP Card Reader Status response */
-static int handleSapReaderStatusRes(ril_sap_res_card_reader_status *rsp)
-{
-    DBG("result_code = %d, card_reader_status = %d",
-		rsp->result_code, rsp->card_reader_status);
-
-    sap_transfer_card_reader_status_rsp(sap_device_needed, rsp->result_code, rsp->card_reader_status);
-    /*env->CallVoidMethod(pJavaObject,method_onhandleTransferCardReaderStatusRes,
-		(jint)rsp->result_code,(jint)rsp->card_reader_status);*/
-
-    return 0;
-}
-
-void com_samsung_ril_client_sap_disconnect()
-{
-    int err;
-
-    DBG("ril_client = 0x%p",  ril_client);
-
-    if (ril_client == NULL) {
-        return;
-    }
-
-    if (err_handler != NULL) {
-        err = RegisterErrorCallback(ril_client, NULL, NULL);
-        if (err != RIL_CLIENT_ERR_SUCCESS) {
-            DBG("Failed to un-RegisterErrorCallback(), err = %d", err);
-        }
-        err_handler = NULL;
-    }
-
-    if (unsol_handler != NULL) {
-        err = RegisterUnsolicitedHandler(ril_client, RIL_UNSOL_SAP, NULL);
-        if (err != RIL_CLIENT_ERR_SUCCESS) {
-            DBG("Failed to un-RegisterUnsolicitedHandler(), err = %d", err);
-        }
-        unsol_handler = NULL;
-    }
-
-    if (req_handler != NULL) {
-        err = RegisterRequestCompleteHandler(ril_client, RIL_REQUEST_OEM_HOOK_RAW, NULL);
-        if (err != RIL_CLIENT_ERR_SUCCESS) {
-            DBG("Failed to un-RegisterRequestCompleteHandler(), err = %d", err);
-        }
-        req_handler = NULL;
-    }
-
-    err = CloseClient_RILD(ril_client);
-    if (err != RIL_CLIENT_ERR_SUCCESS) {
-        DBG("Failed to CloseClient_RILD(), err = %d", err);
-    }
-    ril_client = NULL;
-    ril_connected = FALSE;
-
-    DBG("Exit");
-}
-
 
 static inline DBusMessage *invalid_args(DBusMessage *msg)
 {
 	return g_dbus_create_error(msg, "org.bluez.Error.InvalidArguments",
-					"Invalid arguments in method call");
+		"Invalid arguments in method call");
+}
+
+// Save sender name from Framework
+static DBusMessage *register_sap(DBusConnection *conn, DBusMessage *msg,
+								void *data)
+{
+	DBG("");
+	sap.dest = g_strdup(dbus_message_get_sender(msg));
+	return dbus_message_new_method_return(msg);
+}
+
+// Release memory for sender name
+static DBusMessage *unregister_sap(DBusConnection *conn, DBusMessage *msg,
+								void *data)
+{
+	DBG("");
+	if (sap.dest) {
+		g_free(sap.dest);
+		sap.dest = NULL;
+	}
+	return dbus_message_new_method_return(msg);
+}
+
+// Handle RIL responses received from Dbus
+static DBusMessage *sap_response_handler(DBusConnection *conn,
+						DBusMessage *msg, void *data)
+{
+	uint8_t result, status, msg_id;
+	uint16_t max_msg_size;
+	uint8_t *resp;
+	uint32_t resp_len;
+	int ret;
+
+	if (!dbus_message_get_args(msg, NULL,
+				DBUS_TYPE_BYTE, &msg_id,
+				DBUS_TYPE_BYTE, &result,
+				DBUS_TYPE_BYTE, &status,
+				DBUS_TYPE_UINT16, &max_msg_size,
+				DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &resp, &resp_len,
+				DBUS_TYPE_INVALID)) {
+		return invalid_args(msg);
+	}
+
+	DBG(" msg_id %d, result %d, status %d, max_msg_size %d, res_len %d",
+			msg_id, result, status, max_msg_size, resp_len);
+
+	switch (msg_id) {
+	case SAP_CONNECT_RESP:
+		ret = sap_connect_rsp(sap.device, status, max_msg_size);
+		/* Send Reset SIM request to RIL as per previous implementation */
+		sap_reset_sim_req(sap.device);
+		ret = sap_status_ind(sap.device, SAP_STATUS_CHANGE_CARD_RESET);
+		break;
+	case SAP_DISCONNECT_IND:
+	case SAP_DISCONNECT_RESP:
+		// connection status, max message size
+		ret = sap_disconnect_rsp(sap.device);
+		break;
+	case SAP_TRANSFER_APDU_RESP:
+		// result code, apdu len, apdu
+		DBG("APDU response result %d len %d", result, resp_len);
+		ret = sap_transfer_apdu_rsp(sap.device, result, resp, (uint16_t) resp_len);
+		break;
+	case SAP_TRANSFER_ATR_RESP:
+		// result code, atr len, atr
+		DBG("ATR response result %d len %d", result, resp_len);
+		ret = sap_transfer_atr_rsp(sap.device, result, resp, (uint16_t) resp_len);
+		break;
+	case SAP_POWER_SIM_OFF_RESP:
+		// sim off result code
+		ret = sap_power_sim_off_rsp(sap.device, result);
+		break;
+	case SAP_POWER_SIM_ON_RESP:
+		// sim on result code
+		ret = sap_power_sim_on_rsp(sap.device, result);
+		break;
+	case SAP_RESET_SIM_RESP:
+		// sim reset result code
+		ret = sap_reset_sim_rsp(sap.device, result);
+		break;
+	case SAP_TRANSFER_CARD_READER_STATUS_RESP:
+		// result code, card reader status
+		ret = sap_transfer_card_reader_status_rsp(sap.device, result, status);
+		break;
+	case SAP_STATUS_IND:
+		// sp status
+		ret = sap_status_ind(sap.device, status);
+		break;
+	case SAP_ERROR_RESP:
+		// DBG("SAP_ERROR_RESP : %d",result);
+		ret = sap_error_rsp(sap.device);
+		break;
+	case SAP_SET_TRANSPORT_PROTOCOL_RESP:
+	default:
+		DBG("Error : Unhandled msg_id %d", msg_id);
+		break;
+	}
+	return dbus_message_new_method_return(msg);
 }
 
 static DBusMessage *ongoing_call(DBusConnection *conn, DBusMessage *msg,
@@ -748,21 +329,20 @@ static DBusMessage *ongoing_call(DBusConnection *conn, DBusMessage *msg,
 	dbus_bool_t ongoing;
 
 	if (!dbus_message_get_args(msg, NULL, DBUS_TYPE_BOOLEAN, &ongoing,
-						DBUS_TYPE_INVALID))
+		DBUS_TYPE_INVALID))
 		return invalid_args(msg);
 
-	if (ongoing_call_status && !ongoing) {
+	if (sap.call_status && !ongoing) {
 		/* An ongoing call has finished. Continue connection.*/
-		sap_connect_rsp(sap_data, SAP_STATUS_OK,
-						max_msg_size_supported);
-		sap_status_ind(sap_data, SAP_STATUS_CHANGE_CARD_RESET);
-		ongoing_call_status = ongoing;
-	} else if (!ongoing_call_status && ongoing) {
+		sap_connect_rsp(sap.device, SAP_STATUS_OK, sap.max_size);
+		sap_status_ind(sap.device, SAP_STATUS_CHANGE_CARD_RESET);
+		sap.call_status = ongoing;
+	} else if (!sap.call_status && ongoing) {
 		/* An ongoing call has started.*/
-		ongoing_call_status = ongoing;
+		sap.call_status = ongoing;
 	}
 
-	DBG("OngoingCall status set to %d", ongoing_call_status);
+	DBG("OngoingCall status set to %d", sap.call_status);
 
 	return dbus_message_new_method_return(msg);
 }
@@ -772,17 +352,17 @@ static DBusMessage *max_msg_size(DBusConnection *conn, DBusMessage *msg,
 {
 	dbus_uint32_t size;
 
-	if (sim_card_conn_status == SIM_CONNECTED)
+	if (sap.sim_status == SIM_CONNECTED)
 		return g_dbus_create_error(msg, "org.bluez.Error.Failed",
-				"Can't change msg size when connected.");
+			"Can't change msg size when connected.");
 
 	if (!dbus_message_get_args(msg, NULL, DBUS_TYPE_UINT32, &size,
-							DBUS_TYPE_INVALID))
+		DBUS_TYPE_INVALID))
 		return invalid_args(msg);
 
-	max_msg_size_supported = size;
+	sap.max_size = size;
 
-	DBG("MaxMessageSize set to %d", max_msg_size_supported);
+	DBG("MaxMessageSize set to %d", sap.max_size);
 
 	return dbus_message_new_method_return(msg);
 }
@@ -792,39 +372,38 @@ static DBusMessage *card_status(DBusConnection *conn, DBusMessage *msg,
 {
 	dbus_uint32_t status;
 
-	DBG("status %d", sim_card_conn_status);
+	DBG(" status %d", sap.sim_status);
 
-	if (sim_card_conn_status != SIM_CONNECTED)
+	if (sap.sim_status != SIM_CONNECTED)
 		return g_dbus_create_error(msg, "org.bluez.Error.Failed",
-				"Can't change msg size when not connected.");
+			"Can't change msg size when not connected.");
 
 	if (!dbus_message_get_args(msg, NULL, DBUS_TYPE_UINT32, &status,
-							DBUS_TYPE_INVALID))
+		DBUS_TYPE_INVALID))
 		return invalid_args(msg);
 
 	switch (status) {
 	case 0: /* card removed */
-		sim_card_conn_status = SIM_MISSING;
+		sap.sim_status = SIM_MISSING;
 		DBG("SAP_STATUS_CHANGE_CARD_REMOVED");
-		sap_status_ind(sap_device_needed, SAP_STATUS_CHANGE_CARD_REMOVED);
+		sap_status_ind(sap.device, SAP_STATUS_CHANGE_CARD_REMOVED);
 		break;
 
 	case 1: /* card inserted */
-		if (sim_card_conn_status == SIM_MISSING) {
-			sim_card_conn_status = SIM_CONNECTED;
-			sap_status_ind(sap_data,
-					SAP_STATUS_CHANGE_CARD_INSERTED);
+		if (sap.sim_status == SIM_MISSING) {
+			sap.sim_status = SIM_CONNECTED;
+			sap_status_ind(sap.device, SAP_STATUS_CHANGE_CARD_INSERTED);
 		}
 		break;
 
 	case 2: /* card not longer available*/
-		sim_card_conn_status = SIM_POWERED_OFF;
-		sap_status_ind(sap_data, SAP_STATUS_CHANGE_CARD_NOT_ACCESSIBLE);
+		sap.sim_status = SIM_POWERED_OFF;
+		sap_status_ind(sap.device, SAP_STATUS_CHANGE_CARD_NOT_ACCESSIBLE);
 		break;
 
 	default:
 		return g_dbus_create_error(msg, "org.bluez.Error.Failed",
-				"Unknown card status. Use 0, 1 or 2.");
+			"Unknown card status. Use 0, 1 or 2.");
 	}
 
 	DBG("Card status changed to %d", status);
@@ -832,23 +411,26 @@ static DBusMessage *card_status(DBusConnection *conn, DBusMessage *msg,
 	return dbus_message_new_method_return(msg);
 }
 
-static GDBusMethodTable dummy_methods[] = {
-	{ "OngoingCall", "b", "", ongoing_call},
-	{ "MaxMessageSize", "u", "", max_msg_size},
-	{ "CardStatus", "u", "", card_status},
+static GDBusMethodTable sap_methods[] = {
+	{ "OngoingCall", "b", "", ongoing_call },
+	{ "MaxMessageSize", "u", "", max_msg_size },
+	{ "CardStatus", "u", "", card_status },
+	{ "RegisterSAP", "", "", register_sap },
+	{ "UnregisterSAP", "", "", unregister_sap },
+	{ "SapResponseHandler", "yyyqay", "", sap_response_handler},
 	{ }
 };
 
 int sap_init(void)
 {
 	DBG("");
-	connection = dbus_bus_get(DBUS_BUS_SYSTEM, NULL);
+	sap.conn = dbus_bus_get(DBUS_BUS_SYSTEM, NULL);
 
-	if (g_dbus_register_interface(connection, SAP_SEC_PATH,
-				SAP_SEC_IFACE, dummy_methods, NULL, NULL,
-				NULL, NULL) == FALSE) {
+	if (g_dbus_register_interface(sap.conn, SAP_SEC_PATH,
+					SAP_SEC_IFACE, sap_methods, NULL, NULL,
+					NULL, NULL) == FALSE) {
 		error("sap-dummy interface %s init failed on path %s",
-					SAP_SEC_IFACE, SAP_SEC_PATH);
+			SAP_SEC_IFACE, SAP_SEC_PATH);
 		return -1;
 	}
 
@@ -858,6 +440,8 @@ int sap_init(void)
 void sap_exit(void)
 {
 	DBG("");
-	dbus_connection_unref(connection);
-	connection = NULL;
+	g_dbus_unregister_interface(sap.conn, SAP_SEC_PATH,
+							SAP_SEC_IFACE);
+	dbus_connection_unref(sap.conn);
+	sap.conn = NULL;
 }

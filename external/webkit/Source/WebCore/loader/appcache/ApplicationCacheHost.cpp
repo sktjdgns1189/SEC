@@ -339,14 +339,17 @@ bool ApplicationCacheHost::shouldLoadResourceFromApplicationCache(const Resource
     if (!cache || !cache->isComplete())
         return false;
 
-    // If the resource is not to be fetched using the HTTP GET mechanism or equivalent, or if its URL has a different
-    // <scheme> component than the application cache's manifest, then fetch the resource normally.
-    if (!ApplicationCache::requestIsHTTPOrHTTPSGet(request) || !equalIgnoringCase(request.url().protocol(), cache->manifestResource()->url().protocol()))
-        return false;
-
+    //SAMSUNG FIX CQ MPSG00006118 - Moved to top
     // If the resource's URL is an master entry, the manifest, an explicit entry, or a fallback entry
     // in the application cache, then get the resource from the cache (instead of fetching it).
     resource = cache->resourceForURL(request.url());
+    //SAMSUNG FIX CQ MPSG00006118
+
+    // If the resource is not to be fetched using the HTTP GET mechanism or equivalent, or if its URL has a different
+    // <scheme> component than the application cache's manifest, then fetch the resource normally.
+    //SAMSUNG FIX CQ MPSG00006118 -added resource check 
+    if (NULL == resource || !ApplicationCache::requestIsHTTPOrHTTPSGet(request) || !equalIgnoringCase(request.url().protocol(), cache->manifestResource()->url().protocol()))
+        return false;
 
     // Resources that match fallback namespaces or online whitelist entries are fetched from the network,
     // unless they are also cached.

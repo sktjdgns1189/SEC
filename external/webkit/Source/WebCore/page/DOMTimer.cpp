@@ -41,7 +41,7 @@ namespace WebCore {
 static const int maxIntervalForUserGestureForwarding = 1000; // One second matches Gecko.
 static const int maxTimerNestingLevel = 5;
 static const double oneMillisecond = 0.001;
-double DOMTimer::s_minDefaultTimerInterval = 0.004; // SAMSUNG CHANGE - Changed from default 10 ms to 4 ms as per W3C standards
+double DOMTimer::s_minDefaultTimerInterval = 0.010; // 10 milliseconds
 
 static int timerNestingLevel = 0;
     

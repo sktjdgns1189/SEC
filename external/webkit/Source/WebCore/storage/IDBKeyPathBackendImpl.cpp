@@ -25,9 +25,11 @@
 
 #include "config.h"
 #include "IDBKeyPathBackendImpl.h"
+//SAMSUNG CHANGES HTML5 IDB <<
 #include "IDBKey.h"
 #include "IDBKeyPath.h"
 #include "IDBBindingUtilities.h"
+//SAMSUNG CHANGES HTML5 IDB >>
 
 #if PLATFORM(CHROMIUM)
 #error "Chromium should not compile this file and instead define its own version of this factory that navigates the multi-process boundry."
@@ -39,6 +41,7 @@ namespace WebCore {
 void IDBKeyPathBackendImpl::createIDBKeysFromSerializedValuesAndKeyPath(const Vector<RefPtr<SerializedScriptValue>, 0>& values, const String& keyPath, Vector<RefPtr<IDBKey>, 0>& keys)
 {
     // FIXME: Implement this method once JSC supports WireFormat for SerializedScriptValue.
+//SAMSUNG CHANGES HTML5 IDB <<
     PassRefPtr<IDBKey> k=NULL;
     Vector<IDBKeyPathElement> idbkeypaths;
     IDBKeyPathParseError parseerror;	
@@ -48,16 +51,19 @@ void IDBKeyPathBackendImpl::createIDBKeysFromSerializedValuesAndKeyPath(const Ve
         if(k)	
             keys.append(k);
    }    
+//SAMSUNG CHANGES HTML5 IDB >>
 }
 
 PassRefPtr<SerializedScriptValue> IDBKeyPathBackendImpl::injectIDBKeyIntoSerializedValue(PassRefPtr<IDBKey> key, PassRefPtr<SerializedScriptValue> value, const String& keyPath)
 {
     // FIXME: Implement this method once JSC supports WireFormat for SerializedScriptValue.    
+//SAMSUNG CHANGES HTML5 IDB <<
     Vector<String> keypaths;
     Vector<IDBKeyPathElement> idbkeypaths;
     IDBKeyPathParseError parseerror;	
     IDBParseKeyPath(keyPath, idbkeypaths, parseerror); 	
     return WebCore::injectIDBKeyIntoSerializedValue(key,value,idbkeypaths);
+//SAMSUNG CHANGES HTML5 IDB >>
 }
 
 }

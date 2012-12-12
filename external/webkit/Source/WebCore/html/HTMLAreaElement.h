@@ -46,14 +46,11 @@ public:
 
     // The parent map's image.
     HTMLImageElement* imageElement() const;
-    
-    // SAMSUNG CHANGE : Moved from private
-    enum Shape { Default, Poly, Rect, Circle, Unknown };
-    // SAMSUNG CHANGE : Newly Added >>
+//SISO_HTMLComposer Start
+	enum Shape { Default, Poly, Rect, Circle, Unknown };//Moved from private
     Shape shape() const { return m_shape; }
     IntRect rect() const;
-    // SAMSUNG CHANGE <<
-    
+//SISO_HTMLComposer End   
 private:
     HTMLAreaElement(const QualifiedName&, Document*);
 
@@ -66,13 +63,13 @@ private:
     virtual void updateFocusAppearance(bool /*restorePreviousSelection*/);
     virtual void setFocus(bool);
     
-//SAMSUNG MICRODATA CHANGES <<
+    
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     Path getRegion(const IntSize&) const;
 
     OwnPtr<Path> m_region;

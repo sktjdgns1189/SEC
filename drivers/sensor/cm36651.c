@@ -78,7 +78,11 @@
 /* Intelligent Cancelation*/
 #define CM36651_CANCELATION
 #ifdef CM36651_CANCELATION
+#ifdef CONFIG_SLP
+#define CANCELATION_FILE_PATH	"/csa/sensor/prox_cal_data"
+#else
 #define CANCELATION_FILE_PATH	"/efs/prox_cal"
+#endif
 #define CANCELATION_THRESHOLD	9
 #endif
 
@@ -745,6 +749,9 @@ irqreturn_t cm36651_irq_thread_fn(int irq, void *data)
 	input_report_abs(cm36651->proximity_input_dev, ABS_DISTANCE, val);
 	input_sync(cm36651->proximity_input_dev);
 	wake_lock_timeout(&cm36651->prx_wake_lock, 3 * HZ);
+#ifdef CONFIG_SLP
+	pm_wakeup_event(cm36651->proximity_dev, 0);
+#endif
 	pr_info("%s: val = %d, ps_data = %d (close:0, far:1)\n",
 		__func__, val, ps_data);
 
@@ -792,7 +799,7 @@ static int cm36651_setup_reg(struct cm36651_data *cm36651)
 
 	/* turn off */
 	cm36651_i2c_write_byte(cm36651,   CM36651_ALS, CS_CONF1, 0x01);
-	cm36651_i2c_write_byte(cm36651,   CM36651_ALS, PS_CONF1, 0x01);
+	cm36651_i2c_write_byte(cm36651,   CM36651_PS, PS_CONF1, 0x01);
 
 	pr_info("%s is success.", __func__);
 	return err;
@@ -1173,6 +1180,10 @@ static int cm36651_i2c_probe(struct i2c_client *client,
 		goto err_light_device_create_file4;
 	}
 
+#ifdef CONFIG_SLP
+	device_init_wakeup(cm36651->proximity_dev, true);
+#endif
+
 	dev_set_drvdata(cm36651->light_dev, cm36651);
 
 	pr_info("%s is success.\n", __func__);
@@ -1259,6 +1270,10 @@ static int cm36651_i2c_remove(struct i2c_client *client)
 	/* destroy workqueue */
 	destroy_workqueue(cm36651->light_wq);
 	destroy_workqueue(cm36651->prox_wq);
+
+#ifdef CONFIG_SLP
+	device_init_wakeup(cm36651->proximity_dev, false);
+#endif
 
 	/* sysfs destroy */
 	device_remove_file(cm36651->light_dev, &dev_attr_name);

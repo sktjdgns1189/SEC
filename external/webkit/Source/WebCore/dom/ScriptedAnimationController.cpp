@@ -33,7 +33,8 @@
 #include "FrameView.h"
 #include "RequestAnimationFrameCallback.h"
 
-#if USE(REQUEST_ANIMATION_FRAME_TIMER) //SISO CHANGES
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION <<
+#if USE(REQUEST_ANIMATION_FRAME_TIMER)
 #include <algorithm>
 #include <wtf/CurrentTime.h>
 
@@ -42,17 +43,19 @@ using namespace std;
 // Allow a little more than 60fps to make sure we can at least hit that frame rate.
 #define MinimumAnimationInterval 0.015
 #endif
-
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION >>
 namespace WebCore {
 
 ScriptedAnimationController::ScriptedAnimationController(Document* document)
     : m_document(document)
     , m_nextCallbackId(0)
     , m_suspendCount(0)
-#if USE(REQUEST_ANIMATION_FRAME_TIMER) //SISO CHANGES ANIMATION
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION <<
+#if USE(REQUEST_ANIMATION_FRAME_TIMER)
     , m_animationTimer(this, &ScriptedAnimationController::animationTimerFired)
     , m_lastAnimationFrameTime(0)
 #endif
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION >>
 {
 }
 
@@ -77,7 +80,7 @@ ScriptedAnimationController::CallbackId ScriptedAnimationController::registerCal
     callback->m_element = animationElement;
     m_callbacks.append(callback);
     if (!m_suspendCount)
-        scheduleAnimation(); //SISO CHANGES ANIMATION
+        scheduleAnimation(); //SAMSUNG CHANGES HTML5 REQUEST ANIMATION 
     return id;
 }
 
@@ -137,11 +140,10 @@ void ScriptedAnimationController::serviceScriptedAnimations(DOMTimeStamp time)
     }
 
     if (m_callbacks.size())
-        scheduleAnimation(); //SISO CHANGES ANIMATION
+        scheduleAnimation(); //SAMSUNG CHANGES HTML5 REQUEST ANIMATION 
 }
 
-//SISO CHANGES ANIMATION <<  
-
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION <<
 void ScriptedAnimationController::scheduleAnimation()
 {
     if (!m_document)
@@ -166,9 +168,8 @@ void ScriptedAnimationController::animationTimerFired(Timer<ScriptedAnimationCon
     serviceScriptedAnimations(convertSecondsToDOMTimeStamp(m_lastAnimationFrameTime));
 }
 #endif
-//SISO CHANGES ANIMATION >>  
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION 
 
 }
 
 #endif
-

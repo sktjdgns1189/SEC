@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (C) 2011, Sony Ericsson Mobile Communications AB
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +14,35 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "GraphicsLayerAndroid"
+#define LOG_NDEBUG 1
+
 #include "config.h"
 #include "GraphicsLayerAndroid.h"
 
 #if USE(ACCELERATED_COMPOSITING)
 
 #include "AndroidAnimation.h"
+#include "AndroidLog.h"
 #include "Animation.h"
+#include "BaseLayerAndroid.h"
+#include "CachedImage.h"
+#include "CanvasLayer.h"
+#include "FixedBackgroundLayerAndroid.h"
+#include "FixedPositioning.h"
 #include "FloatRect.h"
 #include "GraphicsContext.h"
+#include "IFrameContentLayerAndroid.h"
+#include "IFrameLayerAndroid.h"
 #include "Image.h"
 #include "ImagesManager.h"
 #include "Layer.h"
+#include "LayerAndroid.h"
 #include "Length.h"
 #include "MediaLayer.h"
+#include "PictureLayerContent.h"
 #include "PlatformBridge.h"
-#include "PlatformGraphicsContext.h"
+#include "PlatformGraphicsContextSkia.h"
 #include "RenderLayerBacking.h"
 #include "RenderView.h"
 #include "RotateTransformOperation.h"
@@ -38,25 +50,12 @@
 #include "ScrollableLayerAndroid.h"
 #include "SkCanvas.h"
 #include "SkRegion.h"
+#include "StyleCachedImage.h"
 #include "TransformationMatrix.h"
 #include "TranslateTransformOperation.h"
 
-#include <cutils/log.h>
 #include <wtf/CurrentTime.h>
 #include <wtf/text/CString.h>
-
-#undef LOG
-#define LOG(...) android_printLog(ANDROID_LOG_DEBUG, "GraphicsLayer", __VA_ARGS__)
-#define MLOG(...) android_printLog(ANDROID_LOG_DEBUG, "GraphicsLayer", __VA_ARGS__)
-#define TLOG(...) android_printLog(ANDROID_LOG_DEBUG, "GraphicsLayer", __VA_ARGS__)
-
-#undef LOG
-#define LOG(...)
-#undef MLOG
-#define MLOG(...)
-#undef TLOG
-#define TLOG(...)
-#undef LAYER_DEBUG
 
 using namespace std;
 
@@ -92,22 +91,6 @@ PassOwnPtr<GraphicsLayer> GraphicsLayer::create(GraphicsLayerClient* client)
     return new GraphicsLayerAndroid(client);
 }
 
-SkLength convertLength(Length len)
-{
-    SkLength length;
-    length.type = SkLength::Undefined;
-    length.value = 0;
-    if (len.type() == WebCore::Percent) {
-        length.type = SkLength::Percent;
-        length.value = len.percent();
-    }
-    if (len.type() == WebCore::Fixed) {
-        length.type = SkLength::Fixed;
-        length.value = len.value();
-    }
-    return length;
-}
-
 static RenderLayer* renderLayerFromClient(GraphicsLayerClient* client)
 {
     return client ? client->owningLayer() : 0;
@@ -122,14 +105,16 @@ GraphicsLayerAndroid::GraphicsLayerAndroid(GraphicsLayerClient* client) :
     m_haveContents(false),
     m_newImage(false),
     m_image(0),
-#if ENABLE(WEBGL)
-    m_is3DCanvas(false),
-#endif
+    m_fixedBackgroundLayer(0),
     m_foregroundLayer(0),
     m_foregroundClipLayer(0)
 {
     RenderLayer* renderLayer = renderLayerFromClient(m_client);
-    m_contentLayer = new LayerAndroid(renderLayer);
+    if (renderLayer && renderLayer->renderer()->isCanvas()) {
+        m_contentLayer = new CanvasLayer(renderLayer,
+                static_cast<HTMLCanvasElement*>(renderLayer->renderer()->node()));
+    } else
+        m_contentLayer = new LayerAndroid(renderLayer);
     m_dirtyRegion.setEmpty();
     gDebugGraphicsLayerAndroidInstances++;
 }
@@ -139,7 +124,8 @@ GraphicsLayerAndroid::~GraphicsLayerAndroid()
     if (m_image)
         m_image->deref();
 
-    m_contentLayer->unref();
+    SkSafeUnref(m_contentLayer);
+    SkSafeUnref(m_fixedBackgroundLayer);
     SkSafeUnref(m_foregroundLayer);
     SkSafeUnref(m_foregroundClipLayer);
     gDebugGraphicsLayerAndroidInstances--;
@@ -152,7 +138,7 @@ void GraphicsLayerAndroid::setName(const String& name)
 
 NativeLayer GraphicsLayerAndroid::nativeLayer() const
 {
-    LOG("(%x) nativeLayer", this);
+    ALOGV("(%x) nativeLayer", this);
     return 0;
 }
 
@@ -171,7 +157,7 @@ void GraphicsLayerAndroid::addChild(GraphicsLayer* childLayer)
 {
 #ifndef NDEBUG
     const String& name = childLayer->name();
-    LOG("(%x) addChild: %x (%s)", this, childLayer, name.latin1().data());
+    ALOGV("(%x) addChild: %x (%s)", this, childLayer, name.ascii().data());
 #endif
     GraphicsLayer::addChild(childLayer);
     m_needsSyncChildren = true;
@@ -180,7 +166,7 @@ void GraphicsLayerAndroid::addChild(GraphicsLayer* childLayer)
 
 void GraphicsLayerAndroid::addChildAtIndex(GraphicsLayer* childLayer, int index)
 {
-    LOG("(%x) addChild %x AtIndex %d", this, childLayer, index);
+    ALOGV("(%x) addChild %x AtIndex %d", this, childLayer, index);
     GraphicsLayer::addChildAtIndex(childLayer, index);
     m_needsSyncChildren = true;
     askForSync();
@@ -188,7 +174,7 @@ void GraphicsLayerAndroid::addChildAtIndex(GraphicsLayer* childLayer, int index)
 
 void GraphicsLayerAndroid::addChildBelow(GraphicsLayer* childLayer, GraphicsLayer* sibling)
 {
-    LOG("(%x) addChild %x Below %x", this, childLayer, sibling);
+    ALOGV("(%x) addChild %x Below %x", this, childLayer, sibling);
     GraphicsLayer::addChildBelow(childLayer, sibling);
     m_needsSyncChildren = true;
     askForSync();
@@ -196,7 +182,7 @@ void GraphicsLayerAndroid::addChildBelow(GraphicsLayer* childLayer, GraphicsLaye
 
 void GraphicsLayerAndroid::addChildAbove(GraphicsLayer* childLayer, GraphicsLayer* sibling)
 {
-    LOG("(%x) addChild %x Above %x", this, childLayer, sibling);
+    ALOGV("(%x) addChild %x Above %x", this, childLayer, sibling);
     GraphicsLayer::addChildAbove(childLayer, sibling);
     m_needsSyncChildren = true;
     askForSync();
@@ -204,7 +190,7 @@ void GraphicsLayerAndroid::addChildAbove(GraphicsLayer* childLayer, GraphicsLaye
 
 bool GraphicsLayerAndroid::replaceChild(GraphicsLayer* oldChild, GraphicsLayer* newChild)
 {
-    LOG("(%x) replaceChild %x by %x", this, oldChild, newChild);
+    ALOGV("(%x) replaceChild %x by %x", this, oldChild, newChild);
     bool ret = GraphicsLayer::replaceChild(oldChild, newChild);
     if (ret) {
         m_needsSyncChildren = true;
@@ -213,9 +199,25 @@ bool GraphicsLayerAndroid::replaceChild(GraphicsLayer* oldChild, GraphicsLayer* 
     return ret;
 }
 
+void GraphicsLayerAndroid::setReplicatedLayer(GraphicsLayer* layer)
+{
+    GraphicsLayer::setReplicatedLayer(layer);
+    if (m_replicatedLayer) {
+        GraphicsLayerAndroid* graphicsLayer = static_cast<GraphicsLayerAndroid*>(m_replicatedLayer);
+        if (graphicsLayer->m_contentLayer)
+            graphicsLayer->m_contentLayer->setReplicatedLayer(m_contentLayer);
+        if (maskLayer()) {
+            GraphicsLayerAndroid* maskLayer = static_cast<GraphicsLayerAndroid*>(GraphicsLayer::maskLayer());
+            m_contentLayer->setMaskLayer(maskLayer->m_contentLayer);
+        }
+        m_contentLayer->setReplicatedLayerPosition(replicatedLayerPosition());
+        askForSync();
+    }
+}
+
 void GraphicsLayerAndroid::removeFromParent()
 {
-    LOG("(%x) removeFromParent()", this);
+    ALOGV("(%x) removeFromParent()", this);
     GraphicsLayerAndroid* parent = static_cast<GraphicsLayerAndroid*>(m_parent);
     GraphicsLayer::removeFromParent();
     // Update the parent's children.
@@ -225,7 +227,7 @@ void GraphicsLayerAndroid::removeFromParent()
     }
 }
 
-void GraphicsLayerAndroid::updateFixedPosition()
+void GraphicsLayerAndroid::updatePositionedLayers()
 {
     RenderLayer* renderLayer = renderLayerFromClient(m_client);
     if (!renderLayer)
@@ -236,23 +238,28 @@ void GraphicsLayerAndroid::updateFixedPosition()
         return;
 
     // We will need the Iframe flag in the LayerAndroid tree for fixed position
-    if (view->isRenderIFrame())
-        m_contentLayer->setIsIframe(true);
+    if (view->isRenderIFrame() && !m_contentLayer->isIFrame()) {
+        LayerAndroid* layer = new IFrameLayerAndroid(*m_contentLayer);
+        m_contentLayer->unref();
+        m_contentLayer = layer;
+    }
+
     // If we are a fixed position layer, just set it
     if (view->isPositioned() && view->style()->position() == FixedPosition) {
+        m_contentLayer->setAbsolutePosition(false);
         // We need to get the passed CSS properties for the element
         SkLength left, top, right, bottom;
-        left = convertLength(view->style()->left());
-        top = convertLength(view->style()->top());
-        right = convertLength(view->style()->right());
-        bottom = convertLength(view->style()->bottom());
+        left = SkLength::convertLength(view->style()->left());
+        top = SkLength::convertLength(view->style()->top());
+        right = SkLength::convertLength(view->style()->right());
+        bottom = SkLength::convertLength(view->style()->bottom());
 
         // We also need to get the margin...
         SkLength marginLeft, marginTop, marginRight, marginBottom;
-        marginLeft = convertLength(view->style()->marginLeft());
-        marginTop = convertLength(view->style()->marginTop());
-        marginRight = convertLength(view->style()->marginRight());
-        marginBottom = convertLength(view->style()->marginBottom());
+        marginLeft = SkLength::convertLength(view->style()->marginLeft());
+        marginTop = SkLength::convertLength(view->style()->marginTop());
+        marginRight = SkLength::convertLength(view->style()->marginRight());
+        marginBottom = SkLength::convertLength(view->style()->marginBottom());
 
         // In order to compute the fixed element's position, we need the width
         // and height of the element when bottom or right is defined.
@@ -267,12 +274,24 @@ void GraphicsLayerAndroid::updateFixedPosition()
 
         SkRect viewRect;
         viewRect.set(paintingOffsetX, paintingOffsetY, paintingOffsetX + w, paintingOffsetY + h);
-        IntPoint renderLayerPos(renderLayer->x(), renderLayer->y());
-        m_contentLayer->setFixedPosition(left, top, right, bottom,
-                                         marginLeft, marginTop,
-                                         marginRight, marginBottom,
-                                         renderLayerPos,
-                                         viewRect);
+        IntPoint renderLayerPos(position().x(), position().y());
+
+        FixedPositioning* fixedPosition = m_contentLayer->fixedPosition();
+        if (!fixedPosition) {
+            fixedPosition = new FixedPositioning();
+            m_contentLayer->setFixedPosition(fixedPosition);
+        }
+
+        fixedPosition->setFixedPosition(left, top, right, bottom,
+                                        marginLeft, marginTop,
+                                        marginRight, marginBottom,
+                                        renderLayerPos,
+                                        viewRect);
+    } else if (view->isPositioned() && view->style()->position() == AbsolutePosition) {
+        m_contentLayer->setAbsolutePosition(true);
+    } else {
+        m_contentLayer->setFixedPosition(0);
+        m_contentLayer->setAbsolutePosition(false);
     }
 }
 
@@ -283,11 +302,10 @@ void GraphicsLayerAndroid::setPosition(const FloatPoint& point)
 
     GraphicsLayer::setPosition(point);
 
-#ifdef LAYER_DEBUG_2
-    LOG("(%x) setPosition(%.2f,%.2f) pos(%.2f, %.2f) anchor(%.2f,%.2f) size(%.2f, %.2f)",
+    ALOGV("(%x) setPosition(%.2f,%.2f) pos(%.2f, %.2f) anchor(%.2f,%.2f) size(%.2f, %.2f)",
         this, point.x(), point.y(), m_position.x(), m_position.y(),
         m_anchorPoint.x(), m_anchorPoint.y(), m_size.width(), m_size.height());
-#endif
+
     m_contentLayer->setPosition(point.x(), point.y());
     askForSync();
 }
@@ -316,7 +334,8 @@ void GraphicsLayerAndroid::setSize(const FloatSize& size)
 {
     if (size == m_size)
         return;
-    MLOG("(%x) setSize (%.2f,%.2f)", this, size.width(), size.height());
+    ALOGV("(%x) layer %d setSize (%.2f,%.2f)", this,
+          m_contentLayer->uniqueId(), size.width(), size.height());
     GraphicsLayer::setSize(size);
 
     // If it is a media layer the size may have changed as a result of the media
@@ -327,8 +346,8 @@ void GraphicsLayerAndroid::setSize(const FloatSize& size)
         RenderBox* box = layer->renderBox();
         int outline = box->view()->maximalOutlineSize();
         static_cast<MediaLayer*>(m_contentLayer)->setOutlineSize(outline);
-        LOG("Media Outline: %d %p %p %p", outline, m_client, layer, box);
-        LOG("Media Size: %g,%g", size.width(), size.height());
+        ALOGV("Media Outline: %d %p %p %p", outline, m_client, layer, box);
+        ALOGV("Media Size: %g,%g", size.width(), size.height());
     }
 
     m_contentLayer->setSize(size.width(), size.height());
@@ -360,7 +379,7 @@ void GraphicsLayerAndroid::setChildrenTransform(const TransformationMatrix& t)
 {
     if (t == m_childrenTransform)
        return;
-    LOG("(%x) setChildrenTransform", this);
+    ALOGV("(%x) setChildrenTransform", this);
 
     GraphicsLayer::setChildrenTransform(t);
     m_contentLayer->setChildrenTransform(t);
@@ -409,7 +428,7 @@ void GraphicsLayerAndroid::setBackgroundColor(const Color& color)
 {
     if (color == m_backgroundColor && m_backgroundColorSet)
         return;
-    LOG("(%x) setBackgroundColor", this);
+    ALOGV("(%x) setBackgroundColor", this);
     GraphicsLayer::setBackgroundColor(color);
     SkColor c = SkColorSetARGB(color.alpha(), color.red(), color.green(), color.blue());
     m_contentLayer->setBackgroundColor(c);
@@ -422,7 +441,7 @@ void GraphicsLayerAndroid::clearBackgroundColor()
     if (!m_backgroundColorSet)
         return;
 
-    LOG("(%x) clearBackgroundColor", this);
+    ALOGV("(%x) clearBackgroundColor", this);
     GraphicsLayer::clearBackgroundColor();
     askForSync();
 }
@@ -431,7 +450,7 @@ void GraphicsLayerAndroid::setContentsOpaque(bool opaque)
 {
     if (opaque == m_contentsOpaque)
         return;
-    LOG("(%x) setContentsOpaque (%d)", this, opaque);
+    ALOGV("(%x) setContentsOpaque (%d)", this, opaque);
     GraphicsLayer::setContentsOpaque(opaque);
     m_haveContents = true;
     askForSync();
@@ -439,13 +458,13 @@ void GraphicsLayerAndroid::setContentsOpaque(bool opaque)
 
 void GraphicsLayerAndroid::setOpacity(float opacity)
 {
-    LOG("(%x) setOpacity: %.2f", this, opacity);
+    ALOGV("(%x) setOpacity: %.2f", this, opacity);
     float clampedOpacity = max(0.0f, min(opacity, 1.0f));
 
     if (clampedOpacity == m_opacity)
         return;
 
-    MLOG("(%x) setFinalOpacity: %.2f=>%.2f (%.2f)", this,
+    ALOGV("(%x) setFinalOpacity: %.2f=>%.2f (%.2f)", this,
         opacity, clampedOpacity, m_opacity);
     GraphicsLayer::setOpacity(clampedOpacity);
     m_contentLayer->setOpacity(clampedOpacity);
@@ -454,7 +473,7 @@ void GraphicsLayerAndroid::setOpacity(float opacity)
 
 void GraphicsLayerAndroid::setNeedsDisplay()
 {
-    LOG("(%x) setNeedsDisplay()", this);
+    ALOGV("(%x) setNeedsDisplay()", this);
     FloatRect rect(0, 0, m_size.width(), m_size.height());
     setNeedsDisplayInRect(rect);
 }
@@ -520,6 +539,8 @@ void GraphicsLayerAndroid::updateScrollingLayers()
         if (layerNeedsOverflow) {
             ASSERT(!m_foregroundLayer && !m_foregroundClipLayer);
             m_foregroundLayer = new ScrollableLayerAndroid(layer);
+            m_foregroundLayer->setIntrinsicallyComposited(true);
+
             m_foregroundClipLayer = new LayerAndroid(layer);
             m_foregroundClipLayer->setMasksToBounds(true);
             m_foregroundClipLayer->addChild(m_foregroundLayer);
@@ -530,7 +551,7 @@ void GraphicsLayerAndroid::updateScrollingLayers()
             // No need to copy the children as they will be removed and synced.
             m_contentLayer->removeChildren();
             // Replace the content layer with a scrollable layer.
-            LayerAndroid* layer = new ScrollableLayerAndroid(*m_contentLayer);
+            LayerAndroid* layer = new IFrameContentLayerAndroid(*m_contentLayer);
             m_contentLayer->unref();
             m_contentLayer = layer;
             if (m_parent) {
@@ -541,7 +562,7 @@ void GraphicsLayerAndroid::updateScrollingLayers()
         }
         // Need to rebuild our children based on the new structure.
         m_needsSyncChildren = true;
-    } else {
+    } else if (!m_contentLayer->isFixedBackground()) {
         ASSERT(hasOverflowScroll && !layerNeedsOverflow && !iframeNeedsOverflow);
         ASSERT(m_contentLayer);
         // Remove the foreground layers.
@@ -567,10 +588,115 @@ void GraphicsLayerAndroid::updateScrollingLayers()
 #endif
 }
 
+void GraphicsLayerAndroid::updateFixedBackgroundLayers() {
+    RenderLayer* renderLayer = renderLayerFromClient(m_client);
+    if (!renderLayer)
+        return;
+    RenderView* view = static_cast<RenderView*>(renderLayer->renderer());
+    if (!view)
+        return;
+    if (view->isBody()) // body element is already handled
+        return;
+    if (!view->style()->hasFixedBackgroundImage())
+        return;
+
+    Image* image = FixedBackgroundImageLayerAndroid::GetCachedImage(view->style());
+    if (!image)
+        return;
+
+    if (image->width() == 1 && image->height() == 1)
+        return;
+
+    SkSafeUnref(m_foregroundClipLayer);
+    SkSafeUnref(m_fixedBackgroundLayer);
+    SkSafeUnref(m_foregroundLayer);
+
+    // we will have:
+    // m_contentLayer
+    //   \- m_foregroundClipLayer
+    //     \- m_fixedBackgroundLayer
+    //   \- m_foregroundLayer
+
+    // use the background image and create a layer for it
+    // the layer will be fixed positioned.
+
+    m_fixedBackgroundLayer = new FixedBackgroundImageLayerAndroid(view->style(),
+                                                                  view->width(),
+                                                                  view->height());
+
+    Color color = view->style()->visitedDependentColor(CSSPropertyBackgroundColor);
+    SkColor skiaColor = SkColorSetARGB(color.alpha(),
+                                       color.red(),
+                                       color.green(),
+                                       color.blue());
+    m_fixedBackgroundLayer->setBackgroundColor(skiaColor);
+
+    // We need to clip the background image to the bounds of the original element
+    m_foregroundClipLayer = new LayerAndroid(renderLayer);
+    m_foregroundClipLayer->setMasksToBounds(true);
+    m_foregroundClipLayer->addChild(m_fixedBackgroundLayer);
+
+    // We then want to display the content above the image background; webkit
+    // allow to paint background and foreground separately. For now, we'll create
+    // two layers; the one containing the background will be painted *without* the
+    // background image (but with the decorations, e.g. border)
+    m_foregroundLayer = new LayerAndroid(renderLayer);
+    m_foregroundLayer->setIntrinsicallyComposited(true);
+
+    // Finally, let's assemble all the layers under a FixedBackgroundLayerAndroid layer
+    if (!m_contentLayer->isFixedBackground()) {
+        m_contentLayer->removeChildren();
+        LayerAndroid* layer = new FixedBackgroundLayerAndroid(*m_contentLayer);
+        m_contentLayer->unref();
+        m_contentLayer = layer;
+    }
+
+    if (m_parent) {
+        // The content layer has changed so the parent needs to sync
+        // children.
+        static_cast<GraphicsLayerAndroid*>(m_parent)->m_needsSyncChildren = true;
+    }
+    // Children are all re-parented.
+    m_needsSyncChildren = true;
+
+    setNeedsDisplay();
+    askForSync();
+}
+
+void GraphicsLayerAndroid::updateScrollOffset() {
+    RenderLayer* layer = renderLayerFromClient(m_client);
+    if (!layer || !(m_foregroundLayer || m_contentLayer->contentIsScrollable()))
+        return;
+    if (m_foregroundLayer) {
+        IntSize scroll = layer->scrolledContentOffset();
+        m_foregroundLayer->setScrollOffset(IntPoint(scroll.width(), scroll.height()));
+    } else if (m_contentLayer->isIFrameContent()) {
+        IntPoint p(layer->renderer()->frame()->view()->scrollX(),
+                   layer->renderer()->frame()->view()->scrollY());
+        static_cast<IFrameContentLayerAndroid*>(m_contentLayer)->setIFrameScrollOffset(p);
+    }
+    askForSync();
+}
+
+int GraphicsLayerAndroid::getContentLayerId() {
+    if ( m_contentLayer )
+        return m_contentLayer->uniqueId();
+    else
+        return 0;
+}
+
+static void setScrollLimits(ScrollableLayerAndroid* scrollableLayer, RenderLayer* renderLayer)
+{
+    RenderBox* box = renderLayer->renderBox();
+    scrollableLayer->setScrollLimits(0, 0,
+            renderLayer->scrollWidth() - box->clientWidth(),
+            renderLayer->scrollHeight() - box->clientHeight());
+}
+
 bool GraphicsLayerAndroid::repaint()
 {
-    LOG("(%x) repaint(), gPaused(%d) m_needsRepaint(%d) m_haveContents(%d) ",
-        this, gPaused, m_needsRepaint, m_haveContents);
+    ALOGV("(%x) repaint(), gPaused(%d) m_needsRepaint(%d) m_haveContents(%d) ",
+          this, gPaused, m_needsRepaint, m_haveContents);
 
     if (!gPaused && m_haveContents && m_needsRepaint && !m_image) {
         // with SkPicture, we request the entire layer's content.
@@ -579,29 +705,24 @@ bool GraphicsLayerAndroid::repaint()
         RenderLayer* layer = renderLayerFromClient(m_client);
         if (!layer)
             return false;
-        if (m_foregroundLayer) {
+        if (m_foregroundLayer && !m_contentLayer->isFixedBackground()) {
             PaintingPhase phase(this);
             // Paint the background into a separate context.
             phase.set(GraphicsLayerPaintBackground);
-            if (!paintContext(m_contentLayer->recordContext(), layerBounds))
+            if (!paintContext(m_contentLayer, layerBounds))
                 return false;
-            m_contentLayer->checkTextPresence();
 
             // Construct the foreground layer and draw.
             RenderBox* box = layer->renderBox();
             int outline = box->view()->maximalOutlineSize();
             IntRect contentsRect(0, 0,
-                                 box->borderLeft() + box->borderRight() + layer->scrollWidth(),
-                                 box->borderTop() + box->borderBottom() + layer->scrollHeight());
+                                 box->borderLeft() + box->borderRight() + layer->scrollWidth()
+                                 + layer->verticalScrollbarWidth(),
+                                 box->borderTop() + box->borderBottom() + layer->scrollHeight()
+                                 + layer->horizontalScrollbarHeight());
             contentsRect.inflate(outline);
-            //SAMSUNG CHANGES >>
             // Update the foreground layer size.
-            // WAS : m_foregroundLayer->setSize(contentsRect.width(),contentsRect.height());
-            //Patch:ContentRect should not go less than clipSize,otherwise ScrollLimits for the layer will be set to incorrect values,which will cause incorrect layer position on every scroll
-            IntSize clipSize = layer->renderer()->absoluteBoundingBoxRect().size();
-            m_foregroundLayer->setSize(((contentsRect.width() < clipSize.width()) ? clipSize.width(): contentsRect.width()),
-                ((contentsRect.height() < clipSize.height()) ? clipSize.height(): contentsRect.height()));
-            //SAMSUNG CHANGES <<	
+            m_foregroundLayer->setSize(contentsRect.width(), contentsRect.height());
             // Paint everything else into the main recording canvas.
             phase.clear(GraphicsLayerPaintBackground);
 
@@ -609,8 +730,7 @@ bool GraphicsLayerAndroid::repaint()
             IntSize scroll = layer->scrolledContentOffset();
             layer->scrollToOffset(0, 0);
             // At this point, it doesn't matter if painting failed.
-            (void) paintContext(m_foregroundLayer->recordContext(), contentsRect);
-            m_foregroundLayer->checkTextPresence();
+            (void) paintContext(m_foregroundLayer, contentsRect);
             layer->scrollToOffset(scroll.width(), scroll.height());
 
             // Construct the clip layer for masking the contents.
@@ -624,11 +744,16 @@ bool GraphicsLayerAndroid::repaint()
             m_foregroundClipLayer->setPosition(x, y);
             m_foregroundClipLayer->setSize(width, height);
 
+            int rtlOffset = 0; // LTR uses no offset.
+            if (!layer->renderer()->style()->isLeftToRightDirection())
+                rtlOffset = layer->scrollWidth() - width; // Scroll all the way right.
+            m_foregroundLayer->setScrollOffset(IntPoint(scroll.width() + rtlOffset,
+                    scroll.height()));
             // Need to offset the foreground layer by the clip layer in order
             // for the contents to be in the correct position.
             m_foregroundLayer->setPosition(-x, -y);
             // Set the scrollable bounds of the layer.
-            m_foregroundLayer->setScrollLimits(-x, -y, m_size.width(), m_size.height());
+            setScrollLimits(static_cast<ScrollableLayerAndroid*>(m_foregroundLayer), layer);
 
             // Invalidate the entire layer for now, as webkit will only send the
             // setNeedsDisplayInRect() for the visible (clipped) scrollable area,
@@ -637,32 +762,71 @@ bool GraphicsLayerAndroid::repaint()
             SkRegion region;
             region.setRect(0, 0, contentsRect.width(), contentsRect.height());
             m_foregroundLayer->markAsDirty(region);
-            m_foregroundLayer->needsRepaint();
+        } else if (m_contentLayer->isFixedBackground()) {
+            SkPicture* picture = new SkPicture();
+            SkCanvas* canvas = picture->beginRecording(layerBounds.width(),
+                                                       layerBounds.height(), 0);
+            if (canvas) {
+                  PaintingPhase phase(this);
+                  PlatformGraphicsContextSkia platformContext(canvas);
+                  GraphicsContext graphicsContext(&platformContext);
+
+                  // Paint the background (without the fixed image)...
+                  phase.set(GraphicsLayerPaintBackgroundDecorations);
+                  paintGraphicsLayerContents(graphicsContext, layerBounds);
+                  phase.clear(GraphicsLayerPaintBackgroundDecorations);
+
+                  // Paint the foreground...
+                  phase.set(GraphicsLayerPaintForeground);
+                  paintGraphicsLayerContents(graphicsContext, layerBounds);
+                  picture->endRecording();
+
+                  // Now set the content for that layer.
+                  PictureLayerContent* layerContent = new PictureLayerContent(picture);
+                  m_foregroundLayer->setContent(layerContent);
+                  SkSafeUnref(layerContent);
+            }
+            SkSafeUnref(picture);
+
+            m_foregroundLayer->setSize(layerBounds.width(), layerBounds.height());
+            m_foregroundClipLayer->setPosition(layerBounds.x(), layerBounds.y());
+            m_foregroundClipLayer->setSize(layerBounds.width(), layerBounds.height());
         } else {
+
+            // If we are replicated, paint the mask
+            if (isReplicated()) {
+                GraphicsLayerAndroid* replicatedLayer = static_cast<GraphicsLayerAndroid*>(replicaLayer());
+                if (replicatedLayer->maskLayer()) {
+                     GraphicsLayerAndroid* mask = static_cast<GraphicsLayerAndroid*>(replicatedLayer->maskLayer());
+                     mask->paintContext(mask->m_contentLayer, layerBounds, false);
+                }
+            }
+
             // If there is no contents clip, we can draw everything into one
             // picture.
-            if (!paintContext(m_contentLayer->recordContext(), layerBounds))
+            bool painting = paintContext(m_contentLayer, layerBounds);
+            if (!painting)
                 return false;
-            m_contentLayer->checkTextPresence();
             // Check for a scrollable iframe and report the scrolling
             // limits based on the view size.
-            if (m_contentLayer->contentIsScrollable()) {
+            if (m_contentLayer->isIFrameContent()) {
                 FrameView* view = layer->renderer()->frame()->view();
-                static_cast<ScrollableLayerAndroid*>(m_contentLayer)->setScrollLimits(
-                    m_position.x(), m_position.y(), view->layoutWidth(), view->layoutHeight());
+                setScrollLimits(static_cast<ScrollableLayerAndroid*>(m_contentLayer), layer);
+                ALOGV("setScrollLimits(%.2f, %.2f, w: %d h: %d) layer %d, frame scroll position is %d, %d",
+                      m_position.x(), m_position.y(), view->layoutWidth(), view->layoutHeight(),
+                      m_contentLayer->uniqueId(), view->scrollX(), view->scrollY());
             }
         }
 
-        LOG("(%x) repaint() on (%.2f,%.2f) contentlayer(%.2f,%.2f,%.2f,%.2f)paintGraphicsLayer called!",
-            this, m_size.width(), m_size.height(),
-            m_contentLayer->getPosition().fX,
-            m_contentLayer->getPosition().fY,
-            m_contentLayer->getSize().width(),
-            m_contentLayer->getSize().height());
+        ALOGV("(%x) repaint() on (%.2f,%.2f) contentlayer(%.2f,%.2f,%.2f,%.2f)paintGraphicsLayer called!",
+              this, m_size.width(), m_size.height(),
+              m_contentLayer->getPosition().fX,
+              m_contentLayer->getPosition().fY,
+              m_contentLayer->getSize().width(),
+              m_contentLayer->getSize().height());
 
         m_contentLayer->markAsDirty(m_dirtyRegion);
         m_dirtyRegion.setEmpty();
-        m_contentLayer->needsRepaint();
         m_needsRepaint = false;
 
         return true;
@@ -672,7 +836,6 @@ bool GraphicsLayerAndroid::repaint()
         // texture. Only do so if we effectively have a new image!
         m_contentLayer->markAsDirty(m_dirtyRegion);
         m_dirtyRegion.setEmpty();
-        m_contentLayer->needsRepaint();
         m_newImage = false;
         m_needsRepaint = false;
         return true;
@@ -680,19 +843,44 @@ bool GraphicsLayerAndroid::repaint()
     return false;
 }
 
-bool GraphicsLayerAndroid::paintContext(SkPicture* context,
-                                        const IntRect& rect)
+SkPicture* GraphicsLayerAndroid::paintPicture(const IntRect& rect)
 {
-    SkAutoPictureRecord arp(context, rect.width(), rect.height());
-    SkCanvas* canvas = arp.getRecordingCanvas();
+    SkPicture* picture = new SkPicture();
+    SkCanvas* canvas = picture->beginRecording(rect.width(), rect.height(), 0);
+    if (!canvas) {
+        picture->endRecording();
+        SkSafeUnref(picture);
+        return 0;
+    }
 
-    if (!canvas)
-        return false;
-
-    PlatformGraphicsContext platformContext(canvas);
+    PlatformGraphicsContextSkia platformContext(canvas);
     GraphicsContext graphicsContext(&platformContext);
 
     paintGraphicsLayerContents(graphicsContext, rect);
+
+    return picture;
+}
+
+bool GraphicsLayerAndroid::paintContext(LayerAndroid* layer,
+                                        const IntRect& rect,
+                                        bool checkOptimisations)
+{
+    if (!layer)
+        return false;
+
+    SkPicture* picture = paintPicture(rect);
+    if (!picture)
+        return false;
+    picture->endRecording();
+
+    PictureLayerContent* layerContent = new PictureLayerContent(picture);
+    if (checkOptimisations)
+        layerContent->checkForOptimisations();
+    else
+        layerContent->setCheckForOptimisations(false);
+    layer->setContent(layerContent);
+    SkSafeUnref(layerContent);
+    SkSafeUnref(picture);
     return true;
 }
 
@@ -701,8 +889,8 @@ void GraphicsLayerAndroid::setNeedsDisplayInRect(const FloatRect& rect)
     // rect is in the render object coordinates
 
     if (!m_image && !drawsContent()) {
-        LOG("(%x) setNeedsDisplay(%.2f,%.2f,%.2f,%.2f) doesn't have content, bypass...",
-            this, rect.x(), rect.y(), rect.width(), rect.height());
+        ALOGV("(%x) setNeedsDisplay(%.2f,%.2f,%.2f,%.2f) doesn't have content, bypass...",
+              this, rect.x(), rect.y(), rect.width(), rect.height());
         return;
     }
 
@@ -754,20 +942,20 @@ bool GraphicsLayerAndroid::createAnimationFromKeyframes(const KeyframeValueList&
      const Animation* animation, const String& keyframesName, double beginTime)
 {
     bool isKeyframe = valueList.size() > 2;
-    TLOG("createAnimationFromKeyframes(%d), name(%s) beginTime(%.2f)",
-        isKeyframe, keyframesName.latin1().data(), beginTime);
+    ALOGV("createAnimationFromKeyframes(%d), name(%s) beginTime(%.2f)",
+          isKeyframe, keyframesName.ascii().data(), beginTime);
 
     switch (valueList.property()) {
     case AnimatedPropertyInvalid: break;
     case AnimatedPropertyWebkitTransform: break;
     case AnimatedPropertyBackgroundColor: break;
     case AnimatedPropertyOpacity: {
-        MLOG("ANIMATEDPROPERTYOPACITY");
+        ALOGV("ANIMATEDPROPERTYOPACITY");
 
         KeyframeValueList* operationsList = new KeyframeValueList(AnimatedPropertyOpacity);
         for (unsigned int i = 0; i < valueList.size(); i++) {
             FloatAnimationValue* originalValue = (FloatAnimationValue*)valueList.at(i);
-            PassRefPtr<TimingFunction> timingFunction(const_cast<TimingFunction*>(originalValue->timingFunction()));
+            RefPtr<TimingFunction> timingFunction(const_cast<TimingFunction*>(originalValue->timingFunction()));
             FloatAnimationValue* value = new FloatAnimationValue(originalValue->keyTime(),
                                                                  originalValue->value(),
                                                                  timingFunction);
@@ -803,13 +991,13 @@ bool GraphicsLayerAndroid::createTransformAnimationsFromKeyframes(const Keyframe
                                                                   const IntSize& boxSize)
 {
     ASSERT(valueList.property() == AnimatedPropertyWebkitTransform);
-    TLOG("createTransformAnimationFromKeyframes, name(%s) beginTime(%.2f)",
-        keyframesName.latin1().data(), beginTime);
+    ALOGV("createTransformAnimationFromKeyframes, name(%s) beginTime(%.2f)",
+          keyframesName.ascii().data(), beginTime);
 
     KeyframeValueList* operationsList = new KeyframeValueList(AnimatedPropertyWebkitTransform);
     for (unsigned int i = 0; i < valueList.size(); i++) {
         TransformAnimationValue* originalValue = (TransformAnimationValue*)valueList.at(i);
-        PassRefPtr<TimingFunction> timingFunction(const_cast<TimingFunction*>(originalValue->timingFunction()));
+        RefPtr<TimingFunction> timingFunction(const_cast<TimingFunction*>(originalValue->timingFunction()));
         TransformAnimationValue* value = new TransformAnimationValue(originalValue->keyTime(),
                                                                      originalValue->value(),
                                                                      timingFunction);
@@ -834,36 +1022,36 @@ bool GraphicsLayerAndroid::createTransformAnimationsFromKeyframes(const Keyframe
 
 void GraphicsLayerAndroid::removeAnimationsForProperty(AnimatedPropertyID anID)
 {
-    TLOG("NRO removeAnimationsForProperty(%d)", anID);
+    ALOGV("NRO removeAnimationsForProperty(%d)", anID);
     m_contentLayer->removeAnimationsForProperty(anID);
     askForSync();
 }
 
 void GraphicsLayerAndroid::removeAnimationsForKeyframes(const String& keyframesName)
 {
-    TLOG("NRO removeAnimationsForKeyframes(%s)", keyframesName.latin1().data());
+    ALOGV("NRO removeAnimationsForKeyframes(%s)", keyframesName.ascii().data());
     m_contentLayer->removeAnimationsForKeyframes(keyframesName);
     askForSync();
 }
 
 void GraphicsLayerAndroid::pauseAnimation(const String& keyframesName)
 {
-    TLOG("NRO pauseAnimation(%s)", keyframesName.latin1().data());
+    ALOGV("NRO pauseAnimation(%s)", keyframesName.ascii().data());
 }
 
 void GraphicsLayerAndroid::suspendAnimations(double time)
 {
-    TLOG("NRO suspendAnimations(%.2f)", time);
+    ALOGV("NRO suspendAnimations(%.2f)", time);
 }
 
 void GraphicsLayerAndroid::resumeAnimations()
 {
-    TLOG("NRO resumeAnimations()");
+    ALOGV("NRO resumeAnimations()");
 }
 
 void GraphicsLayerAndroid::setContentsToImage(Image* image)
 {
-    TLOG("(%x) setContentsToImage", this, image);
+    ALOGV("(%x) setContentsToImage", this, image);
     if (image && image != m_image) {
         image->ref();
         if (m_image)
@@ -938,36 +1126,9 @@ void GraphicsLayerAndroid::setContentsToCanvas(PlatformLayer* canvasLayer)
     }
 }
 #endif
-void GraphicsLayerAndroid::setContentsToGpuCanvas(PlatformLayer* canvasLayer)
-{
-    if (m_contentLayer != canvasLayer && canvasLayer) {
-
-        // TODO add a copy method to LayerAndroid to sync everything
-        // copy data from the original content layer to the new one
-        canvasLayer->setPosition(m_contentLayer->getPosition().fX,
-                                 m_contentLayer->getPosition().fY);
-        canvasLayer->setSize(m_contentLayer->getWidth(), m_contentLayer->getHeight());
-        canvasLayer->setDrawTransform(*m_contentLayer->drawTransform());
-
-        canvasLayer->ref();
-        m_contentLayer->unref();
-        m_contentLayer = canvasLayer;
-
-        // If the parent exists then notify it to re-sync it's children
-        if (m_parent) {
-            GraphicsLayerAndroid* parent = static_cast<GraphicsLayerAndroid*>(m_parent);
-            parent->m_needsSyncChildren = true;
-        }
-        m_needsSyncChildren = true;
-
-        setNeedsDisplay();
-        askForSync();
-    }
-}
-
 PlatformLayer* GraphicsLayerAndroid::platformLayer() const
 {
-    LOG("platformLayer");
+    ALOGV("platformLayer");
     return m_contentLayer;
 }
 
@@ -985,7 +1146,7 @@ void GraphicsLayerAndroid::setZPosition(float position)
 {
     if (position == m_zPosition)
         return;
-    LOG("(%x) setZPosition: %.2f", this, position);
+    ALOGV("(%x) setZPosition: %.2f", this, position);
     GraphicsLayer::setZPosition(position);
     askForSync();
 }
@@ -1001,20 +1162,32 @@ void GraphicsLayerAndroid::askForSync()
 
 void GraphicsLayerAndroid::syncChildren()
 {
-    if (m_needsSyncChildren) {
+    if (m_needsSyncChildren || isReplicated()) {
         m_contentLayer->removeChildren();
         LayerAndroid* layer = m_contentLayer;
-        if (m_foregroundClipLayer) {
+
+        if (isReplicated()) {
+            GraphicsLayerAndroid* replicatedLayer = static_cast<GraphicsLayerAndroid*>(replicaLayer());
+            m_contentLayer->addChild(replicatedLayer->m_contentLayer);
+        }
+
+        if (m_contentLayer->isFixedBackground()) {
+            m_contentLayer->addChild(m_foregroundClipLayer);
+            m_contentLayer->addChild(m_foregroundLayer);
+            layer = m_foregroundLayer;
+            layer->removeChildren();
+        } else if (m_foregroundClipLayer) {
             m_contentLayer->addChild(m_foregroundClipLayer);
             // Use the scrollable content layer as the parent of the children so
             // that they move with the content.
             layer = m_foregroundLayer;
             layer->removeChildren();
         }
+
         for (unsigned int i = 0; i < m_children.size(); i++)
             layer->addChild(m_children[i]->platformLayer());
-        m_needsSyncChildren = false;
     }
+    m_needsSyncChildren = false;
 }
 
 void GraphicsLayerAndroid::syncMask()
@@ -1056,8 +1229,15 @@ void GraphicsLayerAndroid::gatherRootLayers(Vector<const RenderLayer*>& list)
 
 void GraphicsLayerAndroid::syncCompositingStateForThisLayerOnly()
 {
+    if (m_contentLayer) {
+        RenderLayer* renderLayer = renderLayerFromClient(m_client);
+        int intrinsicallyComposited = renderLayer ? renderLayer->intrinsicallyComposited() : true;
+        m_contentLayer->setIntrinsicallyComposited(intrinsicallyComposited);
+    }
+
     updateScrollingLayers();
-    updateFixedPosition();
+    updateFixedBackgroundLayers();
+    updatePositionedLayers();
     syncChildren();
     syncMask();
 
@@ -1068,10 +1248,7 @@ void GraphicsLayerAndroid::syncCompositingStateForThisLayerOnly()
 void GraphicsLayerAndroid::syncCompositingState()
 {
     for (unsigned int i = 0; i < m_children.size(); i++)
-    {
-        if ( m_children[i] )
-            m_children[i]->syncCompositingState();
-    }
+        m_children[i]->syncCompositingState();
 
     syncCompositingStateForThisLayerOnly();
 }
@@ -1091,4 +1268,3 @@ void GraphicsLayerAndroid::notifyClientAnimationStarted()
 } // namespace WebCore
 
 #endif // USE(ACCELERATED_COMPOSITING)
-

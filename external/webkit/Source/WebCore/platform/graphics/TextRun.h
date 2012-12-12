@@ -24,7 +24,11 @@
 #ifndef TextRun_h
 #define TextRun_h
 
+//#include "SecNativeFeature.h"      // OSS_Modify
+
 #include "PlatformString.h"
+#include "ThaiReshaperWebkit.h"
+
 
 namespace WebCore {
 
@@ -41,7 +45,81 @@ public:
     };
 
     typedef unsigned ExpansionBehavior;
+    //SNMC:- SARA_AM changes in thai reshaping_start(yogendra.s)
+    void processText(){
+            for(int l=0;l<m_len;l++)
+            {
+                    int result;
+                    if(isThai(m_characters[l]))
+                    {
+                            int cT = isThaiReshaperCharhw(m_characters[l]);
+                            if(cT == THAIRESHAPESHIFTLEFT)
+                            {
+                                    bool isThirdCharacterIsThaiTone=!isNotThaiTone(m_characters[l+2]);
+                                    result = isThaiReshaperTonehw(m_characters[++l],cT);
+                                    if(result == THAIRESHAPESHIFTLEFT)
+                                    {
+                                            if(m_characters[l] == SARA_AM)
+                                            {
+                                                    UChar* out_new = (UChar*) malloc(sizeof(UChar)*(m_len+1));
+                                                    memcpy(out_new,(UChar*)m_characters,sizeof(UChar)*m_len);
+                                                    if (out_new != NULL)
+                                                    {
+                                                            m_len++;
+                                                            out_new[l] = NIKHAHIT_LEFT_SHIFT;
+                                                            if(l!= m_len-1)
+                                                            {
+                                                                    for(int k =(m_len-1);k>(l+1);k--)
+                                                                    {
+                                                                            out_new[k] = out_new[k-1];
+                                                                    }
+                                                            }
+                                                            out_new[++l] = SARA_AA;
+                                                    }
+                                                    m_characters = out_new;
+                                            }
+                                    }
+                                    else if(result == NOTTHAIRESHAPE){
+                                            l--;
+                                    }
+                                    if(isThirdCharacterIsThaiTone==true){
+                                            result = isThaiReshaperTonehw(m_characters[++l],cT);
+                                            if(result == THAIRESHAPESHIFTLEFT)
+                                            {
+                                                    if(m_characters[l] == SARA_AM)
+                                                    {
+                                                            UChar* out_new = (UChar*) malloc(sizeof(UChar)*(m_len+1));
+                                                            memcpy(out_new,(UChar*)m_characters,sizeof(UChar)*m_len);
+                                                            if (out_new != NULL)
+                                                            {
+                                                                    m_len++;
+                                                                    out_new[l] = NIKHAHIT_LEFT_SHIFT;
+                                                                    if(l!= m_len-1)
+                                                                    {
+                                                                            for(int k =(m_len-1);k>(l+1);k--)
+                                                                            {
+                                                                                    out_new[k] = out_new[k-1];
+                                                                            }
+                                                                    }
+                                                                    out_new[++l] = SARA_AA;
+                                                            }
+                                                            m_characters = out_new;
+                                                    }
+                                            }
+                                            else if(result == NOTTHAIRESHAPE){
+                                                    l--;
+                                            }
+                                    }
 
+
+                            }
+                    }
+            }
+
+
+    }
+
+    //SNMC:- SARA_AM changes in thai reshaping_end(yogendra.s)
     TextRun(const UChar* c, int len, bool allowTabs = false, float xpos = 0, float expansion = 0, ExpansionBehavior expansionBehavior = AllowTrailingExpansion | ForbidLeadingExpansion, bool rtl = false, bool directionalOverride = false)
         : m_characters(c)
         , m_len(len)
@@ -59,8 +137,16 @@ public:
         , m_referencingRenderObject(0)
         , m_activePaintingResource(0)
 #endif
-    {
-    }
+        {
+                //SNMC:- SARA_AM changes in thai reshaping_start(yogendra.s)
+// OSS_Modify
+#if 0
+                if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
+                        processText();
+                }
+#endif
+                //SNMC:- SARA_AM changes in thai reshaping_end(yogendra.s)
+        }
 
     TextRun(const String& s, bool allowTabs = false, float xpos = 0, float expansion = 0, ExpansionBehavior expansionBehavior = AllowTrailingExpansion | ForbidLeadingExpansion, bool rtl = false, bool directionalOverride = false)
         : m_characters(s.characters())
@@ -79,8 +165,16 @@ public:
         , m_referencingRenderObject(0)
         , m_activePaintingResource(0)
 #endif
-    {
-    }
+        {
+                //SNMC:- SARA_AM changes in thai reshaping_start(yogendra.s)
+// OSS_Modify
+#if 0
+                if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
+                        processText();
+                }
+#endif
+                //SNMC:- SARA_AM changes in thai reshaping_end(yogendra.s)
+        }
 
     UChar operator[](int i) const { return m_characters[i]; }
     const UChar* data(int i) const { return &m_characters[i]; }
@@ -88,7 +182,18 @@ public:
     const UChar* characters() const { return m_characters; }
     int length() const { return m_len; }
 
-    void setText(const UChar* c, int len) { m_characters = c; m_len = len; }
+    void setText(const UChar* c, int len) {
+            m_characters = c;
+            m_len = len;
+            //SNMC:- SARA_AM changes in thai reshaping_start(yogendra.s)
+// OSS_Modify
+#if 0
+            if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
+                    processText();
+            }
+#endif
+            //SNMC:- SARA_AM changes in thai reshaping_end(yogendra.s)
+    }
 
 #if ENABLE(SVG)
     float horizontalGlyphStretch() const { return m_horizontalGlyphStretch; }

@@ -18,8 +18,10 @@
 LOCAL_SRC_FILES := \
         android/WebCoreSupport/AsyncFileSystemAndroid.cpp \
         android/WebCoreSupport/AsyncFileWriterAndroid.cpp \
+	android/WebCoreSupport/CacheResult.cpp \
 	android/WebCoreSupport/CachedFramePlatformDataAndroid.cpp \
 	android/WebCoreSupport/ChromeClientAndroid.cpp \
+	android/WebCoreSupport/ChromiumInit.cpp \
 	android/WebCoreSupport/ColorChooserClientAndroid.cpp \
 	android/WebCoreSupport/ContextMenuClientAndroid.cpp \
 	android/WebCoreSupport/DeviceMotionClientAndroid.cpp \
@@ -35,12 +37,6 @@ LOCAL_SRC_FILES := \
 	android/WebCoreSupport/PlatformBridge.cpp \
 	android/WebCoreSupport/ResourceLoaderAndroid.cpp \
 	android/WebCoreSupport/UrlInterceptResponse.cpp \
-	android/WebCoreSupport/V8Counters.cpp
-
-ifeq ($(HTTP_STACK),chrome)
-LOCAL_SRC_FILES += \
-	android/WebCoreSupport/ChromiumInit.cpp \
-	android/WebCoreSupport/CacheResult.cpp \
 	android/WebCoreSupport/WebCache.cpp \
 	android/WebCoreSupport/WebCookieJar.cpp \
 	android/WebCoreSupport/WebUrlLoader.cpp \
@@ -52,39 +48,35 @@ LOCAL_SRC_FILES += \
 	android/WebCoreSupport/WebViewClientError.cpp \
 	android/WebCoreSupport/SocketStreamHandleAndroid.cpp \
 	android/WebCoreSupport/SocketStreamHost.cpp
-endif # HTTP_STACK == chrome
 
 LOCAL_SRC_FILES += \
 	android/RenderSkinAndroid.cpp \
-	android/RenderSkinButton.cpp \
-	android/RenderSkinCombo.cpp \
 	android/RenderSkinMediaButton.cpp \
 	android/RenderSkinNinePatch.cpp \
-	android/RenderSkinRadio.cpp \
-	android/TimeCounter.cpp \
-	\
-	android/benchmark/Intercept.cpp \
-	android/benchmark/MyJavaVM.cpp \
 	\
 	android/icu/unicode/ucnv.cpp \
 	\
+	android/content/address_detector.cpp \
+	android/content/content_detector.cpp \
+	android/content/PhoneEmailDetector.cpp \
+	\
+	android/jni/AndroidHitTestResult.cpp \
 	android/jni/CacheManager.cpp \
 	android/jni/CookieManager.cpp \
 	android/jni/DeviceMotionAndOrientationManager.cpp \
 	android/jni/DeviceMotionClientImpl.cpp \
 	android/jni/DeviceOrientationClientImpl.cpp \
+        android/jni/FileSystemQuota.cpp \
 	android/jni/GeolocationPermissionsBridge.cpp \
 	android/jni/JavaBridge.cpp \
 	android/jni/JavaSharedClient.cpp \
-	android/jni/JniUtil.cpp \
 	android/jni/MIMETypeRegistry.cpp \
+	android/jni/PasteBoardAndroid.cpp \
 	android/jni/MockGeolocation.cpp \
         android/jni/NotificationPermissionsBridge.cpp \
-	android/jni/PictureSet.cpp \
-	android/jni/PasteBoardAndroid.cpp\
+	android/jni/PicturePile.cpp \
 	android/jni/WebCoreFrameBridge.cpp \
 	android/jni/WebCoreJni.cpp \
-	android/jni/WebCoreResourceLoader.cpp \
 	android/jni/WebFrameView.cpp \
 	android/jni/WebHistory.cpp \
 	android/jni/WebIconDatabase.cpp \
@@ -93,15 +85,7 @@ LOCAL_SRC_FILES += \
 	android/jni/WebViewCore.cpp \
 	android/jni/ViewStateSerializer.cpp \
 	\
-	android/nav/CacheBuilder.cpp \
-	android/nav/CachedColor.cpp \
-	android/nav/CachedFrame.cpp \
-	android/nav/CachedHistory.cpp \
-	android/nav/CachedInput.cpp \
-	android/nav/CachedLayer.cpp \
-	android/nav/CachedNode.cpp \
-	android/nav/CachedRoot.cpp \
-	android/nav/FindCanvas.cpp \
+	android/nav/DrawExtra.cpp \
 	android/nav/SelectText.cpp \
 	android/nav/WebView.cpp \
 	\

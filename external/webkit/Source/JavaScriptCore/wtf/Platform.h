@@ -676,7 +676,10 @@
 #if PLATFORM(ANDROID)
 #define WEBCORE_NAVIGATOR_VENDOR "Google Inc."
 
-#define LOG_DISABLED 1
+// Force LOG_ERROR() to be enabled in all builds. All other logging and
+// assertions are enabled in debug builds only.
+#define ERROR_DISABLED 0
+
 // This must be defined before we include FastMalloc.h in config.h.
 #define USE_SYSTEM_MALLOC 1
 
@@ -685,8 +688,10 @@
 #define WTF_USE_SKIA 1
 #if !defined WTF_USE_ACCELERATED_COMPOSITING
 #define WTF_USE_ACCELERATED_COMPOSITING 1
-#define ENABLE_3D_RENDERING 1
+//#define ENABLE_3D_RENDERING 1	// SAMSUNG CHANGE ++ : www.cubiq.org/dropbox/3dcity/index2.html, SAMSUNG build system make it not enable, so we move it to out.
 #endif
+
+#define ENABLE_3D_RENDERING 1 	// SAMSUNG CHANGE ++ : www.cubiq.org/dropbox/3dcity/index2.html
 
 // ENABLE guards
 #define ENABLE_JAVA_BRIDGE 1
@@ -707,12 +712,14 @@
 #endif
 /*SAMSUNG CHANGE*/
 #define ENABLE_WML 1
-#define ENABLE_SPELLCHECK 1 // SAMSUNG CHANGE - Spell Check Feature
-#define ENABLE_SAMSUNG_WEBKIT_PERFORMANCE_PATCH 1// Open Source Webkit performance patches
-#define ENABLE_WORKERS 0 //SAMSUNG CHANGE
-#define ENABLE_SHARED_WORKERS 0
-#define ENABLE_CHANNEL_MESSAGING 0
 /*SAMSUNG CHANGE*/
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
+#define ENABLE_SPELLCHECK 1
+#define ENABLE_SAMSUNG_WEBKIT_PERFORMANCE_PATCH 1// Open Source Webkit performance patches
+#define ENABLE_WORKERS 1 //SAMSUNG CHANGE
+#define ENABLE_SHARED_WORKERS 1
+#define ENABLE_CHANNEL_MESSAGING 1
+//SAMSUNG CHANGE <<<
 #define ENABLE_VIDEO 1
 #if ENABLE_SVG
 #if !defined(ENABLE_SVG_ANIMATION)
@@ -736,25 +743,33 @@
 #define ENABLE_DEVICE_ORIENTATION 1
 #define ENABLE_FILE_READER 1
 #define ENABLE_BLOB 1
-// Samsung Change - HTML5 Web Notification	>>
-#define ENABLE_NOTIFICATIONS 1
-// Samsung Change - HTML5 Web Notification	<<
+//SAMSUNG CHANGES WEBSOCKET << 
+#define ENABLE_WEB_SOCKETS 1 
+//SAMSUNG CHANGES WEBSOCKET >>
 // Converts ListBoxes to dropdown popup lists.
 #define ENABLE_NO_LISTBOX_RENDERING 1
 #define ENABLE_LINK_PREFETCH 1
 #define ENABLE_WEB_TIMING 1
+#define ENABLE_MEDIA_CAPTURE 1
 
-#define ENABLE_FILE_SYSTEM 1
+//SAMSUNG HTML5 CHANGES
 #define ENABLE_PROGRESS_TAG 1
 #define ENABLE_METER_TAG 1
 #define ENABLE_EVENTSOURCE 1
-#define ENABLE_INDEXED_DATABASE 1
-#define ENABLE_WEB_SOCKETS 1
-#define ENABLE_XHR_RESPONSE_BLOB 1
 #define ENABLE_PAGE_VISIBILITY_API 1
 #define ENABLE_REQUEST_ANIMATION_FRAME 1
-#define WTF_USE_REQUEST_ANIMATION_FRAME_TIMER 1 // SISO CHANGES ANIMATION
-#define ENABLE_MICRODATA 1 // SISO MICRODATA ANIMATION
+#define WTF_USE_REQUEST_ANIMATION_FRAME_TIMER 1 
+#define ENABLE_MICRODATA 1 
+#define ENABLE_INDEXED_DATABASE 1
+// Samsung Change - Bing search >>
+#define ENABLE_SEARCHENGINE_LOGGING 1
+// Samsung Change - Bing search <<
+// Samsung Change - HTML5 Web Notification	>>
+#define ENABLE_NOTIFICATIONS 1
+// Samsung Change - HTML5 Web Notification	<<
+#define ENABLE_FILE_SYSTEM 1
+#define ENABLE_XHR_RESPONSE_BLOB 1
+#define ENABLE_DATALIST 1
 
 // Android ENABLE guards not present upstream
 #define ENABLE_COMPOSITED_FIXED_ELEMENTS 1 // FIXME: Rename to ENABLE_ANDROID_COMPOSITED_FIXED_ELEMENTS
@@ -764,11 +779,8 @@
 // webkit.org but for now, it is just an Android feature.
 #define ENABLE_ANDROID_OVERFLOW_SCROLL 1
 
-//WebGL
+//Change for WebGL
 #define ENABLE_WEBGL 1
-#if defined ENABLE_WEBGL
-#define ENABLE_ACCELERATED_2D_CANVAS 0
-#endif
 
 // Other Android guards not present upstream
 #define ANDROID_FLATTEN_FRAMESET
@@ -779,11 +791,8 @@
 // Passes the webkit-originated changes of a focused textfield to our UI
 // thread
 #define ANDROID_ACCEPT_CHANGES_TO_FOCUSED_TEXTFIELDS
-// Allow us to turn off the blinking caret as desired.
-#define ANDROID_ALLOW_TURNING_OFF_CARET
 #define ANDROID_META_SUPPORT
 #define ANDROID_MULTIPLE_WINDOWS
-#define ANDROID_CSS_RING
 #define ANDROID_CSS_TAP_HIGHLIGHT_COLOR
 #define ANDROID_BLOCK_NETWORK_IMAGE
 // Changes needed to support native plugins (npapi.h). If the change is generic,
@@ -809,15 +818,6 @@
 #define ANDROID_APPLE_TOUCH_ICON
 // track changes to the style that may change what is drawn
 #define ANDROID_STYLE_VERSION
-
-//SAMSUNG CHANGE >>
-/*Enable / Disable text readability*/
-//#define WEBKIT_TEXT_SIZE_ADJUST 
-//SAMSUNG CHANGE <<
-
-#if !defined(WTF_USE_CHROME_NETWORK_STACK)
-#define WTF_USE_CHROME_NETWORK_STACK 0
-#endif /* !defined(WTF_USE_CHROME_NETWORK_STACK) */
 
 // This is present in JavaScriptCore/config.h, which Android does not use.
 #define WTF_CHANGES 1

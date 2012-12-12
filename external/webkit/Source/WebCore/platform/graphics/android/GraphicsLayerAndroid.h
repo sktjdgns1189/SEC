@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (C) 2011, Sony Ericsson Mobile Communications AB
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,19 +23,21 @@
 #include "Frame.h"
 #include "GraphicsLayer.h"
 #include "GraphicsLayerClient.h"
-#include "LayerAndroid.h"
+#include "LayerContent.h"
 #include "RefPtr.h"
+#include "ScrollableLayerAndroid.h"
 #include "SkBitmapRef.h"
 #include "Vector.h"
-#include "Image.h" // SAMSUNG CHANGE
 
-class FloatPoint3D;
-//class Image; // SAMSUNG CHANGE
 class SkBitmapRef;
 class SkRegion;
 
 namespace WebCore {
 
+class FloatPoint3D;
+class Image;
+class LayerAndroid;
+class FixedBackgroundImageLayerAndroid;
 class ScrollableLayerAndroid;
 
 class GraphicsLayerAndroid : public GraphicsLayer {
@@ -56,6 +57,7 @@ public:
     virtual void addChildAbove(GraphicsLayer* layer, GraphicsLayer* sibling);
     virtual void addChildBelow(GraphicsLayer* layer, GraphicsLayer* sibling);
     virtual bool replaceChild(GraphicsLayer* oldChild, GraphicsLayer* newChild);
+    virtual void setReplicatedLayer(GraphicsLayer* layer);
 
     virtual void removeFromParent();
 
@@ -114,7 +116,6 @@ public:
 #if ENABLE(WEBGL)
     virtual void setContentsToCanvas(PlatformLayer*);
 #endif
-    virtual void setContentsToGpuCanvas(PlatformLayer*);
     virtual PlatformLayer* platformLayer() const;
 
     void pauseDisplay(bool state);
@@ -132,8 +133,13 @@ public:
     void notifyClientAnimationStarted();
 
     LayerAndroid* contentLayer() { return m_contentLayer; }
+    LayerAndroid* foregroundLayer() { return m_foregroundLayer; }
 
     static int instancesCount();
+
+    virtual void updateScrollOffset();
+    
+    virtual int getContentLayerId();
 
 private:
 
@@ -142,14 +148,18 @@ private:
     void syncChildren();
     void syncMask();
 
-    void updateFixedPosition();
+    void updatePositionedLayers();
     void updateScrollingLayers();
+    void updateFixedBackgroundLayers();
 
     // with SkPicture, we always repaint the entire layer's content.
     bool repaint();
     void needsNotifyClient();
 
-    bool paintContext(SkPicture* context, const IntRect& rect);
+    SkPicture* paintPicture(const IntRect& rect);
+    bool paintContext(LayerAndroid* layer,
+                      const IntRect& rect,
+                      bool checkOptimisations = true);
 
     bool m_needsSyncChildren;
     bool m_needsSyncMask;
@@ -167,7 +177,8 @@ private:
     SkRegion m_dirtyRegion;
 
     LayerAndroid* m_contentLayer;
-    ScrollableLayerAndroid* m_foregroundLayer;
+    FixedBackgroundImageLayerAndroid* m_fixedBackgroundLayer;
+    LayerAndroid* m_foregroundLayer;
     LayerAndroid* m_foregroundClipLayer;
 };
 
@@ -177,4 +188,3 @@ private:
 #endif // USE(ACCELERATED_COMPOSITING)
 
 #endif // GraphicsLayerAndroid_h
-

@@ -33,6 +33,13 @@
 
 #include <wtf/text/CString.h>
 
+// SAMSUNG CHANGE >>
+//#include "SecNativeFeature.h"                    // OSS_Modify
+//#include "SecNativeFeatureTagWeb.h"
+#include <cutils/properties.h>
+#include <string>
+// SAMSUNG CHANGE <<
+
 static std::string acceptLanguageStdString("");
 static WTF::String acceptLanguageWtfString("");
 static WTF::Mutex acceptLanguageMutex;
@@ -69,9 +76,17 @@ WebRequestContext::WebRequestContext(bool isPrivateBrowsing)
     set_cookie_policy(cookieJar);
 
     // Also hardcoded in FrameLoader.java
-    // for China-Telecom(CHN_CTC) gb2313 and gbk is added 
-    set_accept_charset("utf-8, iso-8859-1, utf-16, gb2312, gbk, *;q=0.7"); 
-
+    // SAMSUNG CHANGE >>    
+    set_accept_charset("utf-8, iso-8859-1, utf-16, *;q=0.7");
+    // Add additional accept charset  to Accept Header (CTC Requirement)
+// OSS_Modify
+#if 0
+    if(strcmp(SecNativeFeature::getInstance()->getString(CscFeature_Web_AddCharSetToHttpHeader), "") != 0){
+        const char *sCscValue = SecNativeFeature::getInstance()->getString(CscFeature_Web_AddCharSetToHttpHeader);
+        set_accept_charset(sCscValue);
+    }
+#endif
+    // SAMSUNG CHANGE <<
 }
 
 WebRequestContext::~WebRequestContext()

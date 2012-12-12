@@ -39,6 +39,8 @@
 
 using namespace std;
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 PassRefPtr<Image> CSSGradientValue::image(RenderObject* renderer, const IntSize& size)
@@ -159,7 +161,7 @@ void CSSGradientValue::addStops(Gradient* gradient, RenderObject* renderer, Rend
             if (type == CSSPrimitiveValue::CSS_PERCENTAGE)
                 stops[i].offset = stop.m_position->getFloatValue(CSSPrimitiveValue::CSS_PERCENTAGE) / 100;
             else if (CSSPrimitiveValue::isUnitTypeLength(type)) {
-                float length = stop.m_position->computeLengthFloat(style, rootStyle, style->effectiveZoom());
+                float length = stop.m_position->computeLength<float>(style, rootStyle, style->effectiveZoom());
                 if (!computedGradientLength) {
                     FloatSize gradientSize(gradientStart - gradientEnd);
                     gradientLength = gradientSize.diagonalLength();
@@ -390,7 +392,7 @@ static float positionFromValue(CSSPrimitiveValue* value, RenderStyle* style, Ren
         }
 
     default:
-        return value->computeLengthFloat(style, rootStyle, zoomFactor);
+        return value->computeLength<float>(style, rootStyle, zoomFactor);
     }
 }
 
@@ -637,7 +639,7 @@ float CSSRadialGradientValue::resolveRadius(CSSPrimitiveValue* radius, RenderSty
     else if (widthOrHeight && radius->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
         result = *widthOrHeight * radius->getFloatValue() / 100;
     else
-        result = radius->computeLengthFloat(style, rootStyle, zoomFactor);
+        result = radius->computeLength<float>(style, rootStyle, zoomFactor);
  
     return result;
 }

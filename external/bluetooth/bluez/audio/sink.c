@@ -107,6 +107,7 @@ static const char *state2str(sink_state_t state)
 }
 
 #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+dbus_uint32_t scmstSupport;//souvick, scms-t 12_06_2012
 static void set_sink_protection(struct audio_device *dev, gboolean protected)
 {
 	struct sink *sink = dev->sink;
@@ -679,6 +680,20 @@ static DBusMessage *reset_sink_protection_required(DBusConnection *conn,
 
 	return dbus_message_new_method_return(msg);
 }
+
+//souvick, scms-t 12_06_2012++
+static DBusMessage *isHeadsetScmstSupported(DBusConnection *conn,
+						DBusMessage *msg, void *data)
+{
+	DBusMessage *reply;
+	DBG("sink.c: isHeadsetScmstSupported : %d",scmstSupport);
+	reply = dbus_message_new_method_return(msg);
+	dbus_message_append_args(reply,  DBUS_TYPE_UINT32, &scmstSupport,
+                  DBUS_TYPE_INVALID);
+
+	return reply;
+}
+//souvick, scms-t 12_06_2012--
 #endif
 
 static GDBusMethodTable sink_methods[] = {
@@ -696,6 +711,7 @@ static GDBusMethodTable sink_methods[] = {
 #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
 	{ "RequireProtection", "", "",	set_sink_protection_required },
 	{ "ResetRequireProtection", "", "", reset_sink_protection_required },
+	{ "ScmstSupport", "", "", isHeadsetScmstSupported },//souvick, scms-t 12_06_2012
 #endif
 	{ NULL, NULL, NULL, NULL }
 };

@@ -95,7 +95,9 @@ public:
     
     static Pasteboard* generalPasteboard();
     void writeSelection(Range*, bool canSmartCopyOrDelete, Frame*);
-    void writePlainText(const String&);
+//SAMSUNG: Text selection >>	
+    void writePlainText(const String&,Frame*);
+//SAMSUNG: Text selection <<
     void writeURL(const KURL&, const String&, Frame* = 0);
     void writeImage(Node*, const KURL&, const String& title);
 #if PLATFORM(MAC)

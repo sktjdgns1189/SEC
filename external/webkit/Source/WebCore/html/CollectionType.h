@@ -54,11 +54,11 @@ enum CollectionType {
     DataListOptions,
     MapAreas,
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     ItemProperties, // Microdata item properties in the document
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     OtherCollection
 };
 

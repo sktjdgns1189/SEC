@@ -151,7 +151,10 @@ private:
     InlineTextBox* m_nextTextBox; // The next box that also uses our RenderObject
 
     int m_start;
-    unsigned short m_len;
+//SISO_HTMLComposer Start
+//Making m_len to unsigned int so that InlineTextBox Length shall hold the length values of BIDI runs when resolving lengthy single line text.
+    unsigned m_len;
+//SISO_HTMLComposer End
 
     unsigned short m_truncation; // Where to truncate when text overflow is applied.  We use special constants to
                       // denote no truncation (the whole run paints) and full truncation (nothing paints at all).

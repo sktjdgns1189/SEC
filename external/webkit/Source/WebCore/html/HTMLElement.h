@@ -31,12 +31,11 @@ class DocumentFragment;
 class HTMLCollection;
 class HTMLFormElement;
                        
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 class MicroDataItemValue;
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 class HTMLElement : public StyledElement {
 public:
     static PassRefPtr<HTMLElement> create(const QualifiedName& tagName, Document*);
@@ -89,13 +88,12 @@ public:
 
     TextDirection directionalityIfhasDirAutoAttribute(bool& isAuto) const;
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     void setItemValue(const String&, ExceptionCode&);
     PassRefPtr<MicroDataItemValue> itemValue() const;
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 protected:
     HTMLElement(const QualifiedName& tagName, Document*);
 
@@ -105,9 +103,9 @@ protected:
     virtual void parseMappedAttribute(Attribute*);
 
     virtual void childrenChanged(bool changedByParser = false, Node* beforeChange = 0, Node* afterChange = 0, int childCountDelta = 0);
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTMl5 MICRODATA CHANGES <<
     virtual bool isURLAttribute(Attribute*) const;
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 private:
     virtual String nodeName() const;
 
@@ -123,12 +121,12 @@ private:
     void calculateAndAdjustDirectionality();
     void adjustDirectionalityIfNeededAfterChildrenChanged(Node* beforeChange, int childCountDelta);
     TextDirection directionality(Node** strongDirectionalityTextNode= 0) const;
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 };
 
 inline HTMLElement* toHTMLElement(Node* node)

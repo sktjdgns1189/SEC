@@ -73,6 +73,7 @@ static gboolean opt_char_write_req = FALSE;
 // Praveen :: ATT prepare-write-req (TP/GAW/CL/BI-11-C, 12, 17, 18)
 #ifdef __PROTOCOL_TEST__
 static gboolean opt_char_prep_write_req = FALSE;
+static gboolean opt_declaration = FALSE;
 #endif
 
 static gboolean opt_interactive = FALSE;
@@ -217,6 +218,12 @@ static gboolean test_func()
 	g_printerr("[KJH] test_func for connection\n");
 	return FALSE;
 }
+static void declaration_cb(guint8 status, const guint8 *pdu, guint16 plen,
+							gpointer user_data)
+{
+done:
+	g_main_loop_quit(event_loop);
+}
 #endif
 
 // KJH :: gatt - TP/GAT/CL/BV-01-C, TP/GAT/CL/BV-02-C
@@ -247,6 +254,14 @@ static void char_read_by_uuid_cb(guint8 status, const guint8 *pdu,
 					guint16 plen, gpointer user_data);
 
 GAttrib *attribTemp=NULL;
+static gboolean declaration(gpointer user_data)
+{
+	GAttrib *attrib = user_data;
+	g_print("#### declaration####");
+	gatt_declaration(attrib, opt_start, opt_end, opt_uuid,
+		                             declaration_cb, NULL);
+	return FALSE;
+}
 #endif
 
 static void char_discovered_cb(GSList *characteristics, guint8 status,
@@ -678,6 +693,8 @@ static GOptionEntry gatt_options[] = {
 #ifdef __PROTOCOL_TEST__
 	{ "char-prep-write-req", 0, 0, G_OPTION_ARG_NONE, &opt_char_prep_write_req,
 		"Characteristics Value Write (Write Request)", NULL },
+	{ "declaration", 0, 0, G_OPTION_ARG_NONE, &opt_declaration,
+		"Primary/Secondary Service or characteristic declaration", NULL },
 #endif
 	{ "char-desc", 0, 0, G_OPTION_ARG_NONE, &opt_char_desc,
 		"Characteristics Descriptor Discovery", NULL },
@@ -766,6 +783,8 @@ int main(int argc, char *argv[])
 #ifdef __PROTOCOL_TEST__
 	else if(opt_char_prep_write_req)
 		operation = characteristics_prep_write_req;
+	else if(opt_declaration)
+		operation =declaration;
 #endif
 	else if (opt_char_desc)
 		operation = characteristics_desc;

@@ -51,13 +51,6 @@ typedef MidpointState<InlineIterator> LineMidpointState;
 
 enum CaretType { CursorCaret, DragCaret };
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-enum LineCount {
-    NOT_SET = 0, NO_LINE = 1, ONE_LINE = 2, MULTI_LINE = 3
-};
-//SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
 class RenderBlock : public RenderBox {
 public:
     RenderBlock(Node*);
@@ -164,16 +157,7 @@ public:
     
     static void appendRunsForObject(BidiRunList<BidiRun>&, int start, int end, RenderObject*, InlineBidiResolver&);
     static bool requiresLineBox(const InlineIterator&, bool isLineEmpty = true, bool previousLineBrokeCleanly = true);
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
- //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    int immediateLineCount();
-    void adjustComputedFontSizes(float size, float visibleWidth);
-    void resetComputedFontSize() {
-        m_widthForTextAutosizing = -1;
-        m_lineCountForTextAutosizing = NOT_SET;
-    }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif   
+
     ColumnInfo* columnInfo() const;
     int columnGap() const;
     
@@ -610,9 +594,11 @@ private:
     void setDesiredColumnCountAndWidth(int count, int width);
 
     void paintContinuationOutlines(PaintInfo&, int tx, int ty);
-// SAMSUNG Adding for Multicolumn text selection - Begin
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    // WAS: virtual IntRect localCaretRect(InlineBox*, int caretOffset, int* extraWidthToEndOfLine = 0);
     virtual IntRect localCaretRect(InlineBox*, int caretOffset, int* extraWidthToEndOfLine = 0,bool bTextSelection=false);
-// SAMSUNG Adding for Multicolumn text selection - End
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
     void adjustPointToColumnContents(IntPoint&) const;
     void adjustForBorderFit(int x, int& left, int& right) const; // Helper function for borderFitAdjust
@@ -805,13 +791,6 @@ private:
     mutable int m_lineHeight : 31;
     bool m_beingDestroyed : 1;
 
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#ifdef WEBKIT_TEXT_SIZE_ADJUST    
-    int m_widthForTextAutosizing;    
-    unsigned m_lineCountForTextAutosizing : 2;    
-#endif
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-    
     // RenderRubyBase objects need to be able to split and merge, moving their children around
     // (calling moveChildTo, moveAllChildrenTo, and makeChildrenNonInline).
     friend class RenderRubyBase;

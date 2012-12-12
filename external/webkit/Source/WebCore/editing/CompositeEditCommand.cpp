@@ -22,7 +22,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+     
 #include "config.h"
 #include "CompositeEditCommand.h"
 
@@ -494,18 +494,29 @@ void CompositeEditCommand::prepareWhitespaceAtPositionForSplit(Position& positio
     // Delete collapsed whitespace so that inserting nbsps doesn't uncollapse it.
     Position upstreamPos = position.upstream();
     deleteInsignificantText(position.upstream(), position.downstream());
-    position = upstreamPos.downstream();
+//SISO HTMLComposer Start
+    Position downstreamPos = upstreamPos.downstream();
 
-    VisiblePosition visiblePos(position);
+    VisiblePosition visiblePos(downstreamPos);
+//SISO HTMLComposer End
     VisiblePosition previousVisiblePos(visiblePos.previous());
     Position previous(previousVisiblePos.deepEquivalent());
+//SISO HTMLComposer Start
+    if (!isCollapsibleWhitespace(previousVisiblePos.characterAfter()) 
+        && !isCollapsibleWhitespace(visiblePos.characterAfter())) {
+           return;
+    }
+    else {
+        position = downstreamPos;
+    }
+//SISO HTMLComposer End
     
     if (isCollapsibleWhitespace(previousVisiblePos.characterAfter()) && previous.deprecatedNode()->isTextNode() && !previous.deprecatedNode()->hasTagName(brTag))
         replaceTextInNode(static_cast<Text*>(previous.deprecatedNode()), previous.deprecatedEditingOffset(), 1, nonBreakingSpaceString());
     if (isCollapsibleWhitespace(visiblePos.characterAfter()) && position.deprecatedNode()->isTextNode() && !position.deprecatedNode()->hasTagName(brTag))
         replaceTextInNode(static_cast<Text*>(position.deprecatedNode()), position.deprecatedEditingOffset(), 1, nonBreakingSpaceString());
 }
-
+      
 void CompositeEditCommand::rebalanceWhitespace()
 {
     VisibleSelection selection = endingSelection();
@@ -781,7 +792,7 @@ void CompositeEditCommand::cloneParagraphUnderNewElement(Position& start, Positi
     appendNode(topNode, blockElement);
     RefPtr<Node> lastNode = topNode;
 
-    if (start.deprecatedNode() != outerNode) {
+    if (start.deprecatedNode() != outerNode && lastNode->isElementNode()) {
         Vector<RefPtr<Node> > ancestors;
         
         // Insert each node from innerNode to outerNode (excluded) in a list.

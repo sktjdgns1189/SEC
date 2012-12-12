@@ -31,10 +31,6 @@
 
 namespace WebCore {
 
-class RenderSkinButton;
-class RenderSkinRadio;
-class RenderSkinCombo;
-
 struct ThemeData {
     ThemeData()
         : m_part(0)
@@ -52,7 +48,7 @@ public:
     ~RenderThemeAndroid();
     
     virtual bool stateChanged(RenderObject*, ControlState) const;
-       
+
     virtual bool supportsFocusRing(const RenderStyle*) const;
     // A method asking if the theme's controls actually care about redrawing when hovered.
     virtual bool supportsHover(const RenderStyle* style) const { return style->affectedByHoverRules(); }
@@ -60,17 +56,25 @@ public:
     virtual int baselinePosition(const RenderObject*) const;
 
     virtual Color platformActiveSelectionBackgroundColor() const;
+//SAMSUNG ADVANCED TEXT SELECTION BEGIN
     virtual Color platformActiveSelectionBackgroundColor(Settings* s) const;
+//SAMSUNG ADVANCED TEXT SELECTION END
     virtual Color platformInactiveSelectionBackgroundColor() const;
+//SAMSUNG ADVANCED TEXT SELECTION BEGIN
     virtual Color platformInactiveSelectionBackgroundColor(Settings* s) const;
+//SAMSUNG ADVANCED TEXT SELECTION END
     virtual Color platformActiveSelectionForegroundColor() const;
     virtual Color platformInactiveSelectionForegroundColor() const;
     virtual Color platformTextSearchHighlightColor() const;
+    virtual Color platformFocusRingColor() const;
 
     virtual Color platformActiveListBoxSelectionBackgroundColor() const;
     virtual Color platformInactiveListBoxSelectionBackgroundColor() const;
     virtual Color platformActiveListBoxSelectionForegroundColor() const;
     virtual Color platformInactiveListBoxSelectionForegroundColor() const;
+
+    virtual Color platformActiveTextSearchHighlightColor() const;
+    virtual Color platformInactiveTextSearchHighlightColor() const;
 
     virtual void systemFont(int, WebCore::FontDescription&) const {}
 
@@ -120,24 +124,19 @@ protected:
     virtual void adjustSearchFieldStyle(CSSStyleSelector*, RenderStyle*, Element*) const;
     virtual bool paintSearchField(RenderObject*, const PaintInfo&, const IntRect&);
 
-//SAMSUNG PROGRESS TAG CHANGES <<
+    virtual bool paintSliderTrack(RenderObject*, const PaintInfo&, const IntRect&);
+    virtual bool paintSliderThumb(RenderObject*, const PaintInfo&, const IntRect&);
+//SAMSUNG CHANGES HTML5 PROGRESS <<
 #if ENABLE(PROGRESS_TAG)
     virtual double animationRepeatIntervalForProgressBar(RenderProgress*) const;
     virtual double animationDurationForProgressBar(RenderProgress*) const;
     virtual void adjustProgressBarStyle(CSSStyleSelector*, RenderStyle*, Element*) const;
     virtual bool paintProgressBar(RenderObject*, const PaintInfo&, const IntRect&);
-#endif
-#if ENABLE(PROGRESS_TAG)
     IntRect determinateProgressValueRectFor(RenderProgress*, const IntRect&) const;
     IntRect indeterminateProgressValueRectFor(RenderProgress*, const IntRect&) const;
     IntRect progressValueRectFor(RenderProgress*, const IntRect&) const;
 #endif
-//SAMSUNG PROGRESS TAG CHANGES <<
-
-//SAMSUNG INPUT TYPE RANGE CHANGES <<
-   virtual bool paintSliderTrack(RenderObject*, const PaintInfo& i, const IntRect& rect);	
-   virtual bool paintSliderThumb(RenderObject* o, const PaintInfo& i, const IntRect& rect);
-//SAMSUNG INPUT TYPE RANGE CHANGES <<
+//SAMSUNG CHANGES HTML5 PROGRESS >>
 
 private:
     RenderThemeAndroid();

@@ -532,14 +532,14 @@ Color RenderTheme::activeSelectionBackgroundColor() const
     return m_activeSelectionBackgroundColor;
 }
 
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 Color RenderTheme::activeSelectionBackgroundColor(Settings* s) const
 {
     if (!m_activeSelectionBackgroundColor.isValid())
         m_activeSelectionBackgroundColor = platformActiveSelectionBackgroundColor(s).blendWithWhite();
     return m_activeSelectionBackgroundColor;
 }
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
 Color RenderTheme::inactiveSelectionBackgroundColor() const
 {
@@ -548,14 +548,16 @@ Color RenderTheme::inactiveSelectionBackgroundColor() const
     return m_inactiveSelectionBackgroundColor;
 }
 
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+
 Color RenderTheme::inactiveSelectionBackgroundColor(Settings* s) const
 {
     if (!m_inactiveSelectionBackgroundColor.isValid())
         m_inactiveSelectionBackgroundColor = platformInactiveSelectionBackgroundColor(s).blendWithWhite();
     return m_inactiveSelectionBackgroundColor;
 }
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE <<
+
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
 Color RenderTheme::activeSelectionForegroundColor() const
 {
@@ -611,13 +613,12 @@ Color RenderTheme::platformActiveSelectionForegroundColor() const
     return Color::white;
 }
 
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 Color RenderTheme::platformActiveSelectionBackgroundColor(Settings* o) const
 {
     return platformActiveSelectionBackgroundColor();
 }
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE <<
-
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
 Color RenderTheme::platformInactiveSelectionBackgroundColor() const
 {
@@ -626,12 +627,12 @@ Color RenderTheme::platformInactiveSelectionBackgroundColor() const
     return Color(176, 176, 176);
 }
 
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 Color RenderTheme::platformInactiveSelectionBackgroundColor(Settings* o) const
 {
     return platformInactiveSelectionBackgroundColor();
 }
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
 Color RenderTheme::platformInactiveSelectionForegroundColor() const
 {

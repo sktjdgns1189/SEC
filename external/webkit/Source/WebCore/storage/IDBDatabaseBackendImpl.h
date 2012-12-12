@@ -84,7 +84,7 @@ private:
     static void resetVersion(ScriptExecutionContext*, PassRefPtr<IDBDatabaseBackendImpl>, const String& version);
 
     RefPtr<IDBBackingStore> m_backingStore;
-    int64_t m_id;
+    int64_t m_id; //SAMSUNG CHANGES HTML5 IDB
     String m_name;
     String m_version;
 

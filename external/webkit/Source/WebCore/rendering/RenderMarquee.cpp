@@ -116,8 +116,6 @@ int RenderMarquee::computePosition(EMarqueeDirection dir, bool stopAtContentEdge
     if (isHorizontal()) {
         bool ltr = s->isLeftToRightDirection();
         int clientWidth = box->clientWidth();
-// bug-64230-20120123184329.patch
-// https://bugs.webkit.org/show_bug.cgi?id=64230
         int contentWidth = ltr ? box->maxPreferredLogicalWidth() : box->minPreferredLogicalWidth();
         if (ltr)
             contentWidth += (box->paddingRight() - box->borderLeft());

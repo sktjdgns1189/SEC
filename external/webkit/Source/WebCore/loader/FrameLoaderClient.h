@@ -33,11 +33,7 @@
 #include "ScrollTypes.h"
 #include <wtf/Forward.h>
 #include <wtf/Vector.h>
-// SAMSUNG CHANGE +
-#if PLATFORM(ANDROID)
-#include <Image.h>
-#endif
-// SAMSUNG CHANGE -
+
 #if PLATFORM(MAC)
 #ifdef __OBJC__ 
 #import <Foundation/Foundation.h>
@@ -312,21 +308,14 @@ namespace WebCore {
         virtual void didNotAllowScript() { }
         // This callback is similar, but for plugins.
         virtual void didNotAllowPlugins() { }
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-        // SAMSUNG CHANGE + Spell Check
         virtual void didFinishSpellCheck(int misspelledWordCount) { }
-        // SAMSUNG CHANGE -
 #endif
+//SAMSUNG CHANGES <<<
         virtual PassRefPtr<FrameNetworkingContext> createNetworkingContext() = 0;
 
         virtual bool shouldPaintBrokenImage(const KURL&) const { return true; }
-
-//SAMSUNG CHANGE +
-#if PLATFORM(ANDROID)
-        virtual void storeAnimationTimer(Image*) {}
-#endif
-//SAMSUNG CHANGE -
-
     };
 
 } // namespace WebCore

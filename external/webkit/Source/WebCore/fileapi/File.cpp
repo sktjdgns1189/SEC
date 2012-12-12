@@ -26,33 +26,24 @@
 #include "config.h"
 #include "File.h"
 
-#define LOG_NDEBUG 0
-#define LOGTAG "FileSystem"
-
-
 #include "FileSystem.h"
 #include "MIMETypeRegistry.h"
 #include <wtf/CurrentTime.h>
 #include <wtf/text/WTFString.h>
+//SAMSUNG CHANGE HTML5 FILEAPI <<
 #include <wtf/text/CString.h>
-#undef LOG
-#include <utils/Log.h>
-//#include "FileSystemAndroid.h"
+//SAMSUNG CHANGE HTML5 FILEAPI >>
 
 namespace WebCore {
 
 static PassOwnPtr<BlobData> createBlobDataForFile(const String& path)
 {
     String type;
-    LOGE("File:: createBlobDataForFile Path value is %s",path.utf8().data());
     //SAMSUNG CHANGE HTML5 FILEAPI <<
     CString newpath = fileSystemRepresentation(path);
-    LOGE("File:: createBlobDataForFile NewPath value is %s",newpath.data());
     String newpath1 = newpath.data();
     int index = newpath1.reverseFind('.');
-    LOGE("File:: createBlobDataForFile index value is %d",index);
     String mimeext = newpath1.substring(index + 1);
-    LOGE("File:: createBlobDataForFile Path value is %s",mimeext.utf8().data());
     if (index != -1)
         //type = MIMETypeRegistry::getMIMETypeForExtension(path.substring(index + 1));
           type = MIMETypeRegistry::getMIMETypeForExtension(mimeext);

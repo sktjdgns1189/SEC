@@ -756,6 +756,46 @@ void GraphicsContext::fillPath(const Path& pathToFill)
     platformContext()->canvas()->drawPath(path, paint);
 }
 
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+void GraphicsContext::fillTransparentRect(const FloatRect& rect,const Color& color)
+{
+	if (paintingDisabled())
+	return;
+
+	if (!color.alpha())	
+        return;
+	
+	SkRect r = rect;
+
+	if (!isRectSkiaSafe(getCTM(), r)) 
+	{
+	// See the other version of fillRect below.
+		ClipRectToCanvas(*platformContext()->canvas(), r, &r);
+	}
+
+	if (platformContext()->useGPU() && platformContext()->canAccelerate()) 
+	{
+		platformContext()->prepareForHardwareDraw();
+		platformContext()->gpuCanvas()->fillRect(rect);
+	return;
+	}
+
+	//    platformContext()->save();
+
+	platformContext()->prepareForSoftwareDraw();
+
+	SkPaint paint;
+	platformContext()->setupPaintForFilling(&paint);
+
+	paint.setColor(color.rgb());
+	paint.setAlpha(80);
+
+	platformContext()->canvas()->drawRect(r, paint);
+
+	//    platformContext()->restore();
+}
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
 void GraphicsContext::fillRect(const FloatRect& rect)
 {
     if (paintingDisabled())

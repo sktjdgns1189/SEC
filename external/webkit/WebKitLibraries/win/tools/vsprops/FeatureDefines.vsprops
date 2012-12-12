@@ -238,7 +238,7 @@
 	/>
   <UserMacro
 		Name="ENABLE_WML"
-		Value="ENABLE_WML"
+		Value=""
 		PerformEnvironmentSet="true"
 	/>
   <UserMacro

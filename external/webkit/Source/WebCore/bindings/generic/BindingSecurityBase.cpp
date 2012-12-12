@@ -91,10 +91,13 @@ bool BindingSecurityBase::canAccess(DOMWindow* activeWindow,
 
     // We have seen crashes were the security origin of the target has not been
     // initialized. Defend against that.
-    if (!targetSecurityOrigin)
+	
+	// SAMSUNG CHANGE ++ : [P120901-0586] sunspider crash issue.
+    // WAS:if (!targetSecurityOrigin)
+	if (!activeSecurityOrigin || !targetSecurityOrigin)
         return false;
 
-    if (activeSecurityOrigin && activeSecurityOrigin->canAccess(targetSecurityOrigin))
+    if (activeSecurityOrigin->canAccess(targetSecurityOrigin))
         return true;
 
     // Allow access to a "about:blank" page if the dynamic context is a

@@ -157,12 +157,12 @@ public:
 #endif
 
     virtual TextCheckerClient* textChecker() = 0;
-    //>>>SAMSUNG CHANGES+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-	virtual bool isWordChecking() = 0; //SAMSUNG+ SPELLCHECK CHANGES
+	virtual bool isWordChecking() = 0;
 #endif
 	virtual void checkSpellingOfString(const UChar*, int length, int* misspellingLocation, int* misspellingLength) = 0;
-	//>>>SAMSUNG CHANGES-
+//SAMSUNG CHANGES <<<
 
     enum AutocorrectionResponseType {
         AutocorrectionEdited,

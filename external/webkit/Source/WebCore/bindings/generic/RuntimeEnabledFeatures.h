@@ -59,6 +59,7 @@ public:
 
     static void setWebkitIndexedDBEnabled(bool isEnabled) { isIndexedDBEnabled = isEnabled; }
     static bool webkitIndexedDBEnabled() { return isIndexedDBEnabled; }
+    static bool indexedDBEnabled() { return isIndexedDBEnabled; } // SAMSUNG CHANGE Ring Mark Tests
     static bool webkitIDBCursorEnabled() { return isIndexedDBEnabled; }
     static bool webkitIDBDatabaseEnabled() { return isIndexedDBEnabled; }
     static bool webkitIDBDatabaseErrorEnabled() { return isIndexedDBEnabled; }

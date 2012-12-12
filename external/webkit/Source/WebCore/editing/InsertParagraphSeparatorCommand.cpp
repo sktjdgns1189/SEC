@@ -36,9 +36,10 @@
 #include "Text.h"
 #include "htmlediting.h"
 #include "visible_units.h"
+//SISO_HTMLComposer start
 #include "Page.h"
 #include "Settings.h"
-
+//SISO_HTMLComposer end
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -283,9 +284,9 @@ void InsertParagraphSeparatorCommand::doApply()
         setEndingSelection(VisibleSelection(insertionPosition, DOWNSTREAM));
         return;
     }
-	// SISO HTML Composer Change Start
+//SISO_HTMLComposer start
 
-	if (document() && document()->page()&&insertionPosition.deprecatedNode()&& document()->page()->settings()
+	if (document() && document()->page() && document()->page()->settings()
 		&&document()->page()->settings()->editableSupportEnabled()&&insertionPosition.deprecatedNode()&&nestNewBlock)
 	{
 	//Inserting sytle node (Background color) b/w two node in below scenarios
@@ -300,19 +301,19 @@ void InsertParagraphSeparatorCommand::doApply()
 			if(startBlockNode->hasTagName(bodyTag))
 			   child=	startBlock->firstChild();
 			
-			if(child->isTextNode())
-				child=child->nextSibling();
+            if(child && child->isTextNode())
+                child=child->nextSibling();
 
-			if (child->isHTMLElement() && child->hasTagName(fontTag)){
-					child =child->firstChild();
-					if(child->isHTMLElement())
-					{
-						CSSMutableStyleDeclaration* existingStyle = toHTMLElement(child)->inlineStyleDecl();
-								if(existingStyle->getPropertyCSSValue(CSSPropertyBackgroundColor)) 
-								bBGColor=true;
-					}
-				}
-			}
+            if (child && child->isHTMLElement() && child->hasTagName(fontTag)){
+                    child =child->firstChild();
+                    if(child && child->isHTMLElement())
+                    {
+                        CSSMutableStyleDeclaration* existingStyle = toHTMLElement(child)->inlineStyleDecl();
+                                if(existingStyle->getPropertyCSSValue(CSSPropertyBackgroundColor)) 
+                                bBGColor=true;
+                    }
+                }
+            }
 
 			if (insertionPosition.deprecatedNode()->isHTMLElement() ){
 				CSSMutableStyleDeclaration* existingStyle = toHTMLElement(insertionPosition.deprecatedNode())->inlineStyleDecl();
@@ -371,7 +372,7 @@ void InsertParagraphSeparatorCommand::doApply()
 					
 		}
 	}
-// SISO HTML Composer Change End
+//SISO_HTMLComposer end
     //---------------------------------------------------------------------
     // Handle the (more complicated) general case,
 
@@ -437,14 +438,14 @@ void InsertParagraphSeparatorCommand::doApply()
         if (insertionPosition.containerNode() == startBlock)
             n = insertionPosition.computeNodeAfterPosition();
         else {
-//HTML Composer Start
+//SISO_HTMLComposer start
           //  splitTreeToNode(insertionPosition.containerNode(), startBlock);
             Node* splitTo = insertionPosition.containerNode();
             if (splitTo->isTextNode() && insertionPosition.offsetInContainerNode() >= caretMaxOffset(splitTo))
               splitTo = splitTo->traverseNextNode(startBlock);
             ASSERT(splitTo);
             splitTreeToNode(splitTo, startBlock);
-//HTML Composer End
+//SISO_HTMLComposer end
             for (n = startBlock->firstChild(); n; n = n->nextSibling()) {
                 if (comparePositions(VisiblePosition(insertionPosition), positionBeforeNode(n)) <= 0)
                     break;

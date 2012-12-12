@@ -26,13 +26,10 @@
 #ifndef HTMLToken_h
 #define HTMLToken_h
 
+
 #include "NamedNodeMap.h"
 #include <wtf/PassOwnPtr.h>
 #include <wtf/Vector.h>
-
-//#include "AndroidLog.h"
-//#include <utils/Log.h>
-//#include <wtf/text/CString.h>
 
 
 namespace WebCore {
@@ -540,7 +537,6 @@ private:
 inline void AtomicHTMLToken::initializeAttributes(const HTMLToken::AttributeList& attributes)
 {
     size_t size = attributes.size();
-    //__android_log_print(ANDROID_LOG_DEBUG,"AtomicHTMLToken::initializeAttributes"," size:%d",size);
     if (!size)
         return;
 
@@ -555,16 +551,9 @@ inline void AtomicHTMLToken::initializeAttributes(const HTMLToken::AttributeList
         ASSERT(attribute.m_nameRange.m_end);
         ASSERT(attribute.m_valueRange.m_start);
         ASSERT(attribute.m_valueRange.m_end);
-
         String name(attribute.m_name.data(), attribute.m_name.size());
         String value(attribute.m_value.data(), attribute.m_value.size());
-		
-	//WTF::String t_name(attribute.m_name.data(), attribute.m_name.size());
-	//WTF::String t_value(attribute.m_value.data(), attribute.m_value.size());
-    //__android_log_print(ANDROID_LOG_DEBUG,"AtomicHTMLToken::initializeAttributes"," name:%s size:%d",t_name.utf8().data(),attribute.m_name.size());
-	//__android_log_print(ANDROID_LOG_DEBUG,"AtomicHTMLToken::initializeAttributes"," value size:%d",attribute.m_value.size());
-	
-        m_attributes->insertAttribute(Attribute::createMapped(name, value), false);
+	m_attributes->insertAttribute(Attribute::createMapped(name, value), false);
     }
 }
 

@@ -23,9 +23,13 @@ enum cpufreq_level_index {
 };
 
 enum busfreq_level_request {
-	BUS_L0,		/* MEM 400MHz BUS 200MHz */
-	BUS_L1,		/* MEM 267MHz BUS 160MHz */
-	BUS_L2,		/* MEM 133MHz BUS 133MHz */
+	BUS_L0,		/* MEM 400MHz BUS 266MHz */
+	BUS_L1,		/* MEM 400MHz BUS 200MHz */
+	BUS_L2,		/* MEM 267MHz BUS 200MHz */
+	BUS_L3,		/* MEM 267MHz BUS 160MHz */
+	BUS_L4,		/* MEM 160MHz BUS 160MHz */
+	BUS_L5,		/* MEM 133MHz BUS 133MHz */
+	BUS_L6,		/* MEM 100MHz BUS 100MHz */
 	BUS_LEVEL_END,
 };
 
@@ -35,6 +39,7 @@ enum cpufreq_lock_ID {
 	DVFS_LOCK_ID_MFC,	/* MFC */
 	DVFS_LOCK_ID_USB,	/* USB */
 	DVFS_LOCK_ID_USB_IF,	/* USB_IF */
+	DVFS_LOCK_ID_DPRAM_IF,	/* DPRAM_IF */
 	DVFS_LOCK_ID_CAM,	/* CAM */
 	DVFS_LOCK_ID_PM,	/* PM */
 	DVFS_LOCK_ID_USER,	/* USER */

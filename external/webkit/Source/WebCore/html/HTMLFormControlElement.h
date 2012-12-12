@@ -36,7 +36,6 @@ class ValidationMessage;
 class ValidityState;
 class VisibleSelection;
 
-enum TextFieldEventBehavior { DispatchNoEvent, DispatchChangeEvent, DispatchInputAndChangeEvent};
 // HTMLFormControlElement is the default implementation of FormAssociatedElement,
 // and form-associated element implementations should use HTMLFormControlElement
 // unless there is a special reason.

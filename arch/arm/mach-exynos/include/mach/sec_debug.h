@@ -77,28 +77,16 @@ struct work_struct;
 
 #ifdef CONFIG_SEC_DEBUG_SCHED_LOG
 extern void __sec_debug_task_log(int cpu, struct task_struct *task);
-extern void __sec_debug_irq_save_cf(unsigned int irq, struct pt_regs *regs);
 extern void __sec_debug_irq_log(unsigned int irq, void *fn, int en);
 extern void __sec_debug_work_log(struct worker *worker,
 				 struct work_struct *work, work_func_t f);
-#ifdef CONFIG_SEC_DEBUG_ALLOC_PROFILE
-extern void __sec_debug_alloc_profile(
-		unsigned long long start_time,
-		unsigned int retry_cnt, unsigned int types,
-		atomic_t dup, unsigned int order);
-#endif
+extern void __sec_debug_hrtimer_log(struct hrtimer *timer,
+			enum hrtimer_restart (*fn) (struct hrtimer *), int en);
 
 static inline void sec_debug_task_log(int cpu, struct task_struct *task)
 {
 	if (unlikely(sec_debug_level.en.kernel_fault))
 		__sec_debug_task_log(cpu, task);
-}
-
-static inline void sec_debug_irq_save_cf(unsigned int irq, struct pt_regs *regs)
-{
-	if (unlikely(sec_debug_level.en.kernel_fault))
-		__sec_debug_irq_save_cf(irq, regs);
-
 }
 
 static inline void sec_debug_irq_log(unsigned int irq, void *fn, int en)
@@ -114,41 +102,26 @@ static inline void sec_debug_work_log(struct worker *worker,
 		__sec_debug_work_log(worker, work, f);
 }
 
-#ifdef CONFIG_SEC_DEBUG_SOFTIRQ_LOG
+static inline void sec_debug_hrtimer_log(struct hrtimer *timer,
+			 enum hrtimer_restart (*fn) (struct hrtimer *), int en)
+{
+#ifdef CONFIG_SEC_DEBUG_HRTIMER_LOG
+	if (unlikely(sec_debug_level.en.kernel_fault))
+		__sec_debug_hrtimer_log(timer, fn, en);
+#endif
+}
+
 static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
 {
+#ifdef CONFIG_SEC_DEBUG_SOFTIRQ_LOG
 	if (unlikely(sec_debug_level.en.kernel_fault))
 		__sec_debug_irq_log(irq, fn, en);
-}
-#else
-static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
-{
-}
 #endif
-
-#ifdef CONFIG_SEC_DEBUG_ALLOC_PROFILE
-static inline void sec_debug_alloc_profile(unsigned long long start_time,
-			unsigned int retry_cnt, unsigned int types,
-			atomic_t dup, unsigned int order)
-{
-	if (unlikely(sec_debug_level.en.kernel_fault))
-		__sec_debug_alloc_profile(start_time, retry_cnt,
-						types, dup, order);
 }
-#else
-static inline void sec_debug_alloc_profile(unsigned long long start_time,
-			unsigned int retry_cnt, unsigned int types,
-			atomic_t dup, unsigned int order)
-{
-}
-#endif
 
 #else
+
 static inline void sec_debug_task_log(int cpu, struct task_struct *task)
-{
-}
-
-static inline void sec_debug_irq_save_cf(unsigned int irq, struct pt_regs *regs)
 {
 }
 
@@ -161,13 +134,12 @@ static inline void sec_debug_work_log(struct worker *worker,
 {
 }
 
-static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
+static inline void sec_debug_hrtimer_log(struct hrtimer *timer,
+			 enum hrtimer_restart (*fn) (struct hrtimer *), int en)
 {
 }
 
-static inline void __sec_debug_alloc_profile(unsigned long long start_time,
-			unsigned int retry_cnt, unsigned int types,
-			atomic_t dup, unsigned int order)
+static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
 {
 }
 #endif
@@ -223,7 +195,6 @@ static inline void debug_rwsemaphore_up_log(struct rw_semaphore *sem)
 
 enum sec_debug_aux_log_idx {
 	SEC_DEBUG_AUXLOG_CPU_BUS_CLOCK_CHANGE,
-	SEC_DEBUG_AUXLOG_LOGBUF_LOCK_CHANGE,
 	SEC_DEBUG_AUXLOG_ITEM_MAX,
 };
 
@@ -231,6 +202,10 @@ enum sec_debug_aux_log_idx {
 extern void sec_debug_aux_log(int idx, char *fmt, ...);
 #else
 #define sec_debug_aux_log(idx, ...) do { } while (0)
+#endif
+
+#if defined(CONFIG_MACH_Q1_BD)
+extern int sec_debug_panic_handler_safe(void *buf);
 #endif
 
 extern void read_lcd_register(void);

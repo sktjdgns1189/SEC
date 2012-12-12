@@ -44,11 +44,11 @@ String MIMETypeRegistry::getMIMETypeForExtension(const String& ext)
     ASSERT(isMainThread());
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     jclass mimeClass = env->FindClass("android/webkit/MimeTypeMap");
-    LOG_ASSERT(mimeClass, "Could not find class MimeTypeMap");
+    ALOG_ASSERT(mimeClass, "Could not find class MimeTypeMap");
     jmethodID mimeTypeFromExtension = env->GetStaticMethodID(mimeClass,
             "mimeTypeFromExtension",
             "(Ljava/lang/String;)Ljava/lang/String;");
-    LOG_ASSERT(mimeTypeFromExtension,
+    ALOG_ASSERT(mimeTypeFromExtension,
             "Could not find method mimeTypeFromExtension");
     jstring extString = wtfStringToJstring(env, ext);
     jobject mimeType = env->CallStaticObjectMethod(mimeClass,
@@ -64,17 +64,17 @@ bool MIMETypeRegistry::isApplicationPluginMIMEType(const String&)
 {
     return false;
 }
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 String MIMETypeRegistry::getPreferredExtensionForMIMEType(const String& mimeType)
 {
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     jclass mimeClass = env->FindClass("android/webkit/MimeTypeMap");
-    LOG_ASSERT(mimeClass, "Could not find class MimeTypeMap");
+    ALOG_ASSERT(mimeClass, "Could not find class MimeTypeMap");
     jmethodID extensionFromMimeType = env->GetStaticMethodID(mimeClass,
             "extensionFromMimeType",
             "(Ljava/lang/String;)Ljava/lang/String;");
-    LOG_ASSERT(extensionFromMimeType,
-            "Could not find method extensionFrommimeType");
+   ALOG_ASSERT(extensionFromMimeType,
+          "Could not find method extensionFrommimeType");
     jstring mimeString = wtfStringToJstring(env , mimeType);
     jobject extString = env->CallStaticObjectMethod(mimeClass,
             extensionFromMimeType, mimeString);
@@ -84,6 +84,6 @@ String MIMETypeRegistry::getPreferredExtensionForMIMEType(const String& mimeType
     env->DeleteLocalRef(extString);
     return result;
 }
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 
 }

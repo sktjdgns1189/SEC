@@ -313,7 +313,6 @@ public:
     virtual void setContentsToMedia(PlatformLayer*) { } // video or plug-in
     virtual void setContentsBackgroundColor(const Color&) { }
     virtual void setContentsToCanvas(PlatformLayer*) { }
-    virtual void setContentsToGpuCanvas(PlatformLayer*) { }
     virtual bool hasContentsLayer() const { return false; }
 
     // Callback from the underlying graphics system to draw layer contents.
@@ -365,6 +364,8 @@ public:
     String layerTreeAsText(LayerTreeAsTextBehavior = LayerTreeAsTextBehaviorNormal) const;
 
     bool usingTiledLayer() const { return m_usingTiledLayer; }
+    
+    virtual int getContentLayerId() { return 0; }
 
 protected:
 

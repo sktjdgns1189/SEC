@@ -26,7 +26,8 @@
 
 #include "config.h"
 #include "DOMWindow.h"
-
+#include "AndroidLog.h"
+#include <utils/Log.h>
 #include "AbstractDatabase.h"
 #include "BackForwardController.h"
 #include "BarInfo.h"
@@ -741,6 +742,13 @@ IDBFactory* DOMWindow::webkitIndexedDB() const
     m_idbFactory = IDBFactory::create(page->group().idbFactory());
     return m_idbFactory.get();
 }
+
+// SAMSUNG CHANGE + Ring Mark Tests
+IDBFactory* DOMWindow::indexedDB() const
+{
+    return webkitIndexedDB();
+}
+// SAMSUNG CHANGE - Ring Mark Tests
 #endif
 
 #if ENABLE(FILE_SYSTEM)
@@ -749,6 +757,13 @@ void DOMWindow::webkitRequestFileSystem(int type, long long size, PassRefPtr<Fil
     Document* document = this->document();
     if (!document)
         return;
+    // Samsung Change - HTML5 FileSystem API	>>
+    Page* page = document->page();
+    if (!page)
+        return ;
+    unsigned quota = page->group().fileSystemStorage();
+    LocalFileSystem::localFileSystem().fileSystemStorage(quota);
+    // Samsung Change - HTML5 FileSystem API	<<
 
     if (!AsyncFileSystem::isAvailable() || !document->securityOrigin()->canAccessFileSystem()) {
         DOMFileSystem::scheduleCallback(document, errorCallback, FileError::create(FileError::SECURITY_ERR));
@@ -969,6 +984,40 @@ void DOMWindow::stop()
     // the document until the callstack unwinds.
     m_frame->loader()->stopForUserCancel(true);
 }
+
+// Samsung Change - Bing search >>
+bool DOMWindow::setBingCurrentSearchDefault() const
+{
+   #if ENABLE(SEARCHENGINE_LOGGING)
+         __android_log_print(ANDROID_LOG_DEBUG,"BINGSEARCH","entered the setBingCurrentSearchDefault implementation of Document.cpp");
+   #endif
+
+    if (!m_frame)
+        return false;
+
+    Page* page = m_frame->page();
+    if (!page)
+        return false;
+
+	   return page->chrome()->setBingSearch();
+}
+
+int DOMWindow::isBingCurrentSearchDefault() const
+{
+   #if ENABLE(SEARCHENGINE_LOGGING)
+   __android_log_print(ANDROID_LOG_DEBUG,"BINGSEARCH","entered the isBingCurrentSearchDefault implementation of Document.cpp");
+   #endif
+
+    if (!m_frame)
+        return 0;
+
+    Page* page = m_frame->page();
+    if (!page)
+        return 0;
+
+	   return page->chrome()->isBingSearch();
+}
+// Samsung Change - Bing search <<
 
 void DOMWindow::alert(const String& message)
 {
@@ -1536,17 +1585,8 @@ bool DOMWindow::addEventListener(const AtomicString& eventType, PassRefPtr<Event
     if (!EventTarget::addEventListener(eventType, listener, useCapture))
         return false;
 
-//SAMSUNG CHNAGES >>
-    if (Document *document = this->document()) {
+    if (Document* document = this->document())
         document->addListenerTypeIfNeeded(eventType);
-        if (eventNames().touchstartEvent == eventType ||
-            eventNames().touchmoveEvent == eventType ||
-            eventNames().touchendEvent == eventType ||
-            eventNames().touchcancelEvent == eventType) {
-            document->setHasTouchListener(true);
-        }
-    }
-//SAMSUNG CHNAGES <<
 
     if (eventType == eventNames().unloadEvent)
         addUnloadEventListener(this);
@@ -1742,8 +1782,8 @@ String DOMWindow::crossDomainAccessErrorMessage(DOMWindow* activeWindow)
     // FIXME: This error message should contain more specifics of why the same origin check has failed.
     // Perhaps we should involve the security origin object in composing it.
     // FIXME: This message, and other console messages, have extra newlines. Should remove them.
-    return makeString("Unsafe JavaScript attempt to access frame with URL ", "",
-        " from frame with URL ", "", ". Domains, protocols and ports must match.\n");
+    return makeString("Unsafe JavaScript attempt to access frame with URL ", m_url.string(),
+        " from frame with URL ", activeWindowURL.string(), ". Domains, protocols and ports must match.\n");
 }
 
 bool DOMWindow::isInsecureScriptAccess(DOMWindow* activeWindow, const String& urlString)

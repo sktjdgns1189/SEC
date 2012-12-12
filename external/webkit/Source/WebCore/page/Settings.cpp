@@ -98,6 +98,7 @@ Settings::Settings(Page* page)
 #ifdef ANDROID_LAYOUT
     , m_layoutAlgorithm(kLayoutFitColumnToScreen)
 #endif
+    , m_passwordEchoDurationInSeconds(1)
     , m_isSpatialNavigationEnabled(false)
     , m_isJavaEnabled(false)
     , m_loadsImagesAutomatically(false)
@@ -145,14 +146,19 @@ Settings::Settings(Page* page)
     , m_canvasUsesAcceleratedDrawing(false)
     , m_acceleratedDrawingEnabled(false)
     , m_rssSniffingnEnabled(false) //SAMSUNG_CHANGES
-	, m_isBrowserApp(false) //SAMSUNG_CHANGES
+    , m_isBrowserApp(false) //SAMSUNG_CHANGES
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-    , m_isspellcheckenabled(false) // SAMSUNG CHANGES
+    , m_isspellcheckenabled(false)
 #endif
+//SAMSUNG CHANGES <<<	
     // FIXME: This should really be disabled by default as it makes platforms that don't support the feature download files
     // they can't use by. Leaving enabled for now to not change existing behavior.
     , m_downloadableBinaryFontsEnabled(true)
     , m_xssAuditorEnabled(false)
+#if ENABLE(LINK_PREFETCH)
+    , m_linkPrefetchEnabled(true)
+#endif
     , m_acceleratedCompositingEnabled(true)
     , m_acceleratedCompositingFor3DTransformsEnabled(true)
     , m_acceleratedCompositingForVideoEnabled(true)
@@ -165,11 +171,7 @@ Settings::Settings(Page* page)
     , m_webGLEnabled(false)
     , m_openGLMultisamplingEnabled(true)
     , m_webAudioEnabled(false)
-#if ENABLE(ACCELERATED_2D_CANVAS)
-    , m_acceleratedCanvas2dEnabled(true)
-#else
     , m_acceleratedCanvas2dEnabled(false)
-#endif
     , m_loadDeferringEnabled(true)
     , m_tiledBackingStoreEnabled(false)
     , m_paginateDuringLayoutEnabled(false)
@@ -185,7 +187,6 @@ Settings::Settings(Page* page)
     , m_crossOriginCheckInGetMatchedCSSRulesDisabled(false)
     , m_useQuickLookResourceCachingQuirks(false)
     , m_forceCompositingMode(false)
-	, m_webtextviewOnOrOff(false) //SAMSUNG_CHANGES
     , m_shouldInjectUserScriptsInInitialEmptyDocument(false)
 #ifdef ANDROID_LAYOUT
     , m_useWideViewport(false)
@@ -202,11 +203,10 @@ Settings::Settings(Page* page)
 #ifdef ANDROID_PLUGINS
     , m_pluginsOnDemand(false)
 #endif
-
-#ifdef WEBKIT_TEXT_SIZE_ADJUST 
-//SAMSUNG CHANGE :TEXT READABILITY >>
-    ,m_TextReadability(false)
-//SAMSUNG CHANGE :TEXT READABILITY <<
+#if OS(SYMBIAN)
+    , m_passwordEchoEnabled(true)
+#else
+    , m_passwordEchoEnabled(false)
 #endif
 //SISO WOFF CHANGES <<
     ,m_woffEnabled(true)	
@@ -220,9 +220,8 @@ Settings::Settings(Page* page)
     resetMetadataSettings();
 #endif
 }
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-// SAMSUNG CHANGES + 
-//Written this function for spellcheck feature 
 void Settings::setIsContinousSpellCheck(bool bisspellcheckenabled)
 {
 	if( bisspellcheckenabled != m_isspellcheckenabled ) {
@@ -243,8 +242,8 @@ void Settings::setIsContinousSpellCheck(bool bisspellcheckenabled)
 		m_page->mainFrame()->notifySpellCheckFinish();
 	}
 }
-// SAMSUNG CHANGES -
 #endif
+//SAMSUNG CHANGES <<<
 void Settings::setStandardFontFamily(const AtomicString& standardFontFamily)
 {
     if (standardFontFamily == m_standardFontFamily)
@@ -860,6 +859,13 @@ void Settings::setXSSAuditorEnabled(bool xssAuditorEnabled)
     m_xssAuditorEnabled = xssAuditorEnabled;
 }
 
+#if ENABLE(LINK_PREFETCH)
+void Settings::setLinkPrefetchEnabled(bool linkPrefetchEnabled)
+{
+    m_linkPrefetchEnabled = linkPrefetchEnabled;
+}
+#endif
+
 void Settings::setAcceleratedCompositingEnabled(bool enabled)
 {
     if (m_acceleratedCompositingEnabled == enabled)
@@ -984,20 +990,7 @@ void Settings::setTiledBackingStoreEnabled(bool enabled)
 #endif
 }
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE :TEXT READABILITY >>
-void Settings::EnableTextReadability(bool tr)
-{
-    m_TextReadability = tr;
-}
-void Settings::setTextReadabilityRatio(float trr)
-{
-    m_TextReadabilityRatio = trr;
-}
-//SAMSUNG CHANGE :TEXT READABILITY <<
-#endif
-
-//SAMSUNG CHANGE : ADVANCED TEXT SELECTION >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 void Settings::setAdvancedSelectionEnabled(bool enabled)
 {
     m_advancedSelectionEnabled = enabled;
@@ -1007,14 +1000,14 @@ void Settings::setAdvancedSelectionBgColor(int r, int g, int b)
 {
     m_advancedSelectionBgColor.setRGB(r, g, b);
 }
-//SAMSUNG CHANGE : ADVANCED TEXT SELECTION <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 void Settings::setEditableSupportEnabled(bool enabled)
 {
    m_editableSupportEnabled = enabled;
 }
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 //SISO WOFF CHANGES <<
 void Settings::setWOFFEnabled(bool enabled)
 {

@@ -65,6 +65,8 @@
 
 using namespace std;
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -376,16 +378,10 @@ void RenderBox::updateBoxModelInfoFromStyle()
             // (1) The root element is <html>.
             // (2) We are the primary <body> (can be checked by looking at document.body).
             // (3) The root element has visible overflow.
-            //SAMSUNG_CHANGES >>
-	//WAS : if (document()->documentElement()->hasTagName(htmlTag) &&
-        //WAS :     document()->body() == node() &&
-        //WAS :     document()->documentElement()->renderer()->style()->overflowX() == OVISIBLE)
-        //WAS :     boxHasOverflowClip = false;
             if (document()->documentElement()->hasTagName(htmlTag) &&
                 document()->body() == node() &&
-                (document()->documentElement()->renderer()->style()->overflowX() == OVISIBLE || document()->documentElement()->renderer()->style()->overflowX() == OSCROLL))
+                document()->documentElement()->renderer()->style()->overflowX() == OVISIBLE)
                 boxHasOverflowClip = false;
-	//SAMSUNG_CHANGES <<
         }
         
         // Check for overflow clip.
@@ -849,6 +845,11 @@ void RenderBox::paintBoxDecorationsWithSize(PaintInfo& paintInfo, int tx, int ty
         else if (!isBody() || document()->documentElement()->renderer()->hasBackground()) {
             // The <body> only paints its background if the root element has defined a background
             // independent of the body.
+#if PLATFORM(ANDROID)
+            // If we only want to draw the decorations, don't draw
+            // the background
+            if (paintInfo.phase != PaintPhaseBlockBackgroundDecorations)
+#endif
             paintFillLayers(paintInfo, style()->visitedDependentColor(CSSPropertyBackgroundColor), style()->backgroundLayers(), tx, ty, width, height);
         }
         if (style()->hasAppearance())
@@ -944,17 +945,33 @@ void RenderBox::paintMaskImages(const PaintInfo& paintInfo, int tx, int ty, int 
 
 IntRect RenderBox::maskClipRect()
 {
-    IntRect bbox = borderBoxRect();
-    if (style()->maskBoxImage().image())
-        return bbox;
+    const NinePieceImage& maskBoxImage = style()->maskBoxImage();
+    if (maskBoxImage.image()) {
+        IntRect borderImageRect = borderBoxRect();
+        
+        // Apply outsets to the border box.
+        int topOutset;
+        int rightOutset;
+        int bottomOutset;
+        int leftOutset;
+        style()->getMaskBoxImageOutsets(topOutset, rightOutset, bottomOutset, leftOutset);
+         
+        borderImageRect.setX(borderImageRect.x() - leftOutset);
+        borderImageRect.setY(borderImageRect.y() - topOutset);
+        borderImageRect.setWidth(borderImageRect.width() + leftOutset + rightOutset);
+        borderImageRect.setHeight(borderImageRect.height() + topOutset + bottomOutset);
+
+        return borderImageRect;
+    }
     
     IntRect result;
+    IntRect borderBox = borderBoxRect();
     for (const FillLayer* maskLayer = style()->maskLayers(); maskLayer; maskLayer = maskLayer->next()) {
         if (maskLayer->image()) {
             IntRect maskRect;
             IntPoint phase;
             IntSize tileSize;
-            calculateBackgroundImageGeometry(maskLayer, bbox.x(), bbox.y(), bbox.width(), bbox.height(), maskRect, phase, tileSize);
+            calculateBackgroundImageGeometry(maskLayer, borderBox.x(), borderBox.y(), borderBox.width(), borderBox.height(), maskRect, phase, tileSize);
             result.unite(maskRect);
         }
     }
@@ -2068,15 +2085,12 @@ int RenderBox::computeReplacedLogicalHeightUsing(Length logicalHeight) const
             // table cells using percentage heights.
             // FIXME: This needs to be made block-flow-aware.  If the cell and image are perpendicular block-flows, this isn't right.
             // https://bugs.webkit.org/show_bug.cgi?id=46997
-            while (cb && !cb->isRenderView() && (cb->style()->logicalHeight().isAuto() || cb->style()->logicalHeight().isPercent())) { 
-                if (cb->isTableCell()) { 
-                    // Don't let table cells squeeze percent-height replaced elements 
-                    // <http://bugs.webkit.org/show_bug.cgi?id=15359> 
-                    availableHeight = max(availableHeight, intrinsicLogicalHeight()); 
-                    return logicalHeight.calcValue(availableHeight - borderAndPaddingLogicalHeight()); 
-                } 
-                cb = cb->containingBlock(); 
-            } 
+            if (cb->isTableCell() && (cb->style()->logicalHeight().isAuto() || cb->style()->logicalHeight().isPercent())) {
+                // Don't let table cells squeeze percent-height replaced elements
+                // <http://bugs.webkit.org/show_bug.cgi?id=15359>
+                availableHeight = max(availableHeight, intrinsicLogicalHeight());
+                return logicalHeight.calcValue(availableHeight - borderAndPaddingLogicalHeight());
+            }
 
             return computeContentBoxLogicalHeight(logicalHeight.calcValue(availableHeight));
         }
@@ -3125,10 +3139,12 @@ void RenderBox::computePositionedLogicalHeightReplaced()
     computeLogicalTopPositionedOffset(logicalTopPos, this, logicalHeight(), containerBlock, containerLogicalHeight);
     setLogicalTop(logicalTopPos);
 }
-// SAMSUNG Adding for Multicolumn text selection - Begin
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+// WAS: IntRect RenderBox::localCaretRect(InlineBox* box, int caretOffset, int* extraWidthToEndOfLine)
 IntRect RenderBox::localCaretRect(InlineBox* box, int caretOffset, int* extraWidthToEndOfLine,bool bTextSelection)
 {
-// SAMSUNG Adding for Multicolumn text selection - End
+//SAMSUNG ADVANCED TEXT SELECTION - END
     // VisiblePositions at offsets inside containers either a) refer to the positions before/after
     // those containers (tables and select elements) or b) refer to the position inside an empty block.
     // They never refer to children.
@@ -3270,22 +3286,55 @@ bool RenderBox::shrinkToAvoidFloats() const
 
 bool RenderBox::avoidsFloats() const
 {
-    return isReplaced() || hasOverflowClip() || isHR() || isLegend() || isWritingModeRoot();
+    return isReplaced() || hasOverflowClip() || isHR() || isLegend() || isWritingModeRoot() || isDeprecatedFlexItem();
 }
 
-void RenderBox::addShadowOverflow()
+void RenderBox::addBoxShadowAndBorderOverflow()
 {
-    int shadowLeft;
-    int shadowRight;
-    int shadowTop;
-    int shadowBottom;
-    style()->getBoxShadowExtent(shadowTop, shadowRight, shadowBottom, shadowLeft);
+    if (!style()->boxShadow() && !style()->hasBorderImageOutsets())
+        return;
+
+    bool isFlipped = style()->isFlippedBlocksWritingMode();
+    bool isHorizontal = isHorizontalWritingMode();
     IntRect borderBox = borderBoxRect();
-    int overflowLeft = borderBox.x() + shadowLeft;
-    int overflowRight = borderBox.maxX() + shadowRight;
-    int overflowTop = borderBox.y() + shadowTop;
-    int overflowBottom = borderBox.maxY() + shadowBottom;
-    addVisualOverflow(IntRect(overflowLeft, overflowTop, overflowRight - overflowLeft, overflowBottom - overflowTop));
+    int overflowMinX = borderBox.x();
+    int overflowMaxX = borderBox.maxX();
+    int overflowMinY = borderBox.y();
+    int overflowMaxY = borderBox.maxY();
+    
+    // Compute box-shadow overflow first.
+    if (style()->boxShadow()) {
+        int shadowLeft;
+        int shadowRight;
+        int shadowTop;
+        int shadowBottom;
+        style()->getBoxShadowExtent(shadowTop, shadowRight, shadowBottom, shadowLeft);
+
+        // In flipped blocks writing modes such as vertical-rl, the physical right shadow value is actually at the lower x-coordinate.
+        overflowMinX = borderBox.x() + ((!isFlipped || isHorizontal) ? shadowLeft : -shadowRight);
+        overflowMaxX = borderBox.maxX() + ((!isFlipped || isHorizontal) ? shadowRight : -shadowLeft);
+        overflowMinY = borderBox.y() + ((!isFlipped || !isHorizontal) ? shadowTop : -shadowBottom);
+        overflowMaxY = borderBox.maxY() + ((!isFlipped || !isHorizontal) ? shadowBottom : -shadowTop);
+    }
+
+    // Now compute border-image-outset overflow.
+    if (style()->hasBorderImageOutsets()) {
+        int borderOutsetLeft;
+        int borderOutsetRight;
+        int borderOutsetTop;
+        int borderOutsetBottom;
+        style()->getBorderImageOutsets(borderOutsetTop, borderOutsetRight, borderOutsetBottom, borderOutsetLeft);
+        
+        // In flipped blocks writing modes, the physical sides are inverted. For example in vertical-rl, the right
+        // border is at the lower x coordinate value.
+        overflowMinX = min(overflowMinX, borderBox.x() - ((!isFlipped || isHorizontal) ? borderOutsetLeft : borderOutsetRight));
+        overflowMaxX = max(overflowMaxX, borderBox.maxX() + ((!isFlipped || isHorizontal) ? borderOutsetRight : borderOutsetLeft));
+        overflowMinY = min(overflowMinY, borderBox.y() - ((!isFlipped || !isHorizontal) ? borderOutsetTop : borderOutsetBottom));
+        overflowMaxY = max(overflowMaxY, borderBox.maxY() + ((!isFlipped || !isHorizontal) ? borderOutsetBottom : borderOutsetTop));
+    }
+
+    // Add in the final overflow with shadows and outsets combined.
+    addVisualOverflow(IntRect(overflowMinX, overflowMinY, overflowMaxX - overflowMinX, overflowMaxY - overflowMinY));
 }
 
 void RenderBox::addOverflowFromChild(RenderBox* child, const IntSize& delta)

@@ -354,14 +354,6 @@ void Font::drawSimpleText(GraphicsContext* context, const TextRun& run, const Fl
 {
     // This glyph buffer holds our glyphs+advances+font data for each glyph.
     GlyphBuffer glyphBuffer;
-//SAMSUNG CHANGES>>
-    //if Point has high negative value, SKIA is not handling, so handle here
-    WidthIterator it(this, run, 0, false, 0);
-    it.advance(from);
-    float Width = it.m_runWidthSoFar;
-    if(point.x() + Width < -9999)
-    	return;
-//SAMSUNG CHANGES<<      
 
     float startX = point.x() + getGlyphsAndAdvancesForSimpleText(run, from, to, glyphBuffer);
 

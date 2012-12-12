@@ -130,11 +130,11 @@ ApplyStyleCommand::ApplyStyleCommand(Document* document, const EditingStyle* sty
     , m_removeOnly(false)
     , m_isInlineElementToRemoveFunction(0)
 {
-//HTMLComposer start
+//SISO_HTMLComposer start
 	if(editingAction == EditActionSetFontValue) {
 		m_style->setEditAction(editingAction);
 	}
-//HTMLComposer end
+//SISO_HTMLComposer end
 }
 
 ApplyStyleCommand::ApplyStyleCommand(Document* document, const EditingStyle* style, const Position& start, const Position& end, EditAction editingAction, EPropertyLevel propertyLevel)
@@ -149,11 +149,11 @@ ApplyStyleCommand::ApplyStyleCommand(Document* document, const EditingStyle* sty
     , m_removeOnly(false)
     , m_isInlineElementToRemoveFunction(0)
 {
-//HTMLComposer start
+//SISO_HTMLComposer start
 	if(editingAction == EditActionSetFontValue) {
 		m_style->setEditAction(editingAction);
 	}
-//HTMLComposer end
+//SISO_HTMLComposer end
 }
 
 ApplyStyleCommand::ApplyStyleCommand(PassRefPtr<Element> element, bool removeOnly, EditAction editingAction)
@@ -168,11 +168,11 @@ ApplyStyleCommand::ApplyStyleCommand(PassRefPtr<Element> element, bool removeOnl
     , m_removeOnly(removeOnly)
     , m_isInlineElementToRemoveFunction(0)
 {
-//HTMLComposer start
+//SISO_HTMLComposer start
 	if(editingAction == EditActionSetFontValue) {
 		m_style->setEditAction(editingAction);
 	}
-//HTMLComposer end
+//SISO_HTMLComposer end
 }
 
 ApplyStyleCommand::ApplyStyleCommand(Document* document, const EditingStyle* style, IsInlineElementToRemoveFunction isInlineElementToRemoveFunction, EditAction editingAction)
@@ -187,11 +187,11 @@ ApplyStyleCommand::ApplyStyleCommand(Document* document, const EditingStyle* sty
     , m_removeOnly(true)
     , m_isInlineElementToRemoveFunction(isInlineElementToRemoveFunction)
 {
-//HTMLComposer start
+//SISO_HTMLComposer start
 	if(editingAction == EditActionSetFontValue) {
 		m_style->setEditAction(editingAction);
 	}
-//HTMLComposer end
+//SISO_HTMLComposer end
 }
 
 void ApplyStyleCommand::updateStartEnd(const Position& newStart, const Position& newEnd)
@@ -398,7 +398,7 @@ void ApplyStyleCommand::applyRelativeFontStyleChange(EditingStyle* style)
 
         CSSMutableStyleDeclaration* inlineStyleDecl = element->getInlineStyleDecl();
         float currentFontSize = computedFontSize(node);
-//HTMLComposer start
+//SISO_HTMLComposer start
         float desiredFontSize = 0.0;
 		if(style->editAction() == EditActionSetFontValue) {
 			desiredFontSize = max(MinimumFontSize, style->fontSizeDelta());
@@ -406,7 +406,7 @@ void ApplyStyleCommand::applyRelativeFontStyleChange(EditingStyle* style)
 		else {
 			desiredFontSize = max(MinimumFontSize, startingFontSizes.get(node) + style->fontSizeDelta());
 		}
-//HTMLComposer end
+//SISO_HTMLComposer end
         RefPtr<CSSValue> value = inlineStyleDecl->getPropertyCSSValue(CSSPropertyFontSize);
         if (value) {
             inlineStyleDecl->removeProperty(CSSPropertyFontSize, true);
@@ -713,7 +713,7 @@ void ApplyStyleCommand::fixRangeAndApplyInlineStyle(EditingStyle* style, const P
             startNode = startNode->parentNode();
     }
     applyInlineStyleToNodeRange(style, startNode, pastEndNode);
-//HTML Composer Start
+//SISO_HTMLComposer start
     if(style->style()) {
 	if(m_editingAction == EditActionSetBackgroundColor) {
 		reArrangeBackColorStyle(startNode, pastEndNode, style->style()->cssText());
@@ -722,7 +722,7 @@ void ApplyStyleCommand::fixRangeAndApplyInlineStyle(EditingStyle* style, const P
 		reArrangeFontSizeStyle(startNode, pastEndNode, style->style()->cssText());
 	}
      }
-//HTML Composer End
+//SISO_HTMLComposer end
 }
 
 static bool containsNonEditableRegion(Node* node)
@@ -1353,8 +1353,10 @@ void ApplyStyleCommand::surroundNodeRangeWithElement(PassRefPtr<Node> passedStar
     RefPtr<Node> node = startNode;
     while (node) {
         RefPtr<Node> next = node->nextSibling();
-        removeNode(node);
-        appendNode(node, element);
+        if (node->isContentEditable()) {
+            removeNode(node);
+            appendNode(node, element);
+        }
         if (node == endNode)
             break;
         node = next;
@@ -1485,12 +1487,12 @@ void ApplyStyleCommand::addInlineStyleIfNeeded(EditingStyle* style, PassRefPtr<N
         surroundNodeRangeWithElement(startNode, endNode, m_styledInlineElement->cloneElementWithoutChildren());
 }
 
-//HTML Composer Start
+//SISO_HTMLComposer start
 //reArrangeBackColorStyle applies BG color property for all the font and span elements within the selected range with fontsize property.
 //It will be invoked after applying BG color command with Range Selection.
 bool ApplyStyleCommand::reArrangeBackColorStyle(Node* startNode, Node* endNode, String cssStyle)
 {
-	bool modify = false;
+	bool modify = false, bSizeAttr = false, bBGColorAttr = false;
     if (!endingSelection().isRange()
 		|| !startNode || !startNode->inDocument() 
 		|| !cssStyle.length() || !cssStyle.contains("background-color"))
@@ -1504,41 +1506,20 @@ bool ApplyStyleCommand::reArrangeBackColorStyle(Node* startNode, Node* endNode, 
 	String bgStyle = cssStyle.substring(startIndex, length);
 
     for (Node* node = startNode; node != endNode; node = node->traverseNextNode()) {
-		if (node->isHTMLElement() && node->hasTagName(fontTag)){
-			NamedNodeMap *attributes = toHTMLElement(node)->attributes();
-			if(attributes) {
+		if (isStyledText(const_cast<Node*>(node))){			
+			bSizeAttr = isStylePresent(node, CSSPropertyFontSize);
+			bBGColorAttr = isStylePresent(node, CSSPropertyBackgroundColor);
+			if(bSizeAttr && !bBGColorAttr){
 				CSSMutableStyleDeclaration* existingStyle = toHTMLElement(node)->inlineStyleDecl();
-				Attribute *sizeAttribute = attributes->getAttributeItem(sizeAttr);
-				Attribute *styleAttribute = attributes->getAttributeItem(styleAttr);
-				if (sizeAttribute && sizeAttribute->value().length()) {
-					if(!styleAttribute || !existingStyle->getPropertyCSSValue(CSSPropertyBackgroundColor)) {
-						if(!styleAttribute){
-							setNodeAttribute(toHTMLElement(node), styleAttr, bgStyle);
-						}
-						else{
-							setNodeAttribute(toHTMLElement(node), styleAttr, existingStyle->cssText() + bgStyle);
-						}
-						modify = true;
-					}
-				} 
-				else if(existingStyle && existingStyle->getPropertyCSSValue(CSSPropertyFontSize) 
-					&& !existingStyle->getPropertyCSSValue(CSSPropertyBackgroundColor)) {
+				if(existingStyle) { 
 					setNodeAttribute(toHTMLElement(node), styleAttr, existingStyle->cssText() + bgStyle);
-					modify = true;
 				}
-			}
-		}
-		if (node->isHTMLElement() && node->hasTagName(spanTag)){
-			CSSMutableStyleDeclaration* existingStyle = toHTMLElement(node)->inlineStyleDecl();
-			if (existingStyle){
-				RefPtr<CSSValue> fontsize = existingStyle->getPropertyCSSValue(CSSPropertyFontSize);
-				RefPtr<CSSValue> bgcolor = existingStyle->getPropertyCSSValue(CSSPropertyBackgroundColor);
-				if (fontsize && !bgcolor) {
-					setNodeAttribute(toHTMLElement(node), styleAttr, existingStyle->cssText() + bgStyle);
-					modify = true;
+				else {
+					setNodeAttribute(toHTMLElement(node), styleAttr, bgStyle);
 				}
+				modify = true;				
 			}
-		}
+		}		
 	}
 	return modify;
 }
@@ -1551,30 +1532,21 @@ bool ApplyStyleCommand::reArrangeFontSizeStyle(Node* startNode, Node* endNode, S
     if (!endingSelection().isRange()
 		|| !startNode || !startNode->inDocument() 
 		|| !cssStyle.length() || !cssStyle.contains("font-size"))
-        return modify;	
-
+        return modify;
+	if(startNode->isTextNode()){
+		Node *styledAncestor = getStyledAncestor(startNode, CSSPropertyFontSize);
+		if(styledAncestor)
+			startNode = styledAncestor;
+	}
     for (Node* node = startNode; node != endNode; node = node->traverseNextNode()) {
-		if (node->isHTMLElement() && (node->hasTagName(fontTag) || node->hasTagName(spanTag))){
-			bSizeAttr = false;
-			bBGColorAttr = false;
-			NamedNodeMap *attributes = toHTMLElement(node)->attributes();
-			if(attributes) {
-				Attribute *sizeAttribute = attributes->getAttributeItem(sizeAttr);
-				if (sizeAttribute && sizeAttribute->value().length()) {
-					bSizeAttr = true;
-				}				
-			}
-			CSSMutableStyleDeclaration* existingStyle = toHTMLElement(node)->inlineStyleDecl();
-			if(existingStyle){
-				if(existingStyle->getPropertyCSSValue(CSSPropertyFontSize)){
-					bSizeAttr = true;
-				}
-				if(existingStyle->getPropertyCSSValue(CSSPropertyBackgroundColor)){
-					bBGColorAttr = true;
-				}
-			}
-			if(bSizeAttr && !bBGColorAttr && parentStyledNode && node->isDescendantOf(parentStyledNode)) {
-				CSSMutableStyleDeclaration* parentStyle = toHTMLElement(parentStyledNode)->inlineStyleDecl();
+		if (isStyledText(const_cast<Node*>(node))){
+			bSizeAttr = isStylePresent(node, CSSPropertyFontSize);
+			bBGColorAttr = isStylePresent(node, CSSPropertyBackgroundColor);
+			if(bSizeAttr && !bBGColorAttr){
+				Node *bgStyledAncestor = getStyledAncestor(node, CSSPropertyBackgroundColor);
+				if(!bgStyledAncestor)
+					continue;
+				CSSMutableStyleDeclaration* parentStyle = toHTMLElement(bgStyledAncestor)->inlineStyleDecl();
 				if(parentStyle) {
 					String parentCSSStyle = parentStyle->cssText();
 					int startIndex = parentCSSStyle.findIgnoringCase("background-color");
@@ -1582,6 +1554,7 @@ bool ApplyStyleCommand::reArrangeFontSizeStyle(Node* startNode, Node* endNode, S
 					int length = endIndex - startIndex + 1 ;
 					if(startIndex != -1 && endIndex != -1 && length) {
 						String parentBGStyle = parentCSSStyle.substring(startIndex, length);
+						CSSMutableStyleDeclaration* existingStyle = toHTMLElement(node)->inlineStyleDecl();
 						if(existingStyle) { 
 							setNodeAttribute(toHTMLElement(node), styleAttr, existingStyle->cssText() + parentBGStyle);
 						}
@@ -1592,16 +1565,57 @@ bool ApplyStyleCommand::reArrangeFontSizeStyle(Node* startNode, Node* endNode, S
 					}
 				}
 			}
-			else if(bBGColorAttr){
-				parentStyledNode = node ;
-			}
 		}
 	}
 	return modify;
 }
 
-//HTML Composer End
+Node* ApplyStyleCommand::getStyledAncestor(Node* childNode, CSSPropertyID propertyID)
+{
+	if(!childNode || !childNode->parentNode())
+		return 0;
+    for (Node* node = static_cast<Node*>(childNode->parentNode()); node != 0; node = static_cast<Node*>(node->parentNode())) {
+		if(propertyID == CSSPropertyBackgroundColor 
+			|| (propertyID == CSSPropertyFontSize && isStyledText(const_cast<Node*>(node)))){
+			if(isStylePresent(node, propertyID))
+				return node;
+		}
+	}
+	return 0;
+}
 
+bool ApplyStyleCommand::isStylePresent(Node* targetNode, CSSPropertyID propertyID)
+{
+	if(!targetNode || !targetNode->isHTMLElement())
+		return false;
+	if(propertyID == CSSPropertyFontSize) {
+		NamedNodeMap *attributes = toHTMLElement(targetNode)->attributes();
+		if(attributes) {
+			Attribute *sizeAttribute = attributes->getAttributeItem(sizeAttr);
+			if (sizeAttribute && sizeAttribute->value().length()) {
+				return true;
+			}				
+		}
+	}
+	CSSMutableStyleDeclaration* existingStyle = toHTMLElement(targetNode)->inlineStyleDecl();
+	if(existingStyle 
+		&& existingStyle->getPropertyCSSValue(propertyID)){
+		return true;
+	}
+	return false;
+}
+
+bool ApplyStyleCommand::isStyledText(const Node *node)
+{
+    if (!node || !node->isHTMLElement())
+        return false;
+
+	return (node->hasTagName(fontTag) || node->hasTagName(spanTag) || node->hasTagName(iTag) 
+		|| node->hasTagName(uTag) || node->hasTagName(bTag) || node->hasTagName(strongTag) 
+		|| node->hasTagName(strikeTag) || node->hasTagName(smallTag) || node->hasTagName(bigTag));
+}
+
+//SISO_HTMLComposer end
 float ApplyStyleCommand::computedFontSize(Node* node)
 {
     if (!node)

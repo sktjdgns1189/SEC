@@ -63,10 +63,6 @@
 #include "ScriptController.h"
 #include "Settings.h"
 
-#if USE(JSC)
-#include <runtime/JSLock.h>
-#endif
-
 #include <wtf/ASCIICType.h>
 // #include "runtime.h"
 #include "WebViewCore.h"
@@ -484,9 +480,6 @@ void PluginView::setNPWindowIfNeeded()
     m_npWindow.clipRect.bottom = m_pageRect.y() + m_pageRect.height();
 
     if (m_plugin->pluginFuncs()->setwindow) {
-#if USE(JSC)
-        JSC::JSLock::DropAllLocks dropAllLocks(false);
-#endif
         setCallingPlugin(true);
         m_plugin->pluginFuncs()->setwindow(m_instance, &m_npWindow);
         setCallingPlugin(false);
@@ -697,7 +690,10 @@ void PluginView::paint(GraphicsContext* context, const IntRect& rect)
            notification of its global position change.
          */
         updatePluginWidget();
-        m_window->setSurfaceClip(context->platformContext()->mCanvas->getTotalClip().getBounds());
+        SkCanvas* canvas = context->platformContext()->getCanvas();
+        if (!canvas)
+           return;
+        m_window->setSurfaceClip(canvas->getTotalClip().getBounds());
     } else {
         m_window->inval(rect, false);
         context->save();

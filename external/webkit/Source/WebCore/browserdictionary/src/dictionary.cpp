@@ -35,6 +35,18 @@
 
 #define DEBUG_DICT 0
 
+#ifdef DEBUG_DICT
+
+#undef XLOG
+#define XLOG(...) android_printLog(ANDROID_LOG_DEBUG, "Dictionary", __VA_ARGS__)
+
+#else
+
+#undef XLOG
+#define XLOG(...)
+
+#endif // DEBUG
+
 namespace browserspellcheck {
 
 Dictionary::Dictionary(void *dict, int typedLetterMultiplier, int fullWordMultiplier)
@@ -64,7 +76,7 @@ int Dictionary::getSuggestions(int *codes, int codesSize, unsigned short *outWor
 
     getWordsRec(0, 0, mInputLength * 3, false, 1, 0, 0);
 
-    if (DEBUG_DICT) LOGI("Returning1 %d words", mWords,mInputLength,mInputLength * 3  );
+    if (DEBUG_DICT) XLOG("Returning1 %d words", mWords,mInputLength,mInputLength * 3  );
     return mWords;
 }
 
@@ -83,9 +95,9 @@ int Dictionary::getSuggestionsTest(unsigned short *word, int length, unsigned sh
 
     getWordsRecTest(0, 0, mInputLength * 3, false, 1, 0, 0);
 
-    if (DEBUG_DICT) LOGI("Returning2 %d words", mWords);
-    LOGI("Input %u", word);
-    LOGI("Size %d", length);
+    if (DEBUG_DICT) XLOG("Returning2 %d words", mWords);
+    XLOG("Input %u", word);
+    XLOG("Size %d", length);
     return mWords;
 
 }
@@ -101,17 +113,17 @@ Dictionary::getWordsRecTest(int pos, int depth, int maxDepth, bool completion, i
     if (diffs > mMaxEditDistance) {
        // return;
     }
-    LOGI("Swapna 1234");
+    XLOG("Swapna 1234");
     int count = getCount(&pos);
     unsigned short *currentChars = NULL;
     if (mInputLength <= inputIndex) {
         completion = true;
     } else {
         currentChars = mInputCodesTest + (inputIndex * mMaxAlternatives);
-    //    LOGI("Size %u", currentChars);
+    //    XLOG("Size %u", currentChars);
     }
 
-    //LOGI("count %u", count);
+    //XLOG("count %u", count);
     
     for (int i = 0; i < count; i++) {
         unsigned short c = getChar(&pos);
@@ -213,7 +225,7 @@ Dictionary::addWord(unsigned short *word, int length, int frequency)
     if (DEBUG_DICT) {
         char s[length + 1];
         for (int i = 0; i <= length; i++) s[i] = word[i];
-        //LOGI("Found word = %s, freq = %d : \n", s, frequency);
+        //XLOG("Found word = %s, freq = %d : \n", s, frequency);
     }
 
     // Find the right insertion point
@@ -245,8 +257,8 @@ Dictionary::addWord(unsigned short *word, int length, int frequency)
         *dest = 0; // NULL terminate
         // Update the word count
         if (insertAt + 1 > mWords) mWords = insertAt + 1;
-        if (DEBUG_DICT) LOGI("Added word at %d\n", insertAt);
-        LOGI("Added word %s",s1);
+        if (DEBUG_DICT) XLOG("Added word at %d\n", insertAt);
+        XLOG("Added word %s",s1);
         return true;
     }
     return false;
@@ -289,7 +301,7 @@ Dictionary::getWordsRec(int pos, int depth, int maxDepth, bool completion, int s
                         int diffs)
 {
     if (DEBUG_DICT){
-		LOGI("getWordsRec %d %d %d", depth, maxDepth, diffs );
+		XLOG("getWordsRec %d %d %d", depth, maxDepth, diffs );
     }
 
     // Optimization: Prune out words that are too long compared to how much was typed.
@@ -300,7 +312,7 @@ Dictionary::getWordsRec(int pos, int depth, int maxDepth, bool completion, int s
        // return;
     }
 
-    //LOGI("getWordsRec %d %d %d", depth, maxDepth, diffs );
+    //XLOG("getWordsRec %d %d %d", depth, maxDepth, diffs );
     int count = getCount(&pos);
     int *currentChars = NULL;
     if (mInputLength <= inputIndex) {

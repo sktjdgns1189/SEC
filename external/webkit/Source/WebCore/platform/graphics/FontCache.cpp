@@ -258,7 +258,7 @@ SimpleFontData* FontCache::getCachedFontData(const FontDescription& fontDescript
     FontPlatformData* platformData = getCachedFontPlatformData(fontDescription, family, checkingAlternateName);
     if (!platformData)
         return 0;
-    if( fontDescription.italic() == true)
+   if( fontDescription.italic() == true)
    	platformData->setFakeItalic(true);
 
     return getCachedFontData(platformData);

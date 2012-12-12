@@ -167,22 +167,10 @@ void sap_transfer_card_reader_status_req(void *sap_device);
 void sap_set_transport_protocol_req(void *sap_device,
 					struct sap_parameter *param);
 
-/*SAP  related linking to RIL client implemented by sap-*.c*/
-#define REQ_OEM_HOOK_RAW        59
-
-#define  SAPS_RIL_SIM_CONNECT_EVT  0
-#define  SAPS_RIL_SIM_DISCONNECT_EVT  2
-#define  SAPS_RIL_SIM_APDU_EVT  5
-#define  SAPS_RIL_SIM_ATR_EVT  7
-#define  SAPS_RIL_SIM_OFF_EVT  9
-#define  SAPS_RIL_SIM_ON_EVT  11
-#define  SAPS_RIL_SIM_RESET_EVT  13
-#define  SAPS_RIL_SIM_CARD_READER_STATUS_EVT 15
-
-#define MAX_RIL_RETRY    4
-
-gboolean com_samsung_ril_client_sap_connect();
-void com_samsung_ril_client_sap_disconnect();
+/* SEC API */
+gboolean sap_open_ril(void);
+void sap_close_ril(void);
+void sap_request_handler(uint8_t msg_id, uint16_t req_len, uint8_t *req);
 
 /*SAP responses to SAP requests. Implemented by server.c */
 int sap_connect_rsp(void *sap_device, uint8_t status, uint16_t maxmsgsize);

@@ -26,8 +26,6 @@
 #include "config.h"
 #include "NotificationPresenterImpl.h"
 
-#define LOG_NDEBUG 0
-
 #if ENABLE(NOTIFICATIONS)
 
 #include "KURL.h"
@@ -45,9 +43,6 @@
 #include "SQLiteFileSystem.h"
 #include "SQLiteStatement.h"
 #include "SQLiteTransaction.h"
-//#undef LOG
-#include <utils/Log.h>
-
 
 namespace android {
 
@@ -73,47 +68,32 @@ bool NotificationPresenterImpl::show(PassRefPtr<Notification> notification)
     WebCore::Notification* notify = notification.get();
     ScriptExecutionContext* sec = notify->scriptExecutionContext();
     String originStr = sec->securityOrigin()->toString();
-    LOGV("Inside NotificationPresenterImpl::show notification pointer is %u and ScriptExecutionContext  is %u",notify,sec); 
+
     s_counter++;
     s_notificationMap.set(s_counter, notification );
 
     RefPtr<Notification> notificationptr = s_notificationMap.get(s_counter);
-    LOGV("###### Inside NotificationPresenterImpl::show notification pointer is %u ",notificationptr.get() ); 
+
     int res = s_notificationMap.isEmpty();
     int size = s_notificationMap.size();
-    LOGV("NotificationPresenterImpl::show with res as %d  size as %d ", res,size);
 
     KURL iconURL = notify->iconURL();
     String iconURLStr = iconURL.string();
     NotificationContents notcontent = notify->contents();
     String titleStr = notcontent.title();
     String bodyStr = notcontent.body();
-    LOGV("NotificationPresenterImpl::show is ICONURL is  %s COUNTER is %d ",iconURLStr.utf8().data(), s_counter);
 
-
-    //if(mnotificationState == NotificationPresenterImpl::Off){
-    //return false;
-    //}
-    //else if(mnotificationState == NotificationPresenterImpl::AlwaysON){
-    //m_webViewCore->notificationManagershow(iconURLStr, titleStr, bodyStr,s_counter); 
-    //return true;
-    //}
-    //else if(mnotificationState == NotificationPresenterImpl::OnDemand){
     bool allow = s_notificationPermissions.get(originStr);
     if(allow || mnotificationState == NotificationPresenterImpl::AlwaysON ){
          m_webViewCore->notificationManagershow(iconURLStr, titleStr, bodyStr,s_counter); 
     }
-    return true;
-    //}
-    //return false;
-    
+    return true;    
 }
 
 void NotificationPresenterImpl::cancel(Notification* notification)
 {
-    LOGV("NotificationPresenterImpl::cancel");    
     int notificationID = s_notificationIDMap.get(notification);
-    LOGV("NotificationPresenterImpl::cancel notificationID %d", notificationID);    
+
     m_webViewCore->notificationManagerCancel(notificationID);
 
 }
@@ -125,19 +105,8 @@ void NotificationPresenterImpl::notificationObjectDestroyed(Notification* notifi
 
 NotificationPresenter::Permission NotificationPresenterImpl::checkPermission(ScriptExecutionContext* context)
 {
+   String originStr = context->securityOrigin()->toString(); 
 
-    //if(mnotificationState == NotificationPresenterImpl::AlwaysON){
-    //return NotificationPresenter::PermissionAllowed;
-    //}
-    //else if(mnotificationState == NotificationPresenterImpl::Off){
-    //return NotificationPresenter::PermissionDenied;
-    //}
-    //else if(mnotificationState == NotificationPresenterImpl::OnDemand){			
-    LOGV("NotificationPresenterImpl::checkPermission");    
-    LOGV("NotificationPresenterImpl::URL is %s",m_url.utf8().data());
-    String originStr = context->securityOrigin()->toString();
-    LOGV("NotificationPresenterImpl::checkPermission with s_notificationPermissions size as %d ", 
-    s_notificationPermissions.size());
     bool isPresent = s_notificationPermissions.contains(originStr);
 
     if(isPresent){
@@ -153,11 +122,7 @@ NotificationPresenter::Permission NotificationPresenterImpl::checkPermission(Scr
        else if(mnotificationState == NotificationPresenterImpl::Off)
              return NotificationPresenter::PermissionDenied;
        else
-             return NotificationPresenter::PermissionNotAllowed;
-       //}          
-       //return NotificationPresenter::PermissionNotAllowed;
-       //}
-       //return NotificationPresenter::PermissionNotAllowed;
+             return NotificationPresenter::PermissionNotAllowed; 
 }
 
 void NotificationPresenterImpl::requestPermission(ScriptExecutionContext* context, PassRefPtr<VoidCallback> callback)
@@ -165,12 +130,8 @@ void NotificationPresenterImpl::requestPermission(ScriptExecutionContext* contex
     if(mnotificationState == NotificationPresenterImpl::OnDemand){
         m_callback = callback;
         String originStr = context->securityOrigin()->toString();
-        LOGV("NotificationPresenterImpl::requestPermission originStr is %s",originStr.utf8().data());
-        LOGV("NotificationPresenterImpl::requestPermission originURL is %s",m_url.utf8().data());
-        LOGV("NotificationPresenterImpl::requestPermission with s_notificationPermissions size as %d ", 
-        s_notificationPermissions.size());
+
         bool isPresent = s_notificationPermissions.contains(originStr);
-        LOGV("NotificationPresenterImpl::requestPermission ISPRESENT is %d",isPresent);
         if(!isPresent){   
             m_webViewCore->notificationPermissionsShowPrompt(originStr);
         }
@@ -183,11 +144,9 @@ void NotificationPresenterImpl::requestPermission(ScriptExecutionContext* contex
 void NotificationPresenterImpl::providePermissionState(const WTF::String& origin, bool allow)
 {
     m_result = 0;
-    LOGV("NotificationPresenterImpl::requestPermission  FOR originStr %s , value is  %d",origin.utf8().data(), allow);
     s_notificationPermissions.set(origin,allow);
-    m_callback->handleEvent();
-	
-
+	if(m_callback)
+        m_callback->handleEvent();
 }
 
 void NotificationPresenterImpl::cancelRequestsForPermission(WebCore::ScriptExecutionContext* context)
@@ -198,17 +157,13 @@ void NotificationPresenterImpl::cancelRequestsForPermission(WebCore::ScriptExecu
 
 void NotificationPresenterImpl::dispatchNotificationEvents(const WTF::String& eventName, int counter)
 {
-    LOGV("NotificationPresenterImpl::dispatchNotificationEvents with counter as  %d and EVENT as %s ", counter,eventName.utf8().data());
     int res = s_notificationMap.isEmpty();
     int size = s_notificationMap.size();
-
-    LOGV("NotificationPresenterImpl::dispatchNotificationEvents with res as %d  size as %d ", res,size);
+ 
     RefPtr<Notification> notificationptr = s_notificationMap.get(counter);
     ScriptExecutionContext* sec = notificationptr->scriptExecutionContext();
 
-    LOGV("Inside NotificationPresenterImpl::dispatchNotificationEvents notification pointer is %u and ScriptExecutionContext  is %u",notificationptr.get() ,sec); 
     if (notificationptr->scriptExecutionContext()){
-        LOGV("Inside scriptExecutionContext" ); 
         notificationptr->dispatchEvent(Event::create(eventName,false, true));   
     }
 
@@ -216,15 +171,12 @@ void NotificationPresenterImpl::dispatchNotificationEvents(const WTF::String& ev
 
 void NotificationPresenterImpl::recordNotificationID(int notificationID, int counter)
 {
-    LOGV("NotificationPresenterImpl::dispatchNotificationEvents NOTIFICATIONID as %d COUNTER as %d", notificationID, counter);
-    RefPtr<Notification> notificationptr = s_notificationMap.get(counter);
-    LOGV("Inside NotificationPresenterImpl::dispatchNotificationEvents notification pointer is %u ",notificationptr.get()); 
+    RefPtr<Notification> notificationptr = s_notificationMap.get(counter); 
     s_notificationIDMap.set(notificationptr, notificationID);
 }
 
 void NotificationPresenterImpl::setSettingsValue(int notificationState)
 {
-    LOGV("NotificationPresenterImpl::setSettingsValue %d ", notificationState);
     switch(notificationState)
     {
         case NotificationPresenterImpl::AlwaysON:
@@ -237,8 +189,7 @@ void NotificationPresenterImpl::setSettingsValue(int notificationState)
             mnotificationState = NotificationPresenterImpl::Off;
         break;
 
-    }
-    LOGV("NotificationPresenterImpl::setSettingsValue %d ", mnotificationState);
+    } 
 }
 
 
@@ -252,8 +203,7 @@ void NotificationPresenterImpl::setDatabasePath(String path)
 }
 
 bool NotificationPresenterImpl::openDatabase(SQLiteDatabase* database)
-{
-    LOGV("NotificationPresenterImpl::openDatabase");
+{    
     ASSERT(database);
     String filename = SQLiteFileSystem::appendDatabaseFileNameToPath(s_databasePath, databaseName);
     if (!database->open(filename))
@@ -272,12 +222,9 @@ void NotificationPresenterImpl::maybeLoadPermanentPermissions()
     if (!openDatabase(&database))
         return;
 
-    LOGV("NotificationPresenterImpl::maybeLoadPermanentPermissions");
-
     // Create the table here, such that even if we've just created the DB, the
     // commands below should succeed.
     if (!database.executeCommand("CREATE TABLE IF NOT EXISTS NotifyPermissions (origin TEXT UNIQUE NOT NULL, allow INTEGER NOT NULL)")) {
-        LOGV("NotificationPresenterImpl::maybeLoadPermanentPermissions inside fail create table");
 	database.close();
         return;
     }
@@ -332,7 +279,6 @@ void NotificationPresenterImpl::maybeStorePermanentPermissions()
 
 void NotificationPresenterImpl::deleteDatabase()
 {
-    LOGV("NotificationPresenterImpl::clearAll");
     SQLiteDatabase database;
     if (!openDatabase(&database))
         return;
@@ -350,12 +296,9 @@ void NotificationPresenterImpl::deleteDatabase()
 
 void NotificationPresenterImpl::clearAll()
 {
-    LOGV("NotificationPresenterImpl::clearAll");
-    //maybeLoadPermanentPermissions();
     deleteDatabase();
     s_notificationPermissions.clear();
 }
-
 
 } // namespace android
 

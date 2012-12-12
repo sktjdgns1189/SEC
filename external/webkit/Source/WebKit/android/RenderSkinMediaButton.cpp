@@ -36,7 +36,7 @@
 #include "SkCanvas.h"
 #include "SkNinePatch.h"
 #include "SkRect.h"
-#include <utils/AssetManager.h>
+#include <androidfw/AssetManager.h>
 #include <utils/Debug.h>
 #include <utils/Log.h>
 #include <wtf/text/CString.h>
@@ -82,18 +82,21 @@ void RenderSkinMediaButton::Decode()
         String path = drawableDirectory + gFiles[i].name;
         if (!RenderSkinAndroid::DecodeBitmap(am, path.utf8().data(), &gButton[i])) {
             gDecodingFailed = true;
-            LOGD("RenderSkinButton::Init: button assets failed to decode\n\tBrowser buttons will not draw");
+            ALOGD("RenderSkinButton::Init: button assets failed to decode\n\tBrowser buttons will not draw");
             break;
         }
     }
 }
 
 void RenderSkinMediaButton::Draw(SkCanvas* canvas, const IntRect& r, int buttonType,
-                                 bool translucent, RenderObject* o)
+                                 bool translucent, RenderObject* o, bool drawBackground)
 {
     if (!gDecoded) {
         Decode();
     }
+
+    if (!canvas)
+        return;
 
     // If we failed to decode, do nothing.  This way the browser still works,
     // and webkit will still draw the label and layout space for us.
@@ -102,7 +105,6 @@ void RenderSkinMediaButton::Draw(SkCanvas* canvas, const IntRect& r, int buttonT
 
     bool drawsNinePatch = false;
     bool drawsImage = true;
-    bool drawsBackgroundColor = true;
 
     int ninePatchIndex = 0;
     int imageIndex = 0;
@@ -136,13 +138,11 @@ void RenderSkinMediaButton::Draw(SkCanvas* canvas, const IntRect& r, int buttonT
     case SPINNER_INNER:
     case VIDEO:
     {
-         drawsBackgroundColor = false;
          imageIndex = buttonType + 1;
          break;
     }
     case BACKGROUND_SLIDER:
     {
-         drawsBackgroundColor = false;
          drawsImage = false;
          break;
     }
@@ -155,7 +155,6 @@ void RenderSkinMediaButton::Draw(SkCanvas* canvas, const IntRect& r, int buttonT
     }
     case SLIDER_THUMB:
     {
-         drawsBackgroundColor = false;
          imageMargin = 0;
          imageIndex = buttonType + 1;
          break;
@@ -164,7 +163,7 @@ void RenderSkinMediaButton::Draw(SkCanvas* canvas, const IntRect& r, int buttonT
          return;
     }
 
-    if (drawsBackgroundColor) {
+    if (drawBackground) {
         canvas->drawRect(r, paint);
     }
 

@@ -113,6 +113,11 @@ namespace WebCore {
 
         GroupSettings* groupSettings() const { return m_groupSettings.get(); }
 
+// Samsung Change - HTML5 FileSystem API	>>
+#if ENABLE(FILE_SYSTEM)
+        unsigned fileSystemStorage();
+#endif
+// Samsung Change - HTML5 FileSystem API	<<
     private:
         void addVisitedLink(LinkHash stringHash);
         void resetUserStyleCacheInAllFrames();

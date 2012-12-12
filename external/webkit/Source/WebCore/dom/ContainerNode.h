@@ -61,9 +61,6 @@ public:
     virtual void detach();
     virtual void willRemove();
     virtual IntRect getRect() const;
-//SAMSUNG CHNAGES >>
-    IntRect getRectForce() const;
-//SAMSUNG CHNAGES <<
     virtual void setFocus(bool = true);
     virtual void setActive(bool active = true, bool pause = false);
     virtual void setHovered(bool = true);
@@ -116,10 +113,8 @@ private:
 
     static void dispatchPostAttachCallbacks();
 
-//SAMSUNG CHNAGES >>
-    bool getUpperLeftCorner(FloatPoint&, bool force = false) const;
-    bool getLowerRightCorner(FloatPoint&, bool force = false) const;
-//SAMSUNG CHNAGES <<
+    bool getUpperLeftCorner(FloatPoint&) const;
+    bool getLowerRightCorner(FloatPoint&) const;
 
     Node* m_firstChild;
     Node* m_lastChild;

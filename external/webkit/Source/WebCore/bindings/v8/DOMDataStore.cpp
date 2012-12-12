@@ -84,7 +84,6 @@ namespace WebCore {
 //    all objects in the delayed queue and the thread map and deref all of
 //    them.
 
-//SAMSUNG_WEB_WORKER_CHANGES >>
 
 DOMDataStore::DOMDataStore(DOMData* domData)
     : m_domNodeMap(0)

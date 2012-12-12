@@ -73,12 +73,6 @@
 #include "StyleDashboardRegion.h"
 #endif
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#include "TextSizeAdjustment.h"
-//SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
-
 #if ENABLE(SVG)
 #include "SVGRenderStyle.h"
 #endif
@@ -92,6 +86,8 @@ template<typename T, typename U> inline bool compareEqual(const T& t, const U& u
 #define SET_VAR(group, variable, value) \
     if (!compareEqual(group->variable, value)) \
         group.access()->variable = value;
+
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
 
 namespace WebCore {
 
@@ -329,9 +325,7 @@ public:
 
     PseudoId styleType() const { return static_cast<PseudoId>(noninherited_flags._styleType); }
     void setStyleType(PseudoId styleType) { noninherited_flags._styleType = styleType; }
-//SAMSUNG CHANGES: MPSG100004155 - input background color is not displayed >>
-    const Color& backgroundStyleColor() const { return backgroundColor(); }
-//SAMSUNG CHANGES: MPSG100004155 - input background color is not displayed <<
+
     RenderStyle* getCachedPseudoStyle(PseudoId) const;
     RenderStyle* addCachedPseudoStyle(PassRefPtr<RenderStyle>);
     void removeCachedPseudoStyle(PseudoId);
@@ -364,6 +358,37 @@ public:
         if (color.isValid() && color.alpha() > 0)
             return true;
         return hasBackgroundImage();
+    }
+    
+    void getImageOutsets(const NinePieceImage&, int& top, int& right, int& bottom, int& left) const;
+    bool hasBorderImageOutsets() const
+    {
+        return borderImage().hasImage() && borderImage().outset().nonZero();
+    }
+    void getBorderImageOutsets(int& top, int& right, int& bottom, int& left) const
+    {
+        return getImageOutsets(borderImage(), top, right, bottom, left);
+    }
+    void getBorderImageHorizontalOutsets(int& left, int& right) const
+    {
+        return getImageHorizontalOutsets(borderImage(), left, right);
+    }
+    void getBorderImageVerticalOutsets(int& top, int& bottom) const
+    {
+        return getImageVerticalOutsets(borderImage(), top, bottom);
+    }
+    void getBorderImageInlineDirectionOutsets(int& logicalLeft, int& logicalRight) const
+    {
+        return getImageInlineDirectionOutsets(borderImage(), logicalLeft, logicalRight);
+    }
+    void getBorderImageBlockDirectionOutsets(int& logicalTop, int& logicalBottom) const
+    {
+        return getImageBlockDirectionOutsets(borderImage(), logicalTop, logicalBottom);
+    }
+    
+    void getMaskBoxImageOutsets(int& top, int& right, int& bottom, int& left) const
+    {
+        return getImageOutsets(maskBoxImage(), top, right, bottom, left);
     }
 
     bool visuallyOrdered() const { return inherited_flags._visuallyOrdered; }
@@ -427,6 +452,8 @@ public:
     const BorderValue& borderEnd() const;
 
     const NinePieceImage& borderImage() const { return surround->border.image(); }
+
+    StyleImage* borderImageSource() const { return surround->border.image().image(); }
 
     const LengthSize& borderTopLeftRadius() const { return surround->border.topLeft(); }
     const LengthSize& borderTopRightRadius() const { return surround->border.topRight(); }
@@ -515,11 +542,7 @@ public:
 
         return lh.value();
     }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    Length specifiedLineHeight() const { return inherited->specified_line_height; }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
+
     EWhiteSpace whiteSpace() const { return static_cast<EWhiteSpace>(inherited_flags._white_space); }
     static bool autoWrap(EWhiteSpace ws)
     {
@@ -604,6 +627,8 @@ public:
     const FillLayer* maskLayers() const { return &(rareNonInheritedData->m_mask); }
     const NinePieceImage& maskBoxImage() const { return rareNonInheritedData->m_maskBoxImage; }
 
+    StyleImage* maskBoxImageSource() const { return rareNonInheritedData->m_maskBoxImage.image(); }
+
     // returns true for collapsing borders, false for separate borders
     bool borderCollapse() const { return inherited_flags._border_collapse; }
     short horizontalBorderSpacing() const { return inherited->horizontal_border_spacing; }
@@ -611,16 +636,8 @@ public:
     EEmptyCell emptyCells() const { return static_cast<EEmptyCell>(inherited_flags._empty_cells); }
     ECaptionSide captionSide() const { return static_cast<ECaptionSide>(inherited_flags._caption_side); }
 
- 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-	//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-	short textsizecounterIncrement() const { return rareNonInheritedData->m_counterIncrement; }
-    short textsizecounterReset() const { return rareNonInheritedData->m_counterReset; }
-	//SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-#else
-	short counterIncrement() const { return rareNonInheritedData->m_counterIncrement; }
+    short counterIncrement() const { return rareNonInheritedData->m_counterIncrement; }
     short counterReset() const { return rareNonInheritedData->m_counterReset; }
-#endif
 
     EListStyleType listStyleType() const { return static_cast<EListStyleType>(inherited_flags._list_style_type); }
     StyleImage* listStyleImage() const { return inherited->list_style_image.get(); }
@@ -796,14 +813,7 @@ public:
 
     LineBoxContain lineBoxContain() const { return rareInheritedData->m_lineBoxContain; }
     const LineClampValue& lineClamp() const { return rareNonInheritedData->lineClamp; }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST 
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    TextSizeAdjustment textSizeAdjust() const { return rareInheritedData->textSizeAdjust; }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#else
-	 bool textSizeAdjust() const { return rareInheritedData->textSizeAdjust; }
-#endif
-
+    bool textSizeAdjust() const { return rareInheritedData->textSizeAdjust; }
     ETextSecurity textSecurity() const { return static_cast<ETextSecurity>(rareInheritedData->textSecurity); }
 
     WritingMode writingMode() const { return static_cast<WritingMode>(inherited_flags.m_writingMode); }
@@ -813,19 +823,6 @@ public:
 
     ESpeak speak() { return static_cast<ESpeak>(rareInheritedData->speak); }
 
-#ifdef ANDROID_CSS_RING
-    // called when building nav cache to determine if the ring data is unchanged
-    const void* ringData() const { return reinterpret_cast<const void*>(rareInheritedData.get()); }
-    Color ringFillColor() const { return rareInheritedData->ringFillColor; }
-    Length ringInnerWidth() const { return rareInheritedData->ringInnerWidth; }
-    Length ringOuterWidth() const { return rareInheritedData->ringOuterWidth; }
-    Length ringOutset() const { return rareInheritedData->ringOutset; }
-    Color ringPressedInnerColor() const { return rareInheritedData->ringPressedInnerColor; }
-    Color ringPressedOuterColor() const { return rareInheritedData->ringPressedOuterColor; }
-    Length ringRadius() const { return rareInheritedData->ringRadius; }
-    Color ringSelectedInnerColor() const { return rareInheritedData->ringSelectedInnerColor; }
-    Color ringSelectedOuterColor() const { return rareInheritedData->ringSelectedOuterColor; }
-#endif
 #ifdef ANDROID_CSS_TAP_HIGHLIGHT_COLOR
     Color tapHighlightColor() const { return rareInheritedData->tapHighlightColor; }
 #endif
@@ -890,6 +887,8 @@ public:
     void setBackgroundSizeLength(LengthSize l) { SET_VAR(m_background, m_background.m_sizeLength, l) }
     
     void setBorderImage(const NinePieceImage& b) { SET_VAR(surround, border.m_image, b) }
+
+    void setBorderImageSource(PassRefPtr<StyleImage> v) { surround.access()->border.m_image.setImage(v); } 
 
     void setBorderTopLeftRadius(const LengthSize& s) { SET_VAR(surround, border.m_topLeft, s) }
     void setBorderTopRightRadius(const LengthSize& s) { SET_VAR(surround, border.m_topRight, s) }
@@ -976,12 +975,7 @@ public:
     void setTextDecoration(int v) { SET_VAR(visual, textDecoration, v); }
     void setDirection(TextDirection v) { inherited_flags._direction = v; }
     void setLineHeight(Length v) { SET_VAR(inherited, line_height, v) }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    void setSpecifiedLineHeight(Length v) { SET_VAR(inherited,specified_line_height, v) }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif    
-	void setZoom(float f) { SET_VAR(visual, m_zoom, f); setEffectiveZoom(effectiveZoom() * zoom()); }
+    void setZoom(float f) { SET_VAR(visual, m_zoom, f); setEffectiveZoom(effectiveZoom() * zoom()); }
     void setEffectiveZoom(float f) { SET_VAR(rareInheritedData, m_effectiveZoom, f) }
 
     void setWhiteSpace(EWhiteSpace v) { inherited_flags._white_space = v; }
@@ -1012,6 +1006,9 @@ public:
     }
 
     void setMaskBoxImage(const NinePieceImage& b) { SET_VAR(rareNonInheritedData, m_maskBoxImage, b) }
+
+    void setMaskBoxImageSource(PassRefPtr<StyleImage> v) { rareNonInheritedData.access()->m_maskBoxImage.setImage(v); }
+
     void setMaskXPosition(Length l) { SET_VAR(rareNonInheritedData, m_mask.m_xPosition, l) }
     void setMaskYPosition(Length l) { SET_VAR(rareNonInheritedData, m_mask.m_yPosition, l) }
     void setMaskSize(LengthSize l) { SET_VAR(rareNonInheritedData, m_mask.m_sizeLength, l) }
@@ -1171,31 +1168,9 @@ public:
 
     void setLineBoxContain(LineBoxContain c) { SET_VAR(rareInheritedData, m_lineBoxContain, c); }
     void setLineClamp(LineClampValue c) { SET_VAR(rareNonInheritedData, lineClamp, c); }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    void setTextSizeAdjust(TextSizeAdjustment anAdjustment) { SET_VAR(rareInheritedData, textSizeAdjust, anAdjustment); }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#else
-	void setTextSizeAdjust(bool b) { SET_VAR(rareInheritedData, textSizeAdjust, b); }
-#endif
+    void setTextSizeAdjust(bool b) { SET_VAR(rareInheritedData, textSizeAdjust, b); }
+    void setTextSecurity(ETextSecurity aTextSecurity) { SET_VAR(rareInheritedData, textSecurity, aTextSecurity); }
 
-	void setTextSecurity(ETextSecurity aTextSecurity) { SET_VAR(rareInheritedData, textSecurity, aTextSecurity); }
-
-#ifdef ANDROID_CSS_RING
-    void setRingFillColor(const Color& v) { SET_VAR(rareInheritedData, ringFillColor, v); }
-    void setRingInnerWidth(Length v) { SET_VAR(rareInheritedData, ringInnerWidth, v); }
-    void setRingOuterWidth(Length v) { SET_VAR(rareInheritedData, ringOuterWidth, v); }
-    void setRingOutset(Length v) { SET_VAR(rareInheritedData, ringOutset, v); }
-    void setRingPressedInnerColor(const Color& v) {
-        SET_VAR(rareInheritedData, ringPressedInnerColor, v); }
-    void setRingPressedOuterColor(const Color& v) {
-        SET_VAR(rareInheritedData, ringPressedOuterColor, v); }
-    void setRingRadius(Length v) { SET_VAR(rareInheritedData, ringRadius, v); }
-    void setRingSelectedInnerColor(const Color& v) {
-        SET_VAR(rareInheritedData, ringSelectedInnerColor, v); }
-    void setRingSelectedOuterColor(const Color& v) {
-        SET_VAR(rareInheritedData, ringSelectedOuterColor, v); }
-#endif
 #ifdef ANDROID_CSS_TAP_HIGHLIGHT_COLOR
     void setTapHighlightColor(const Color& v) { SET_VAR(rareInheritedData, tapHighlightColor, v); }
 #endif
@@ -1231,12 +1206,6 @@ public:
     const AtomicString& hyphenString() const;
 
     bool inheritedNotEqual(const RenderStyle*) const;
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    uint32_t hashForTextAutosizing() const;
-    bool equalForTextAutosizing(const RenderStyle *other) const;
-   //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
 
     StyleDifference diff(const RenderStyle*, unsigned& changedContextSensitiveProperties) const;
 
@@ -1332,11 +1301,6 @@ public:
     static int initialWidows() { return 2; }
     static int initialOrphans() { return 2; }
     static Length initialLineHeight() { return Length(-100.0, Percent); }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    static Length initialSpecifiedLineHeight() { return Length(-100, Percent); }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
     static ETextAlign initialTextAlign() { return TAAUTO; }
     static ETextDecoration initialTextDecoration() { return TDNONE; }
     static float initialZoom() { return 1.0f; }
@@ -1400,32 +1364,18 @@ public:
     static TextEmphasisPosition initialTextEmphasisPosition() { return TextEmphasisPositionOver; }
     static LineBoxContain initialLineBoxContain() { return LineBoxContainBlock | LineBoxContainInline | LineBoxContainReplaced; }
 
+    static StyleImage* initialBorderImageSource() { return 0; } 
+ 	static StyleImage* initialMaskBoxImageSource() { return 0; } 
+
     // Keep these at the end.
     static LineClampValue initialLineClamp() { return LineClampValue(); }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    static TextSizeAdjustment initialTextSizeAdjust() { return TextSizeAdjustment(); }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#else 
-	 static bool initialTextSizeAdjust() { return true; }
-#endif
+    static bool initialTextSizeAdjust() { return true; }
     static ETextSecurity initialTextSecurity() { return TSNONE; }
 #if ENABLE(DASHBOARD_SUPPORT)
     static const Vector<StyleDashboardRegion>& initialDashboardRegions();
     static const Vector<StyleDashboardRegion>& noneDashboardRegions();
 #endif
 
-#ifdef ANDROID_CSS_RING
-    static Color initialRingFillColor() { return Color::ringFill; }
-    static Length initialRingInnerWidth() { return Length(16, Fixed); } // 1.0
-    static Length initialRingOuterWidth() { return Length(40, Fixed); } // 2.5
-    static Length initialRingOutset() { return Length(3, Fixed); }
-    static Color initialRingSelectedInnerColor() { return Color::ringSelectedInner; }
-    static Color initialRingSelectedOuterColor() { return Color::ringSelectedOuter; }
-    static Color initialRingPressedInnerColor() { return Color::ringPressedInner; }
-    static Color initialRingPressedOuterColor() { return Color::ringPressedOuter; }
-    static Length initialRingRadius() { return Length(1, Fixed); }
-#endif
 #ifdef ANDROID_CSS_TAP_HIGHLIGHT_COLOR
     static Color initialTapHighlightColor() { return Color::tap; }
 #endif
@@ -1442,6 +1392,18 @@ private:
     void getShadowBlockDirectionExtent(const ShadowData* shadow, int& logicalTop, int& logicalBottom) const
     {
         return isHorizontalWritingMode() ? getShadowVerticalExtent(shadow, logicalTop, logicalBottom) : getShadowHorizontalExtent(shadow, logicalTop, logicalBottom);
+    }
+
+    // Helpers for obtaining border image outsets for overflow.
+    void getImageHorizontalOutsets(const NinePieceImage&, int& left, int& right) const;
+    void getImageVerticalOutsets(const NinePieceImage&, int& top, int& bottom) const;
+    void getImageInlineDirectionOutsets(const NinePieceImage& image, int& logicalLeft, int& logicalRight) const
+    {
+        return isHorizontalWritingMode() ? getImageHorizontalOutsets(image, logicalLeft, logicalRight) : getImageVerticalOutsets(image, logicalLeft, logicalRight);
+    }
+    void getImageBlockDirectionOutsets(const NinePieceImage& image, int& logicalTop, int& logicalBottom) const
+    {
+        return isHorizontalWritingMode() ? getImageVerticalOutsets(image, logicalTop, logicalBottom) : getImageHorizontalOutsets(image, logicalTop, logicalBottom);
     }
 
     // Color accessors are all private to make sure callers use visitedDependentColor instead to access them.

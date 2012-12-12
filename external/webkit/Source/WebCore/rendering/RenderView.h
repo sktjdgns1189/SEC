@@ -179,10 +179,6 @@ public:
     int docWidth() const { return docRight() - docLeft(); }
     IntRect documentRect() const { return IntRect(docLeft(), docTop(), docWidth(), docHeight()); }
 
-#if ENABLE(WEBGL)
-    void forceRelayoutChildren() { m_forceRelayoutChildren = true; }
-#endif
-
 protected:
     virtual void mapLocalToContainer(RenderBoxModelObject* repaintContainer, bool useTransforms, bool fixed, TransformState&) const;
     virtual void mapAbsoluteToLocalPoint(bool fixed, bool useTransforms, TransformState&) const;
@@ -257,9 +253,6 @@ private:
     unsigned m_layoutStateDisableCount;
 #if USE(ACCELERATED_COMPOSITING)
     OwnPtr<RenderLayerCompositor> m_compositor;
-#endif
-#if ENABLE(WEBGL)
-    bool m_forceRelayoutChildren;
 #endif
 };
 

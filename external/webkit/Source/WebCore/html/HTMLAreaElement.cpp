@@ -239,7 +239,7 @@ String HTMLAreaElement::target() const
     return getAttribute(targetAttr);
 }
 
-//SAMSUNG CHANGE >>
+//SISO_HTMLComposer Start
 IntRect HTMLAreaElement::rect() const
 {
 	IntRect result ;
@@ -254,9 +254,8 @@ IntRect HTMLAreaElement::rect() const
 	}
 	return result;
 }
-//SAMSUNG CHANGE <<
-
-//SAMSUNG MICRODATA CHANGES <<
+//SISO_HTMLComposer End
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLAreaElement::itemValueText() const
 {
@@ -268,5 +267,5 @@ void HTMLAreaElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(hrefAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 }

@@ -138,8 +138,6 @@ public:
     
     // For informative purposes only.
     CompositingLayerType compositingLayerType() const;
-    // WAS :void setContentsToCanvas(LayerAndroid* layer);
-    void setContentsToGpuCanvas(LayerAndroid* layer);
     
     void updateContentsScale(float);
 
@@ -147,12 +145,13 @@ public:
     GraphicsLayer* layerForVerticalScrollbar() const { return m_layerForVerticalScrollbar.get(); }
     GraphicsLayer* layerForScrollCorner() const { return m_layerForScrollCorner.get(); }
 
+    RenderLayerCompositor* compositor() const { return m_owningLayer->compositor(); } // moved from private
+	
 private:
     void createGraphicsLayer();
     void destroyGraphicsLayer();
 
     RenderBoxModelObject* renderer() const { return m_owningLayer->renderer(); }
-    RenderLayerCompositor* compositor() const { return m_owningLayer->compositor(); }
 
     void updateInternalHierarchy();
     bool updateClippingLayers(bool needsAncestorClip, bool needsDescendantClip);

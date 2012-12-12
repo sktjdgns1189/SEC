@@ -33,6 +33,30 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 
+#ifdef SEC_FMRADIO_BROADCOM
+#define KEY_FM_STATE "brcm.fm_state"
+#define KEY_BT_STATE "brcm.bt_state"
+
+#define PROPERTY_VALUE_MAX 92
+enum fm_bt_state {
+	OFF_STATE,
+	ENABLING_STATE,
+	ON_STATE,
+	DISABLING_STATE
+};
+
+
+#define GET_PROP_STATE(keystr, n_state) \
+	memset(state, 0 ,3); \
+	property_get(keystr, state, "0"); \
+	n_state = atoi(state);
+
+#define SET_PROP_STATE(keystr, n_state) \
+	memset(property_value, 0 ,PROPERTY_VALUE_MAX); \
+	sprintf(property_value, "%d", n_state);	\
+	property_set(keystr, property_value, "0");
+#endif
+
 #include <glib.h>
 
 #include <bluetooth/bluetooth.h>
@@ -1153,10 +1177,103 @@ static void read_index_list_complete(int sk, void *buf, size_t len)
 
 static int mgmt_set_powered(int index, gboolean powered)
 {
+#ifndef SEC_FMRADIO_BROADCOM
 	bt_acquire_lock();
 
 	DBG("index %d powered %d", index, powered);
 	return mgmt_set_mode(index, MGMT_OP_SET_POWERED, powered);
+#else
+	char value[10];
+	int fm_state;
+	int dd, err;
+	char property_value[PROPERTY_VALUE_MAX];
+	char state[3];
+
+	struct controller_info *info;
+	struct btd_adapter *adapter;
+
+	info = &controllers[index];
+
+	adapter = manager_find_adapter(&info->bdaddr);
+
+	bt_acquire_lock();
+	DBG("index %d powered %d", index, powered);
+
+	/* default if not set it 0 */
+	GET_PROP_STATE(KEY_FM_STATE, fm_state);
+	DBG("get_fm_state%d", fm_state);
+
+	while(fm_state==ENABLING_STATE||fm_state==DISABLING_STATE) {
+		usleep(100000);
+		GET_PROP_STATE(KEY_FM_STATE, fm_state);
+		DBG("get_fm_state%d", fm_state);
+	}
+
+	if (powered == FALSE){
+		SET_PROP_STATE(KEY_BT_STATE, DISABLING_STATE);
+		DBG("set_bt_state value]=%s", property_value);
+		if((fm_state== OFF_STATE) /*|| (fm_state== ON_STATE)*/) {
+			return mgmt_set_mode(index, MGMT_OP_SET_POWERED, powered);
+		}else {
+			uint8_t mode;
+
+#if 1
+			dd = hci_open_dev(index);
+			if (dd < 0)
+				return -errno;
+
+			DBG("hci%d set scan mode off", index);
+			mode = SCAN_DISABLED;
+			if (hci_send_cmd(dd, OGF_HOST_CTL, OCF_WRITE_SCAN_ENABLE, 1, &mode) < 0)
+				return -errno;
+#endif
+			SET_PROP_STATE(KEY_BT_STATE, DISABLING_STATE);
+
+			info->current_settings = 0;
+
+/* Moon Added */
+			//adapter_mode_changed(adapter, create_mode( info->current_settings));
+
+			mgmt_update_powered(adapter, info->current_settings);
+
+			SET_PROP_STATE(KEY_BT_STATE, OFF_STATE);
+			DBG("set_bt_state value]=%s", property_value);
+
+			close(dd);
+			return 400;
+		}
+	}else {
+		SET_PROP_STATE(KEY_BT_STATE, ENABLING_STATE);
+		DBG("set_bt_state value]=%s", property_value);
+
+		if(fm_state== OFF_STATE) {
+			return mgmt_set_mode(index, MGMT_OP_SET_POWERED, powered);
+		}else {
+			dd = hci_open_dev(index);
+			if (dd < 0)
+				return -errno;
+
+			hci_send_cmd(dd, OGF_INFO_PARAM,
+						OCF_READ_BD_ADDR, 0, NULL);
+			hci_send_cmd(dd, OGF_HOST_CTL,
+						OCF_READ_LOCAL_NAME, 0, NULL);
+			hci_send_cmd(dd, OGF_INFO_PARAM,
+						OCF_READ_LOCAL_FEATURES, 0, NULL);
+			hci_send_cmd(dd, OGF_INFO_PARAM,
+						OCF_READ_LOCAL_VERSION, 0, NULL);
+
+			info->current_settings |=  (MGMT_SETTING_POWERED|MGMT_SETTING_BREDR|MGMT_SETTING_SSP);
+			mgmt_update_powered(adapter, info->current_settings);
+
+			SET_PROP_STATE(KEY_BT_STATE, ON_STATE);
+			DBG("set_bt_state value]=%s", property_value);
+			close(dd);
+			return 400;
+		}
+	}
+
+	//return mgmt_set_mode(index, MGMT_OP_SET_POWERED, powered);
+#endif //SEC_FMRADIO_BROADCOM
 }
 
 static void read_info_complete(int sk, uint16_t index, void *buf, size_t len)
@@ -1414,6 +1531,9 @@ static void mgmt_cmd_complete(int sk, uint16_t index, void *buf, size_t len)
 {
 	struct mgmt_ev_cmd_complete *ev = buf;
 	uint16_t opcode;
+#ifdef SEC_FMRADIO_BROADCOM
+	char property_value[PROPERTY_VALUE_MAX];
+#endif
 
 	DBG("");
 
@@ -1439,8 +1559,33 @@ static void mgmt_cmd_complete(int sk, uint16_t index, void *buf, size_t len)
 		read_info_complete(sk, index, ev->data, len);
 		break;
 	case MGMT_OP_SET_POWERED:
+#ifndef SEC_FMRADIO_BROADCOM
 		mgmt_new_settings(sk, index, ev->data, len);
 		bt_rel_lock();
+#else
+		{
+			int bt_state;
+			char state[3];
+
+			GET_PROP_STATE(KEY_BT_STATE, bt_state);
+			DBG("get_bt_state%d", bt_state);
+
+			info("called bt_sate==%d", bt_state);
+			if(bt_state == ENABLING_STATE)
+			{
+				SET_PROP_STATE(KEY_BT_STATE, ON_STATE);
+				DBG("set_bt_state value]=%s", property_value);
+				mgmt_new_settings(sk, index, ev->data, len);
+				bt_rel_lock();
+			}else if (bt_state == DISABLING_STATE)
+			{
+				SET_PROP_STATE(KEY_BT_STATE, OFF_STATE);
+				DBG("set_bt_state value]=%s", property_value);
+				mgmt_new_settings(sk, index, ev->data, len);
+				bt_rel_lock();
+			}
+		}
+#endif
 		break;
 	case MGMT_OP_SET_DISCOVERABLE:
 		mgmt_new_settings(sk, index, ev->data, len);
@@ -1916,7 +2061,38 @@ static gboolean mgmt_event(GIOChannel *io, GIOCondition cond, gpointer user_data
 		mgmt_index_removed(sk, index);
 		break;
 	case MGMT_EV_NEW_SETTINGS:
+#ifndef SEC_FMRADIO_BROADCOM
 		mgmt_new_settings(sk, index, buf + MGMT_HDR_SIZE, len);
+#else
+		{
+			struct controller_info *info;
+			uint32_t settings;
+			uint32_t* ev;
+			gboolean power_state_changed = FALSE;
+
+			int bt_state;
+			char state[3];
+			GET_PROP_STATE(KEY_BT_STATE, bt_state);
+			DBG("get_bt_state%d", bt_state);
+			DBG("  new settings called bt_sate==%d", bt_state);
+
+			ev = (buf + MGMT_HDR_SIZE);
+			settings = bt_get_le32(ev);
+
+			info = &controllers[index];
+
+			DBG("MGMT_EV_NEW_SETTINGS is recieved[new %X, old %X]", settings, info->current_settings);
+
+			power_state_changed = ((settings & MGMT_SETTING_POWERED) !=  (info->current_settings & MGMT_SETTING_POWERED));
+			if(power_state_changed == FALSE)
+			{
+				mgmt_new_settings(sk, index, buf + MGMT_HDR_SIZE, len);
+			}else{
+				if(bt_state == ENABLING_STATE || bt_state == DISABLING_STATE)
+					mgmt_new_settings(sk, index, buf + MGMT_HDR_SIZE, len);
+			}
+		}
+#endif
 		break;
 	case MGMT_EV_NEW_LINK_KEY:
 		mgmt_new_link_key(sk, index, buf + MGMT_HDR_SIZE, len);

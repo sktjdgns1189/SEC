@@ -1,3 +1,28 @@
+/*
+ * Copyright 2012, The Android Open Source Project
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *  * Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include "config.h"
 
 ///////////////
@@ -26,12 +51,17 @@
 #include <jni.h>
 #include "WebCoreJni.h"  // For to_string
 
+
+//#define LOG_ASSERT(...) ((void)0)
+#define LOGD(message) ((void)0)
+//#define DEBUG_NAV_UI_LOGD(...) ((void)0)
+
 namespace android {
 	
 static jmethodID GetJMethod(JNIEnv* env, jclass clazz, const char name[], const char signature[])
 {
     jmethodID m = env->GetMethodID(clazz, name, signature);
-    LOG_ASSERT(m, "Could not find method %s", name);
+    //LOG_ASSERT(m, "Could not find method %s", name);
     return m;
 }
 
@@ -117,7 +147,7 @@ int register_pasteboard(JNIEnv* env)
 {
     const char* kPasteBoardClass = "android/webkit/WebClipboard";
     jclass pasteBoardClass = env->FindClass(kPasteBoardClass);
-    LOG_ASSERT(geolocationPermissions, "Unable to find class");
+    //LOG_ASSERT(geolocationPermissions, "Unable to find class");
 
     return jniRegisterNativeMethods(env, kPasteBoardClass ,
             gPasteboardMethods, NELEM(gPasteboardMethods));
@@ -128,8 +158,16 @@ jweak getCurrentClipboardObj(WebCore::Frame* frame)
 {
     if(frame != 0)
     {
-        WebCore::FrameView* frameView = 	frame->view();
-        WebFrameView* webFrameView = static_cast<WebFrameView*>(frameView->platformWidget());
+        //WebCore::FrameView* frameView = 	frame->view();
+        //WebFrameView* webFrameView = static_cast<WebFrameView*>(frameView->platformWidget());
+	//SAMSUNG - text Selection >>
+        while (Frame* parent = frame->tree()->parent())
+        frame = parent;
+    	WebFrameView* webFrameView = 0;
+    	if (frame && frame->view())
+        webFrameView = static_cast<WebFrameView*>(frame->view()->platformWidget());
+	//SAMSUNG - text Selection <<
+        //WebFrameView* webFrameView = static_cast<WebFrameView*>(main_frame->platformWidget());
         if (!webFrameView){
             LOGD("writeSelection failed to get webFrameView from frame passed in parameter"); 
             return NULL;
@@ -260,14 +298,20 @@ void Pasteboard::writeSelection(Range* selectedRange, bool canSmartCopyOrDelete,
         android::setDataToClipBoard(dataFormat , html , clipObj);
 }
 
-void Pasteboard::writePlainText(const String& plainText)
+//SAMSUNG: Text selection >>
+void Pasteboard::writePlainText(const String& plainText , Frame* frame)
+//SAMSUNG: Text selection <<
 {
     LOGD("writePlainText");
-    String dataFormat = "HTML";
-    jweak clipObj = android::getCurrentClipboardObj(NULL);
+//SAMSUNG: Text selection >>	
+    String dataFormat = "TEXT";
+    jweak clipObj = android::getCurrentClipboardObj(frame);
+//SAMSUNG: Text selection <<
+
     if(clipObj)
     android::setDataToClipBoard(dataFormat , (String&)plainText , clipObj);
 }
+ 
 
 void Pasteboard::writeURL(const KURL&, const String&, Frame*)
 {

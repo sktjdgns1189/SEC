@@ -44,9 +44,6 @@ public:
     virtual void animationAdvanced(const Image*) = 0;
 
     virtual void changedInRect(const Image*, const IntRect&) = 0;
-    // SAMSUNG CHANGE +
-    virtual bool isImageOffScreen(const Image*, bool) = 0;
-    // SAMSUNG CHANGE -
 };
 
 }

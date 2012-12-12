@@ -55,6 +55,9 @@
 #include "WindowFeatures.h"
 #include "Settings.h"
 #include "UserGestureIndicator.h"
+// Samsung Change - HTML5 FileSystem API	>>
+#include "AsyncFileWriterAndroid.h"
+// Samsung Change - HTML5 FileSystem API	<<
 // Samsung Change - HTML5 Web Notification	>>
 #include "NotificationPresenterImpl.h"
 // Samsung Change - HTML5 Web Notification	<<
@@ -71,7 +74,21 @@ static unsigned long long tryToReclaimDatabaseQuota(SecurityOrigin* originNeedin
 WebCore::GraphicsLayer* ChromeClientAndroid::layersSync()
 {
     if (m_rootGraphicsLayer && m_needsLayerSync && m_webFrame) {
-        if (FrameView* frameView = m_webFrame->page()->mainFrame()->view())
+        // We may have more than one frame, so let's first update all of them
+        // (webkit may want to update the GraphicsLayer tree, and we do *not* want
+        // to find this out when we are painting, as it means we could be summarily
+        // deallocated while painting...)
+        GraphicsLayerAndroid* rootLayer = static_cast<GraphicsLayerAndroid*>(m_rootGraphicsLayer);
+        Vector<const RenderLayer*> listRootLayers;
+        rootLayer->gatherRootLayers(listRootLayers);
+
+        for (unsigned int i = 0; i < listRootLayers.size(); i++) {
+            RenderLayer* layer = const_cast<RenderLayer*>(listRootLayers[i]);
+            layer->compositor()->updateCompositingLayers();
+        }
+
+        Frame* frame = m_webFrame->page()->mainFrame();
+        if (FrameView* frameView = frame->view())
             frameView->syncCompositingStateIncludingSubframes();
     }
     m_needsLayerSync = false;
@@ -85,7 +102,7 @@ void ChromeClientAndroid::scheduleCompositingLayerSync()
     m_needsLayerSync = true;
     WebViewCore* webViewCore = WebViewCore::getWebViewCore(m_webFrame->page()->mainFrame()->view());
     if (webViewCore)
-        webViewCore->layersDraw();
+        webViewCore->contentDraw();
 }
 
 void ChromeClientAndroid::setNeedsOneShotDrawingSynchronization()
@@ -151,8 +168,15 @@ void ChromeClientAndroid::focus()
 }
 void ChromeClientAndroid::unfocus() { notImplemented(); }
 
-bool ChromeClientAndroid::canTakeFocus(FocusDirection) { notImplemented(); return false; }
-void ChromeClientAndroid::takeFocus(FocusDirection) { notImplemented(); }
+bool ChromeClientAndroid::canTakeFocus(FocusDirection direction)
+{
+    return android::WebViewCore::getWebViewCore(m_webFrame->page()->mainFrame()->view())->chromeCanTakeFocus(direction);
+}
+
+void ChromeClientAndroid::takeFocus(FocusDirection direction)
+{
+    android::WebViewCore::getWebViewCore(m_webFrame->page()->mainFrame()->view())->chromeTakeFocus(direction);
+}
 
 void ChromeClientAndroid::focusedNodeChanged(Node* node)
 {
@@ -171,10 +195,10 @@ Page* ChromeClientAndroid::createWindow(Frame* frame, const FrameLoadRequest&,
         return frame->page();
 #endif
 
-    const WebCoreViewBridge* bridge = frame->view()->platformWidget();
+    FloatRect window = windowRect();
     bool dialog = features.dialog || !features.resizable
-            || (features.heightSet && features.height < bridge->height()
-                    && features.widthSet && features.width < bridge->width())
+            || (features.heightSet && features.height < window.height()
+                    && features.widthSet && features.width < window.width())
             || (!features.menuBarVisible && !features.statusBarVisible
                     && !features.toolBarVisible && !features.locationBarVisible
                     && !features.scrollbarsVisible);
@@ -221,11 +245,7 @@ void ChromeClientAndroid::addMessageToConsole(MessageSource, MessageType, Messag
     android::WebViewCore::getWebViewCore(m_webFrame->page()->mainFrame()->view())->addMessageToConsole(message, lineNumber, sourceID, msgLevel);
 }
 
-void ChromeClientAndroid::formDidBlur(const WebCore::Node* node)
-{
-    android::WebViewCore::getWebViewCore(m_webFrame->page()->mainFrame()->view())->formDidBlur(node);
-}
-
+void ChromeClientAndroid::formDidBlur(const WebCore::Node* node) { notImplemented(); }
 bool ChromeClientAndroid::canRunBeforeUnloadConfirmPanel() { return true; }
 bool ChromeClientAndroid::runBeforeUnloadConfirmPanel(const String& message, Frame* frame) {
     String url = frame->document()->documentURI();
@@ -264,6 +284,24 @@ bool ChromeClientAndroid::runJavaScriptConfirm(Frame* frame, const String& messa
     return android::WebViewCore::getWebViewCore(frame->view())->jsConfirm(url, message);
 }
 
+// Samsung Change - Bing search >>
+int ChromeClientAndroid::isBingSearch()
+{ 
+       #if ENABLE(SEARCHENGINE_LOGGING)
+       __android_log_print(ANDROID_LOG_DEBUG,"BINGSEARCH","entered the isBingSearch implementation of ChromeClientAndroid.cpp");
+       #endif
+	return m_webFrame->isBingSearch();
+}
+
+bool ChromeClientAndroid::setBingSearch()
+{
+       #if ENABLE(SEARCHENGINE_LOGGING)
+       __android_log_print(ANDROID_LOG_DEBUG,"BINGSEARCH","entered the setBingSearch implementation of ChromeClientAndroid.cpp");
+       #endif
+	   return m_webFrame->setBingSearch();
+}
+// Samsung Change - Bing search <<
+
 /* This function is called for the javascript method Window.prompt(). A dialog should be shown on
  * the screen with an input put box. First param is the text, the second is the default value for
  * the input box, third is return param. If the function returns true, the value set in the third parameter
@@ -288,7 +326,7 @@ bool ChromeClientAndroid::shouldInterruptJavaScript() {
 
 KeyboardUIMode ChromeClientAndroid::keyboardUIMode()
 {
-    return KeyboardAccessDefault;
+    return KeyboardAccessTabsToLinks;
 }
 
 IntRect ChromeClientAndroid::windowResizerRect() const { return IntRect(0, 0, 0, 0); }
@@ -372,7 +410,12 @@ void ChromeClientAndroid::dispatchViewportDataDidChange(const ViewportArguments&
 
 void ChromeClientAndroid::mouseDidMoveOverElement(const HitTestResult&, unsigned int) {}
 void ChromeClientAndroid::setToolTip(const String&, TextDirection) {}
-void ChromeClientAndroid::print(Frame*) {}
+void ChromeClientAndroid::print(Frame* frame) 
+{
+//	SAMSUNG CHANGE >> Print functionality support for JS content	
+	android::WebViewCore::getWebViewCore(frame->view())->printPage();
+//	SAMSUNG CHANGE <<
+}
 
 /*
  * This function is called on the main (webcore) thread by SQLTransaction::deliverQuotaIncreaseCallback.
@@ -520,6 +563,13 @@ void ChromeClientAndroid::provideGeolocationPermissions(const String &origin, bo
     ASSERT(m_geolocationPermissions);
     m_geolocationPermissions->providePermissionState(origin, allow, remember);
 }
+// Samsung Change - HTML5 FileSystem API	>>
+void ChromeClientAndroid::storeFileSystemQuotaUsage()
+{
+    AsyncFileWriterAndroid::storeStorageQuotaInfo();
+}
+// Samsung Change - HTML5 FileSystem API	<<
+
 // Samsung Change - HTML5 Web Notification	>>
 void ChromeClientAndroid::provideNotificationPermissions(const String &origin, bool allow)
 {
@@ -544,6 +594,7 @@ void ChromeClientAndroid::storeNotificationPermissions()
     NotificationPresenterImpl::maybeStorePermanentPermissions();
 }
 // Samsung Change - HTML5 Web Notification	<<
+
 void ChromeClientAndroid::storeGeolocationPermissions()
 {
     GeolocationPermissions::maybeStorePermanentPermissions();
@@ -651,6 +702,22 @@ void ChromeClientAndroid::enterFullscreenForNode(Node* node)
 
 void ChromeClientAndroid::exitFullscreenForNode(Node* node)
 {
+    if(!node)
+        return;
+    
+    FrameView* frameView = m_webFrame->page()->mainFrame()->view();
+    android::WebViewCore* core = android::WebViewCore::getWebViewCore(frameView);
+    if (core)
+        core->exitFullscreenVideo();
+
+    HTMLMediaElement* videoElement = static_cast<HTMLMediaElement*>(node);
+    if(videoElement){
+	Document* doc = m_webFrame->page()->mainFrame()->document();
+	if(doc)
+            doc->webkitDidExitFullScreenForElement(videoElement);
+    }
+    
+    return;
 }
 #endif
 
@@ -664,6 +731,7 @@ void ChromeClientAndroid::exitFullScreenForElement(Element* element)
     videoElement->exitFullscreen();
 }
 #endif
+
 // Samsung Change - HTML5 Web Notification	>>
 #if ENABLE(NOTIFICATIONS)
 NotificationPresenter* ChromeClientAndroid::notificationPresenter() const
@@ -681,7 +749,6 @@ NotificationPresenter* ChromeClientAndroid::notificationPresenter() const
 #endif
 // Samsung Change - HTML5 Web Notification	<<
 
-//SAMSUNG CHANGE HTML5 COLOR <<
 void ChromeClientAndroid::createColorChooser(ColorChooserClient* client, const IntRect& rect)
 {
     //Create color chooser client

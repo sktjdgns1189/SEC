@@ -139,3 +139,4 @@ static DBusMessage *new_authentication_return_LE(DBusMessage *msg, int status);
 // SSBT :: KJH + (0223), for non security request devices.
 static void bonding_request_free(struct bonding_req *bonding);
 char *device_type2text(addr_type_t type);
+gboolean device_is_gatt_connected(struct btd_device *device);

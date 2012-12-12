@@ -107,11 +107,11 @@ Element* HTMLCollection::itemAfter(Element* previous) const
         case SelectOptions:
         case DataListOptions:
         case WindowNamedItems:
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     case ItemProperties:
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
             break;
         case NodeChildren:
         case TRCells:
@@ -196,13 +196,13 @@ Element* HTMLCollection::itemAfter(Element* previous) const
             case DocAll:
             case NodeChildren:
                 return e;
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 	    case ItemProperties:
         	if(e->isHTMLElement() && e->fastHasAttribute(itempropAttr))
 		    return e;	    
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
             case DocumentNamedItems:
             case OtherCollection:
             case WindowNamedItems:

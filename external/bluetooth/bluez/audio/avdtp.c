@@ -2498,6 +2498,15 @@ static void avdtp_connect_cb(GIOChannel *chan, GError *err, gpointer user_data)
 	if (session->state == AVDTP_SESSION_STATE_CONNECTING) {
 		DBG("AVDTP imtu=%u, omtu=%u", session->imtu, session->omtu);
 
+#ifdef GLOBALCONFIG_BLUETOOTH_5GHZ_COEX_BRCM4330
+		// Jabra Halo AV chopping issue in COEX status. (Wlan is connected via 5GHz freq.)
+		// set omtu size to 672 in order not to be used 3-DH5 packet.
+		DBG("AVDTP: check if packet is 3-DH5 coex");
+		if ( session->omtu > 672){
+			DBG("AVDTP: 3-DH5 coex");
+			session->omtu =672;
+		}
+#endif
 		session->buf = g_malloc0(session->imtu);
 		avdtp_set_state(session, AVDTP_SESSION_STATE_CONNECTED);
 

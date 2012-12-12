@@ -60,5 +60,4 @@ StaticDOMDataStore::~StaticDOMDataStore()
     V8BindingPerIsolateData::current()->unregisterDOMDataStore(this);
 }
 //SAMSUNG_WEB_WORKER_CHANGES <<
-
 } // namespace WebCore

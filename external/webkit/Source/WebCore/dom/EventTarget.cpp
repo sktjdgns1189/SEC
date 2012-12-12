@@ -36,6 +36,10 @@
 #include "EventException.h"
 #include <wtf/StdLibExtras.h>
 
+#include <utils/Log.h>
+#include "HTMLNames.h"
+#include "TouchEvent.h"
+
 using namespace WTF;
 
 namespace WebCore {
@@ -326,6 +330,20 @@ bool EventTarget::fireEventListeners(Event* event)
     EventListenerMap::iterator result = d->eventListenerMap.find(event->type());
     if (result != d->eventListenerMap.end())
         fireEventListeners(event, d, *result->second);
+
+#if ENABLE(TOUCH_EVENTS) && PLATFORM(ANDROID)
+    if (event->isTouchEvent() && !event->hitTouchHandler()) {
+        // Check for touchmove or touchend to see if we can skip
+        // the rest of the stream (we always get touchstart, don't need to check that)
+        if (d->eventListenerMap.contains(eventNames().touchmoveEvent)
+                || d->eventListenerMap.contains(eventNames().touchendEvent))
+            event->setHitTouchHandler();
+// SERI - add support for mouse events >>>          	
+		else if (toNode() && toNode()->hasTagName(HTMLNames::canvasTag))
+            event->setHitTouchHandler();
+// SERI - add support for mouse events <<<          	
+    }
+#endif
     
     return !event->defaultPrevented();
 }
@@ -333,6 +351,11 @@ bool EventTarget::fireEventListeners(Event* event)
 void EventTarget::fireEventListeners(Event* event, EventTargetData* d, EventListenerVector& entry)
 {
     RefPtr<EventTarget> protect = this;
+
+#if ENABLE(TOUCH_EVENTS) && PLATFORM(ANDROID)
+    if (event->isTouchEvent())
+        event->setHitTouchHandler();
+#endif
 
     // Fire all listeners registered for this event. Don't fire listeners removed
     // during event dispatch. Also, don't fire event listeners added during event

@@ -29,7 +29,7 @@
 #if ENABLE(INDEXED_DATABASE)
 
 #include <wtf/Forward.h>
-#include "SerializedScriptValue.h"
+#include "SerializedScriptValue.h" //SAMSUNG CHANGES HTML5 IDB 
 
 namespace WebCore {
 

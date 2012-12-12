@@ -24,6 +24,8 @@
 #include "CSSPrimitiveValue.h"
 #include <wtf/RefPtr.h>
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
     class RectBase {
@@ -56,6 +58,14 @@ namespace WebCore {
     private:
         Rect() { }
     };
+
+class Quad : public RectBase, public RefCounted<Quad> {
+public:
+    static PassRefPtr<Quad> create() { return adoptRef(new Quad); }
+
+private:
+    Quad() { }
+};
 
 } // namespace WebCore
 

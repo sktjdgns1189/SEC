@@ -123,6 +123,8 @@
 #include <qwebhistoryinterface.h>
 #endif
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 using namespace std;
 
 namespace WebCore {
@@ -1194,7 +1196,8 @@ PassRefPtr<RenderStyle> CSSStyleSelector::styleForDocument(Document* document)
     documentStyle->setVisuallyOrdered(document->visuallyOrdered());
     documentStyle->setZoom(frame ? frame->pageZoomFactor() : 1);
     documentStyle->setPageScaleTransform(frame ? frame->pageScaleFactor() : 1);
-    
+    documentStyle->setUserModify(document->inDesignMode() ? READ_WRITE : READ_ONLY);
+
     Element* docElement = document->documentElement();
     RenderObject* docElementRenderer = docElement ? docElement->renderer() : 0;
     if (docElementRenderer) {
@@ -1284,8 +1287,11 @@ PassRefPtr<RenderStyle> CSSStyleSelector::styleForElement(Element* e, RenderStyl
 
     if (m_parentStyle)
         m_style->inheritFrom(m_parentStyle);
-    else
+    else {
         m_parentStyle = style();
+        // Make sure our fonts are initialized if we don't inherit them from our parent style.
+        m_style->font().update(0);
+    }
 
     if (e->isLink()) {
         m_style->setIsLink(true);
@@ -1975,23 +1981,6 @@ void CSSStyleSelector::adjustRenderStyle(RenderStyle* style, RenderStyle* parent
             style->setPosition(RenderStyle::initialPosition());
     }
 #endif
-    //SAMSUNG CHANGES- EMAIL APP CUSTOMIZATION >>
-    if(e)
-    {
-        const Settings * settings = e->document()->frame() ? e->document()->frame()->settings() : 0; 
-        if (settings && settings->layoutAlgorithm() == Settings::kLayoutSSR)
-        {
-            style->setFloating(FNONE);
-            style->setOverflowY(OVISIBLE);
-            style->setPosition(StaticPosition);
-	    style->setWordWrap(BreakWordWrap);
-	    if(NOWRAP == style->whiteSpace() || KHTML_NOWRAP == style->whiteSpace())
-                style->setWhiteSpace(NORMAL);
-            else if(PRE == style->whiteSpace())
-                return style->setWhiteSpace(PRE_WRAP);
-        }
-    }
-    //SAMSUNG CHNAGES <<
 }
 
 void CSSStyleSelector::updateFont()
@@ -2005,9 +1994,6 @@ void CSSStyleSelector::updateFont()
 
 void CSSStyleSelector::cacheBorderAndBackground()
 {
-    if (!m_style)
-        return;
-        
     m_hasUAAppearance = m_style->hasAppearance();
     if (m_hasUAAppearance) {
         m_borderData = m_style->border();
@@ -3338,7 +3324,7 @@ static Length convertToLength(CSSPrimitiveValue* primitiveValue, RenderStyle* st
                 *ok = false;
         } else if (CSSPrimitiveValue::isUnitTypeLength(type)) {
             if (toFloat)
-                l = Length(primitiveValue->computeLengthDouble(style, rootStyle, multiplier), Fixed);
+                l = Length(primitiveValue->computeLength<double>(style, rootStyle, multiplier), Fixed);
             else
                 l = Length(primitiveValue->computeLengthIntForLength(style, rootStyle, multiplier), Fixed);
         }
@@ -3622,10 +3608,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         return;
     case CSSPropertyOutlineStyle:
         HANDLE_INHERIT_AND_INITIAL_WITH_VALUE(outlineStyle, OutlineStyle, BorderStyle)
-        //SAMSUNG CHANGE >>
-        if ((primitiveValue) && (m_style)) {
-        //if (primitiveValue) {
-        //SAMSUNG CHANGE <<
+        if (primitiveValue) {
             if (primitiveValue->getIdent() == CSSValueAuto)
                 m_style->setOutlineStyle(DOTTED, true);
             else
@@ -3839,7 +3822,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         HANDLE_INHERIT_AND_INITIAL(horizontalBorderSpacing, HorizontalBorderSpacing)
         if (!primitiveValue)
             return;
-        short spacing = primitiveValue->computeLengthShort(style(), m_rootElementStyle, zoomFactor);
+        short spacing = primitiveValue->computeLength<short>(style(), m_rootElementStyle, zoomFactor);
         m_style->setHorizontalBorderSpacing(spacing);
         return;
     }
@@ -3847,7 +3830,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         HANDLE_INHERIT_AND_INITIAL(verticalBorderSpacing, VerticalBorderSpacing)
         if (!primitiveValue)
             return;
-        short spacing = primitiveValue->computeLengthShort(style(), m_rootElementStyle, zoomFactor);
+        short spacing = primitiveValue->computeLength<short>(style(), m_rootElementStyle, zoomFactor);
         m_style->setVerticalBorderSpacing(spacing);
         return;
     }
@@ -3896,6 +3879,18 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         m_style->setListStyleImage(styleImage(CSSPropertyListStyleImage, value));
         return;
     }
+    case CSSPropertyBorderImageSource:
+    {
+        HANDLE_INHERIT_AND_INITIAL(borderImageSource, BorderImageSource)
+        m_style->setBorderImageSource(styleImage(CSSPropertyBorderImageSource, value));
+        return;
+    }
+    case CSSPropertyWebkitMaskBoxImageSource:
+    {
+        HANDLE_INHERIT_AND_INITIAL(maskBoxImageSource, MaskBoxImageSource)
+        m_style->setMaskBoxImageSource(styleImage(CSSPropertyWebkitMaskBoxImageSource, value));
+        return;
+    }
 
 // length
     case CSSPropertyBorderTopWidth:
@@ -3938,7 +3933,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
             width = 5;
             break;
         case CSSValueInvalid:
-            width = primitiveValue->computeLengthShort(style(), m_rootElementStyle, zoomFactor);
+            width = primitiveValue->computeLength<short>(style(), m_rootElementStyle, zoomFactor);
             break;
         default:
             return;
@@ -4025,7 +4020,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         } else {
             if (!primitiveValue)
                 return;
-            width = primitiveValue->computeLengthInt(style(), m_rootElementStyle, useSVGZoomRules(m_element) ? 1.0f : zoomFactor);
+            width = primitiveValue->computeLength<int>(style(), m_rootElementStyle, useSVGZoomRules(m_element) ? 1.0f : zoomFactor);
         }
         switch (id) {
         case CSSPropertyLetterSpacing:
@@ -4369,7 +4364,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
                                                type != CSSPrimitiveValue::CSS_EXS &&
                                                type != CSSPrimitiveValue::CSS_REMS));
             if (CSSPrimitiveValue::isUnitTypeLength(type))
-                size = primitiveValue->computeLengthFloat(m_parentStyle, m_rootElementStyle, true);
+                size = primitiveValue->computeLength<float>(m_parentStyle, m_rootElementStyle, 1.0, true);
             else if (type == CSSPrimitiveValue::CSS_PERCENTAGE)
                 size = (primitiveValue->getFloatValue() * oldSize) / 100.0f;
             else
@@ -4431,17 +4426,10 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
             lineHeight = Length(-100.0, Percent);
         else if (CSSPrimitiveValue::isUnitTypeLength(type)) {
             double multiplier = zoomFactor;
-            #ifdef WEBKIT_TEXT_SIZE_ADJUST
-            if (m_style->textSizeAdjust().isAuto()) {
-                if (Frame* frame = m_checker.m_document->frame())
-                    multiplier *= frame->textZoomFactor();
-            }			
-            #else
             if (m_style->textSizeAdjust()) {
                 if (Frame* frame = m_checker.m_document->frame())
                     multiplier *= frame->textZoomFactor();
             }
-            #endif
             lineHeight = Length(primitiveValue->computeLengthIntForLength(style(), m_rootElementStyle,  multiplier), Fixed);
         } else if (type == CSSPrimitiveValue::CSS_PERCENTAGE)
             lineHeight = Length((m_style->fontSize() * primitiveValue->getIntValue()) / 100, Fixed);
@@ -4450,12 +4438,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         else
             return;
         m_style->setLineHeight(lineHeight);
-	#ifdef WEBKIT_TEXT_SIZE_ADJUST
-        //SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-		m_style->setSpecifiedLineHeight(lineHeight);
-        //SAMSUNG CHANGE END webkit-text-size-adjust <<
-	#endif
-	return;
+        return;
     }
 
 // string
@@ -5001,6 +4984,11 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
             applyProperty(CSSPropertyFontStyle, font->style.get());
             applyProperty(CSSPropertyFontVariant, font->variant.get());
             applyProperty(CSSPropertyFontWeight, font->weight.get());
+            // The previous properties can dirty our font but they don't try to read the font's
+            // properties back, which is safe. However if font-size is using the 'ex' unit, it will
+            // need query the dirtied font's x-height to get the computed size. To be safe in this
+            // case, let's just update the font now.
+            updateFont();
             applyProperty(CSSPropertyFontSize, font->size.get());
 
             m_lineHeightValue = font->lineHeight.get();
@@ -5043,19 +5031,97 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
     case CSSPropertyWebkitBorderImage:
     case CSSPropertyWebkitMaskBoxImage: {
         if (isInherit) {
+            HANDLE_INHERIT_COND(CSSPropertyBorderImage, borderImage, BorderImage)
             HANDLE_INHERIT_COND(CSSPropertyWebkitBorderImage, borderImage, BorderImage)
             HANDLE_INHERIT_COND(CSSPropertyWebkitMaskBoxImage, maskBoxImage, MaskBoxImage)
             return;
         } else if (isInitial) {
+            HANDLE_INITIAL_COND_WITH_VALUE(CSSPropertyBorderImage, BorderImage, NinePieceImage)
             HANDLE_INITIAL_COND_WITH_VALUE(CSSPropertyWebkitBorderImage, BorderImage, NinePieceImage)
             HANDLE_INITIAL_COND_WITH_VALUE(CSSPropertyWebkitMaskBoxImage, MaskBoxImage, NinePieceImage)
             return;
         }
 
         NinePieceImage image;
+        if (property == CSSPropertyWebkitMaskBoxImage) {
+            image.setImageSlices(LengthBox(0)); // For backwards compatibility, just make the mask box image slices 0 instead of 100%.
+            image.setBorderSlices(LengthBox()); // The slices default to auto.
+        }
         mapNinePieceImage(property, value, image);
         
-        if (id == CSSPropertyWebkitBorderImage)
+        if (id != CSSPropertyWebkitMaskBoxImage)
+            m_style->setBorderImage(image);
+        else
+            m_style->setMaskBoxImage(image);
+        return;
+    }
+    case CSSPropertyBorderImageOutset:
+    case CSSPropertyWebkitMaskBoxImageOutset: {
+        bool isBorderImage = id == CSSPropertyBorderImageOutset;
+        NinePieceImage image(isBorderImage ? m_style->borderImage() : m_style->maskBoxImage());
+        if (isInherit)
+            image.copyOutsetFrom(isBorderImage ? m_parentStyle->borderImage() : m_parentStyle->maskBoxImage());
+        else if (isInitial)
+            image.setOutset(LengthBox());
+        else
+            image.setOutset(mapNinePieceImageQuad(value));
+        
+        if (isBorderImage)
+            m_style->setBorderImage(image);
+        else
+            m_style->setMaskBoxImage(image);
+        return;
+    }
+    case CSSPropertyBorderImageRepeat:
+    case CSSPropertyWebkitMaskBoxImageRepeat: {
+        bool isBorderImage = id == CSSPropertyBorderImageRepeat;
+        NinePieceImage image(isBorderImage ? m_style->borderImage() : m_style->maskBoxImage());
+        if (isInherit)
+            image.copyRepeatFrom(isBorderImage ? m_parentStyle->borderImage() : m_parentStyle->maskBoxImage());
+        else if (isInitial) {
+            image.setHorizontalRule(StretchImageRule);
+            image.setVerticalRule(StretchImageRule);
+        } else
+            mapNinePieceImageRepeat(value, image);
+        
+        if (isBorderImage)
+            m_style->setBorderImage(image);
+        else
+            m_style->setMaskBoxImage(image);
+        return;
+    }
+    case CSSPropertyBorderImageSlice:
+    case CSSPropertyWebkitMaskBoxImageSlice: {
+        bool isBorderImage = id == CSSPropertyBorderImageSlice;
+        NinePieceImage image(isBorderImage ? m_style->borderImage() : m_style->maskBoxImage());
+        if (isInherit)
+            image.copyImageSlicesFrom(isBorderImage ? m_parentStyle->borderImage() : m_parentStyle->maskBoxImage());
+        else if (isInitial) {
+            // Masks have a different initial value for slices. Preserve the value of 0 for backwards compatibility.
+            image.setImageSlices(isBorderImage ? LengthBox(Length(100, Percent), Length(100, Percent), Length(100, Percent), Length(100, Percent)) : LengthBox());
+            image.setFill(false);
+        } else
+            mapNinePieceImageSlice(value, image);
+        
+        if (isBorderImage)
+            m_style->setBorderImage(image);
+        else
+            m_style->setMaskBoxImage(image);
+        return;
+    }
+    case CSSPropertyBorderImageWidth:
+    case CSSPropertyWebkitMaskBoxImageWidth: {
+        bool isBorderImage = id == CSSPropertyBorderImageWidth;
+        NinePieceImage image(isBorderImage ? m_style->borderImage() : m_style->maskBoxImage());
+        if (isInherit)
+            image.copyBorderSlicesFrom(isBorderImage ? m_parentStyle->borderImage() : m_parentStyle->maskBoxImage());
+        else if (isInitial) {
+            // Masks have a different initial value for slices. They use an 'auto' value rather than trying to fit to the border.
+            image.setBorderSlices(isBorderImage ? LengthBox(Length(1, Relative), Length(1, Relative), Length(1, Relative), Length(1, Relative)) : LengthBox());
+        } else
+            image.setBorderSlices(mapNinePieceImageQuad(value));
+        
+        if (isBorderImage)
             m_style->setBorderImage(image);
         else
             m_style->setMaskBoxImage(image);
@@ -5108,11 +5174,11 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         if (pair->first()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
             radiusWidth = Length(pair->first()->getDoubleValue(), Percent);
         else
-            radiusWidth = Length(max(intMinForLength, min(intMaxForLength, pair->first()->computeLengthInt(style(), m_rootElementStyle, zoomFactor))), Fixed);
+            radiusWidth = Length(max(intMinForLength, min(intMaxForLength, pair->first()->computeLength<int>(style(), m_rootElementStyle, zoomFactor))), Fixed);
         if (pair->second()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
             radiusHeight = Length(pair->second()->getDoubleValue(), Percent);
         else
-            radiusHeight = Length(max(intMinForLength, min(intMaxForLength, pair->second()->computeLengthInt(style(), m_rootElementStyle, zoomFactor))), Fixed);
+            radiusHeight = Length(max(intMinForLength, min(intMaxForLength, pair->second()->computeLength<int>(style(), m_rootElementStyle, zoomFactor))), Fixed);
         int width = radiusWidth.value();
         int height = radiusHeight.value();
         if (width < 0 || height < 0)
@@ -5145,7 +5211,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
 
     case CSSPropertyOutlineOffset:
         HANDLE_INHERIT_AND_INITIAL(outlineOffset, OutlineOffset)
-        m_style->setOutlineOffset(primitiveValue->computeLengthInt(style(), m_rootElementStyle, zoomFactor));
+        m_style->setOutlineOffset(primitiveValue->computeLength<int>(style(), m_rootElementStyle, zoomFactor));
         return;
     case CSSPropertyTextRendering: {
         FontDescription fontDescription = m_style->fontDescription();
@@ -5183,10 +5249,10 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
             if (!currValue->isShadowValue())
                 continue;
             ShadowValue* item = static_cast<ShadowValue*>(list->itemWithoutBoundsCheck(i));
-            int x = item->x->computeLengthInt(style(), m_rootElementStyle, zoomFactor);
-            int y = item->y->computeLengthInt(style(), m_rootElementStyle, zoomFactor);
-            int blur = item->blur ? item->blur->computeLengthInt(style(), m_rootElementStyle, zoomFactor) : 0;
-            int spread = item->spread ? item->spread->computeLengthInt(style(), m_rootElementStyle, zoomFactor) : 0;
+            int x = item->x->computeLength<int>(style(), m_rootElementStyle, zoomFactor);
+            int y = item->y->computeLength<int>(style(), m_rootElementStyle, zoomFactor);
+            int blur = item->blur ? item->blur->computeLength<int>(style(), m_rootElementStyle, zoomFactor) : 0;
+            int spread = item->spread ? item->spread->computeLength<int>(style(), m_rootElementStyle, zoomFactor) : 0;
             ShadowStyle shadowStyle = item->style && item->style->getIdent() == CSSValueInset ? Inset : Normal;
             Color color;
             if (item->color)
@@ -5220,6 +5286,8 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
                 reflection->setOffset(Length(reflectValue->offset()->computeLengthIntForLength(style(), m_rootElementStyle, zoomFactor), Fixed));
         }
         NinePieceImage mask;
+        mask.setImageSlices(LengthBox(0)); // For backwards compatibility, just make the mask box image slices 0 instead of 100%.
+        mask.setBorderSlices(LengthBox()); // The slices default to auto.
         mapNinePieceImage(property, reflectValue->mask(), mask);
         reflection->setMask(mask);
         
@@ -5323,7 +5391,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
             m_style->setHasNormalColumnGap();
             return;
         }
-        m_style->setColumnGap(primitiveValue->computeLengthFloat(style(), m_rootElementStyle, zoomFactor));
+        m_style->setColumnGap(primitiveValue->computeLength<float>(style(), m_rootElementStyle, zoomFactor));
         return;
     }
     case CSSPropertyWebkitColumnSpan: {
@@ -5342,7 +5410,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
             m_style->setHasAutoColumnWidth();
             return;
         }
-        m_style->setColumnWidth(primitiveValue->computeLengthFloat(style(), m_rootElementStyle, zoomFactor));
+        m_style->setColumnWidth(primitiveValue->computeLength<float>(style(), m_rootElementStyle, zoomFactor));
         return;
     }
     case CSSPropertyWebkitColumnRuleStyle:
@@ -5588,22 +5656,8 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
     }
     case CSSPropertyWebkitTextSizeAdjust: {
         HANDLE_INHERIT_AND_INITIAL(textSizeAdjust, TextSizeAdjust)
-	#ifdef WEBKIT_TEXT_SIZE_ADJUST
-        //SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-	if (!primitiveValue)
-            return;
-        
-        if (primitiveValue->getIdent() == CSSValueAuto)
-            m_style->setTextSizeAdjust(TextSizeAdjustment(AutoTextSizeAdjustment));
-        else if (primitiveValue->getIdent() == CSSValueNone)
-            m_style->setTextSizeAdjust(TextSizeAdjustment(NoTextSizeAdjustment));
-        else
-            m_style->setTextSizeAdjust(TextSizeAdjustment(primitiveValue->getFloatValue()));
-        //SAMSUNG CHANGE END webkit-text-size-adjust <<
-	#else
-		 if (!primitiveValue || !primitiveValue->getIdent()) return;
+        if (!primitiveValue || !primitiveValue->getIdent()) return;
         m_style->setTextSizeAdjust(primitiveValue->getIdent() == CSSValueAuto);
-	#endif
         m_fontDirty = true;
         return;
     }
@@ -5662,11 +5716,11 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
                     result *= 3;
                 else if (primitiveValue->getIdent() == CSSValueThick)
                     result *= 5;
-                width = CSSPrimitiveValue::create(result, CSSPrimitiveValue::CSS_EMS)->computeLengthFloat(style(), m_rootElementStyle, zoomFactor);
+                width = CSSPrimitiveValue::create(result, CSSPrimitiveValue::CSS_EMS)->computeLength<float>(style(), m_rootElementStyle, zoomFactor);
                 break;
             }
             default:
-                width = primitiveValue->computeLengthFloat(style(), m_rootElementStyle, zoomFactor);
+                width = primitiveValue->computeLength<float>(style(), m_rootElementStyle, zoomFactor);
                 break;
         }
         m_style->setTextStrokeWidth(width);
@@ -5745,7 +5799,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
             perspectiveValue = static_cast<float>(primitiveValue->computeLengthIntForLength(style(), m_rootElementStyle, zoomFactor));
         else if (type == CSSPrimitiveValue::CSS_NUMBER) {
             // For backward compatibility, treat valueless numbers as px.
-            perspectiveValue = CSSPrimitiveValue::create(primitiveValue->getDoubleValue(), CSSPrimitiveValue::CSS_PX)->computeLengthFloat(style(), m_rootElementStyle, zoomFactor);
+            perspectiveValue = CSSPrimitiveValue::create(primitiveValue->getDoubleValue(), CSSPrimitiveValue::CSS_PX)->computeLength<float>(style(), m_rootElementStyle, zoomFactor);
         } else
             return;
 
@@ -5808,6 +5862,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
     case CSSPropertyWebkitAnimationIterationCount:
         HANDLE_ANIMATION_VALUE(iterationCount, IterationCount, value)
         return;
+    case CSSPropertyAnimationName: // SAMSUNG CHANGE : CSS Ring Mark Tests
     case CSSPropertyWebkitAnimationName:
         HANDLE_ANIMATION_VALUE(name, Name, value)
         return;
@@ -5817,6 +5872,7 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
     case CSSPropertyWebkitAnimationTimingFunction:
         HANDLE_ANIMATION_VALUE(timingFunction, TimingFunction, value)
         return;
+    case CSSPropertyTransition: // SAMSUNG CHANGE : CSS Ring Mark Tests
     case CSSPropertyWebkitTransition:
         if (isInitial)
             m_style->clearTransitions();
@@ -6103,138 +6159,6 @@ void CSSStyleSelector::applyProperty(int id, CSSValue *value)
         ASSERT_NOT_REACHED();
         return;
 
-#ifdef ANDROID_CSS_RING
-    case CSSPropertyWebkitRing:
-        if (valueType != CSSValue::CSS_INHERIT || !m_parentNode) return;
-        m_style->setRingFillColor(m_parentStyle->ringFillColor());
-        m_style->setRingInnerWidth(m_parentStyle->ringInnerWidth());
-        m_style->setRingOuterWidth(m_parentStyle->ringOuterWidth());
-        m_style->setRingOutset(m_parentStyle->ringOutset());
-        m_style->setRingPressedInnerColor(m_parentStyle->ringPressedInnerColor());
-        m_style->setRingPressedOuterColor(m_parentStyle->ringPressedOuterColor());
-        m_style->setRingRadius(m_parentStyle->ringRadius());
-        m_style->setRingSelectedInnerColor(m_parentStyle->ringSelectedInnerColor());
-        m_style->setRingSelectedOuterColor(m_parentStyle->ringSelectedOuterColor());
-        return;
-    case CSSPropertyWebkitRingFillColor: {
-        HANDLE_INHERIT_AND_INITIAL(ringFillColor, RingFillColor);
-        if (!primitiveValue)
-            break;
-        Color col = getColorFromPrimitiveValue(primitiveValue).blendWithWhite();
-        m_style->setRingFillColor(col);
-        return;
-    }
-    case CSSPropertyWebkitRingInnerWidth: {
-        HANDLE_INHERIT_AND_INITIAL(ringInnerWidth, RingInnerWidth)
-        if (!primitiveValue)
-            break;
-        Length l;
-        int type = primitiveValue->primitiveType();
-        if (CSSPrimitiveValue::isUnitTypeLength(type)) {
-            // width can be specified with fractional px
-            // scale by 16 here (and unscale in android_graphics) to keep
-            // 4 bits of fraction
-            RefPtr<CSSPrimitiveValue> scaledValue = CSSPrimitiveValue::create(
-                primitiveValue->getFloatValue() * 16,
-                (CSSPrimitiveValue::UnitTypes) type);
-            l = Length(scaledValue->computeLengthIntForLength(style(),
-                m_rootElementStyle, zoomFactor), Fixed);
-            scaledValue.release();
-        } else if (type == CSSPrimitiveValue::CSS_PERCENTAGE)
-            l = Length(primitiveValue->getDoubleValue(), Percent);
-        else
-            return;
-        m_style->setRingInnerWidth(l);
-        return;
-    }
-    case CSSPropertyWebkitRingOuterWidth: {
-        HANDLE_INHERIT_AND_INITIAL(ringOuterWidth, RingOuterWidth)
-        if (!primitiveValue)
-            break;
-        Length l;
-        int type = primitiveValue->primitiveType();
-        if (CSSPrimitiveValue::isUnitTypeLength(type)) {
-            // width can be specified with fractional px
-            // scale by 16 here (and unscale in android_graphics) to keep
-            // 4 bits of fraction
-            RefPtr<CSSPrimitiveValue> scaledValue = CSSPrimitiveValue::create(
-                primitiveValue->getFloatValue() * 16,
-                (CSSPrimitiveValue::UnitTypes) type);
-            l = Length(scaledValue->computeLengthIntForLength(style(),
-                m_rootElementStyle, zoomFactor), Fixed);
-            scaledValue.release();
-        } else if (type == CSSPrimitiveValue::CSS_PERCENTAGE)
-            l = Length(primitiveValue->getDoubleValue(), Percent);
-        else
-            return;
-        m_style->setRingOuterWidth(l);
-        return;
-    }
-    case CSSPropertyWebkitRingOutset: {
-        HANDLE_INHERIT_AND_INITIAL(ringOutset, RingOutset)
-        if (!primitiveValue)
-            break;
-        Length l;
-        int type = primitiveValue->primitiveType();
-        if (CSSPrimitiveValue::isUnitTypeLength(type))
-            l = Length(primitiveValue->computeLengthIntForLength(style(),
-                m_rootElementStyle, zoomFactor), Fixed);
-        else if (type == CSSPrimitiveValue::CSS_PERCENTAGE)
-            l = Length(primitiveValue->getDoubleValue(), Percent);
-        else
-            return;
-        m_style->setRingOutset(l);
-        return;
-    }
-    case CSSPropertyWebkitRingPressedInnerColor: {
-        HANDLE_INHERIT_AND_INITIAL(ringPressedInnerColor, RingPressedInnerColor);
-        if (!primitiveValue)
-            break;
-        Color col = getColorFromPrimitiveValue(primitiveValue).blendWithWhite();
-        m_style->setRingPressedInnerColor(col);
-        return;
-    }
-    case CSSPropertyWebkitRingPressedOuterColor: {
-        HANDLE_INHERIT_AND_INITIAL(ringPressedOuterColor, RingPressedOuterColor);
-        if (!primitiveValue)
-            break;
-        Color col = getColorFromPrimitiveValue(primitiveValue).blendWithWhite();
-        m_style->setRingPressedOuterColor(col);
-        return;
-    }
-    case CSSPropertyWebkitRingRadius: {
-        HANDLE_INHERIT_AND_INITIAL(ringRadius, RingRadius)
-        if (!primitiveValue)
-            break;
-        Length l;
-        int type = primitiveValue->primitiveType();
-        if (CSSPrimitiveValue::isUnitTypeLength(type))
-            l = Length(primitiveValue->computeLengthIntForLength(style(),
-                m_rootElementStyle, zoomFactor), Fixed);
-        else if (type == CSSPrimitiveValue::CSS_PERCENTAGE)
-            l = Length(primitiveValue->getDoubleValue(), Percent);
-        else
-            return;
-        m_style->setRingRadius(l);
-        return;
-    }
-    case CSSPropertyWebkitRingSelectedInnerColor: {
-        HANDLE_INHERIT_AND_INITIAL(ringSelectedInnerColor, RingSelectedInnerColor);
-        if (!primitiveValue)
-            break;
-        Color col = getColorFromPrimitiveValue(primitiveValue).blendWithWhite();
-        m_style->setRingSelectedInnerColor(col);
-        return;
-    }
-    case CSSPropertyWebkitRingSelectedOuterColor: {
-        HANDLE_INHERIT_AND_INITIAL(ringSelectedOuterColor, RingSelectedOuterColor);
-        if (!primitiveValue)
-            break;
-        Color col = getColorFromPrimitiveValue(primitiveValue).blendWithWhite();
-        m_style->setRingSelectedOuterColor(col);
-        return;
-    }
-#endif
 #ifdef ANDROID_CSS_TAP_HIGHLIGHT_COLOR
     case CSSPropertyWebkitTapHighlightColor: {
         HANDLE_INHERIT_AND_INITIAL(tapHighlightColor, TapHighlightColor);
@@ -6840,70 +6764,175 @@ void CSSStyleSelector::mapNinePieceImage(CSSPropertyID property, CSSValue* value
     CSSBorderImageValue* borderImage = static_cast<CSSBorderImageValue*>(value);
     
     // Set the image (this kicks off the load).
-    image.setImage(styleImage(property, borderImage->imageValue()));
+    CSSPropertyID imageProperty;
+    if (property == CSSPropertyWebkitBorderImage || property == CSSPropertyBorderImage)
+        imageProperty = CSSPropertyBorderImageSource;
+    else if (property == CSSPropertyWebkitMaskBoxImage)
+        imageProperty = CSSPropertyWebkitMaskBoxImageSource;
+    else
+        imageProperty = property;
+    image.setImage(styleImage(imageProperty, borderImage->imageValue()));
 
-    // Set up a length box to represent our image slices.
-    LengthBox l;
-    Rect* r = borderImage->m_imageSliceRect.get();
-    if (r->top()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
-        l.m_top = Length(r->top()->getDoubleValue(), Percent);
-    else
-        l.m_top = Length(r->top()->getIntValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
-    if (r->bottom()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
-        l.m_bottom = Length(r->bottom()->getDoubleValue(), Percent);
-    else
-        l.m_bottom = Length((int)r->bottom()->getFloatValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
-    if (r->left()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
-        l.m_left = Length(r->left()->getDoubleValue(), Percent);
-    else
-        l.m_left = Length(r->left()->getIntValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
-    if (r->right()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
-        l.m_right = Length(r->right()->getDoubleValue(), Percent);
-    else
-        l.m_right = Length(r->right()->getIntValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
-    image.setSlices(l);
+    // Map in the image slices.
+    mapNinePieceImageSlice(borderImage->m_imageSlice.get(), image);
+
+    // Map in the border slices.
+    if (borderImage->m_borderSlice)
+        image.setBorderSlices(mapNinePieceImageQuad(borderImage->m_borderSlice.get()));
+    
+    // Map in the outset.
+    if (borderImage->m_outset)
+        image.setOutset(mapNinePieceImageQuad(borderImage->m_outset.get()));
+
+    if (property == CSSPropertyWebkitBorderImage) {
+        // We have to preserve the legacy behavior of -webkit-border-image and make the border slices
+        // also set the border widths. We don't need to worry about percentages, since we don't even support
+        // those on real borders yet.
+        if (image.borderSlices().top().isFixed())
+            style()->setBorderTopWidth(image.borderSlices().top().value());
+        if (image.borderSlices().right().isFixed())
+            style()->setBorderRightWidth(image.borderSlices().right().value());
+        if (image.borderSlices().bottom().isFixed())
+            style()->setBorderBottomWidth(image.borderSlices().bottom().value());
+        if (image.borderSlices().left().isFixed())
+            style()->setBorderLeftWidth(image.borderSlices().left().value());
+    }
 
     // Set the appropriate rules for stretch/round/repeat of the slices
+    mapNinePieceImageRepeat(borderImage->m_repeat.get(), image);
+}
+
+void CSSStyleSelector::mapNinePieceImageSlice(CSSValue* value, NinePieceImage& image)
+{
+    if (!value || !value->isBorderImageSliceValue())
+        return;
+
+    // Retrieve the border image value.
+    CSSBorderImageSliceValue* borderImageSlice = static_cast<CSSBorderImageSliceValue*>(value);
+
+    // Set up a length box to represent our image slices.
+    LengthBox box;
+    Quad* slices = borderImageSlice->slices();
+    if (slices->top()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_top = Length(slices->top()->getDoubleValue(), Percent);
+    else
+        box.m_top = Length(slices->top()->getIntValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
+    if (slices->bottom()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_bottom = Length(slices->bottom()->getDoubleValue(), Percent);
+    else
+        box.m_bottom = Length((int)slices->bottom()->getFloatValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
+    if (slices->left()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_left = Length(slices->left()->getDoubleValue(), Percent);
+    else
+        box.m_left = Length(slices->left()->getIntValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
+    if (slices->right()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_right = Length(slices->right()->getDoubleValue(), Percent);
+    else
+        box.m_right = Length(slices->right()->getIntValue(CSSPrimitiveValue::CSS_NUMBER), Fixed);
+    image.setImageSlices(box);
+
+    // Set our fill mode.
+    image.setFill(borderImageSlice->m_fill);
+}
+
+LengthBox CSSStyleSelector::mapNinePieceImageQuad(CSSValue* value)
+{
+    if (!value || !value->isPrimitiveValue())
+        return LengthBox();
+
+    // Get our zoom value.
+    float zoom = useSVGZoomRules(m_element) ? 1.0f : style()->effectiveZoom();
+
+    // Retrieve the primitive value.
+    CSSPrimitiveValue* borderWidths = static_cast<CSSPrimitiveValue*>(value);
+
+    // Set up a length box to represent our image slices.
+    LengthBox box; // Defaults to 'auto' so we don't have to handle that explicitly below.
+    Quad* slices = borderWidths->getQuadValue();
+    if (slices->top()->primitiveType() == CSSPrimitiveValue::CSS_NUMBER)
+        box.m_top = Length(slices->top()->getIntValue(), Relative);
+    else if (slices->top()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_top = Length(slices->top()->getDoubleValue(CSSPrimitiveValue::CSS_PERCENTAGE), Percent);
+    else if (slices->top()->getIdent() != CSSValueAuto)
+        box.m_top = slices->top()->computeLength<Length>(style(), m_rootElementStyle, zoom);
+
+    if (slices->right()->primitiveType() == CSSPrimitiveValue::CSS_NUMBER)
+        box.m_right = Length(slices->right()->getIntValue(), Relative);
+    else if (slices->right()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_right = Length(slices->right()->getDoubleValue(CSSPrimitiveValue::CSS_PERCENTAGE), Percent);
+    else if (slices->right()->getIdent() != CSSValueAuto)
+        box.m_right = slices->right()->computeLength<Length>(style(), m_rootElementStyle, zoom);
+
+    if (slices->bottom()->primitiveType() == CSSPrimitiveValue::CSS_NUMBER)
+        box.m_bottom = Length(slices->bottom()->getIntValue(), Relative);
+    else if (slices->bottom()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_bottom = Length(slices->bottom()->getDoubleValue(CSSPrimitiveValue::CSS_PERCENTAGE), Percent);
+    else if (slices->bottom()->getIdent() != CSSValueAuto)
+        box.m_bottom = slices->bottom()->computeLength<Length>(style(), m_rootElementStyle, zoom);
+
+    if (slices->left()->primitiveType() == CSSPrimitiveValue::CSS_NUMBER)
+        box.m_left = Length(slices->left()->getIntValue(), Relative);
+    else if (slices->left()->primitiveType() == CSSPrimitiveValue::CSS_PERCENTAGE)
+        box.m_left = Length(slices->left()->getDoubleValue(CSSPrimitiveValue::CSS_PERCENTAGE), Percent);
+    else if (slices->left()->getIdent() != CSSValueAuto)
+        box.m_left = slices->left()->computeLength<Length>(style(), m_rootElementStyle, zoom);
+
+    return box;
+}
+
+void CSSStyleSelector::mapNinePieceImageRepeat(CSSValue* value, NinePieceImage& image)
+{
+    if (!value || !value->isPrimitiveValue())
+        return;
+    
+    CSSPrimitiveValue* primitiveValue = static_cast<CSSPrimitiveValue*>(value);
+    Pair* pair = primitiveValue->getPairValue();
+    if (!pair || !pair->first() || !pair->second())
+        return;
+
+    int firstIdentifier = pair->first()->getIdent();
+    int secondIdentifier = pair->second()->getIdent();
+
     ENinePieceImageRule horizontalRule;
-    switch (borderImage->m_horizontalSizeRule) {
-        case CSSValueStretch:
-            horizontalRule = StretchImageRule;
-            break;
-        case CSSValueRound:
-            horizontalRule = RoundImageRule;
-            break;
-        default: // CSSValueRepeat
-            horizontalRule = RepeatImageRule;
-            break;
+    switch (firstIdentifier) {
+    case CSSValueStretch:
+        horizontalRule = StretchImageRule;
+        break;
+    case CSSValueRound:
+        horizontalRule = RoundImageRule;
+        break;
+    case CSSValueSpace:
+        horizontalRule = SpaceImageRule;
+        break;
+    default: // CSSValueRepeat
+        horizontalRule = RepeatImageRule;
+        break;
     }
     image.setHorizontalRule(horizontalRule);
 
     ENinePieceImageRule verticalRule;
-    switch (borderImage->m_verticalSizeRule) {
-        case CSSValueStretch:
-            verticalRule = StretchImageRule;
-            break;
-        case CSSValueRound:
-            verticalRule = RoundImageRule;
-            break;
-        default: // CSSValueRepeat
-            verticalRule = RepeatImageRule;
-            break;
+    switch (secondIdentifier) {
+    case CSSValueStretch:
+        verticalRule = StretchImageRule;
+        break;
+    case CSSValueRound:
+        verticalRule = RoundImageRule;
+        break;
+    case CSSValueSpace:
+        verticalRule = SpaceImageRule;
+        break;
+    default: // CSSValueRepeat
+        verticalRule = RepeatImageRule;
+        break;
     }
     image.setVerticalRule(verticalRule);
 }
 
 void CSSStyleSelector::checkForTextSizeAdjust()
 {
-	#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-    if (m_style->textSizeAdjust().isAuto())
+    if (m_style->textSizeAdjust())
         return;
-	//SAMSUNG CHANGE END webkit-text-size-adjust <<
-	#else
-	 if (m_style->textSizeAdjust())
-        return;
-	 #endif
+
     /* TODO: Remove this when a fix for webkit bug 56543 is submitted and can
      * be cherry picked.
      * This is a quick fix for Android to prevent sites from using
@@ -6918,16 +6947,7 @@ void CSSStyleSelector::checkForTextSizeAdjust()
 #endif
  
     FontDescription newFontDescription(m_style->fontDescription());
-    #ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-    if (!m_style->textSizeAdjust().isNone())
-        newFontDescription.setComputedSize(newFontDescription.specifiedSize() * m_style->textSizeAdjust().multiplier());
-    else
-        newFontDescription.setComputedSize(newFontDescription.specifiedSize());
-     //SAMSUNG CHANGE END webkit-text-size-adjust <<
-    #else
-	 	   newFontDescription.setComputedSize(newFontDescription.specifiedSize());
-    #endif
+    newFontDescription.setComputedSize(newFontDescription.specifiedSize());
     m_style->setFontDescription(newFontDescription);
 }
 
@@ -6994,12 +7014,8 @@ float CSSStyleSelector::getComputedSizeFromSpecifiedSize(Document* document, Ren
     // exempt from minimum font size rules. Acid3 relies on this for pixel-perfect
     // rendering. This is also compatible with other browsers that have minimum
     // font size settings (e.g. Firefox).
-    // SAMSUNG CHANGE + MPSG100003180
-    // Changed from 0 to 1 because when we return 0, in font handling default size of 12 is used and text is displayed which is not expected.
-    // Refer SkPaint::setTextSize, FontPlatformData::setupPaint where font size is manipulated.
     if (fabsf(specifiedSize) < std::numeric_limits<float>::epsilon())
-        return 1.0f; // return 0.0f;
-    // SAMSUNG CHANGE -
+        return 0.0f;
 
     float zoomFactor = 1.0f;
     if (!useSVGZoomRules) {
@@ -7608,11 +7624,10 @@ void CSSStyleSelector::loadPendingImages()
                 break;
             }
 
-            case CSSPropertyWebkitBorderImage: {
-                const NinePieceImage& borderImage = m_style->borderImage();
-                if (borderImage.image() && borderImage.image()->isPendingImage()) {
-                    CSSImageValue* imageValue = static_cast<StylePendingImage*>(borderImage.image())->cssImageValue();
-                    m_style->setBorderImage(NinePieceImage(imageValue->cachedImage(cachedResourceLoader), borderImage.slices(), borderImage.horizontalRule(), borderImage.verticalRule()));
+            case CSSPropertyBorderImageSource: {
+                if (m_style->borderImageSource() && m_style->borderImageSource()->isPendingImage()) {
+                    CSSImageValue* imageValue = static_cast<StylePendingImage*>(m_style->borderImageSource())->cssImageValue();
+                    m_style->setBorderImageSource(imageValue->cachedImage(cachedResourceLoader));
                 }
                 break;
             }
@@ -7622,17 +7637,16 @@ void CSSStyleSelector::loadPendingImages()
                     const NinePieceImage& maskImage = reflection->mask();
                     if (maskImage.image() && maskImage.image()->isPendingImage()) {
                         CSSImageValue* imageValue = static_cast<StylePendingImage*>(maskImage.image())->cssImageValue();
-                        reflection->setMask(NinePieceImage(imageValue->cachedImage(cachedResourceLoader), maskImage.slices(), maskImage.horizontalRule(), maskImage.verticalRule()));
+                        reflection->setMask(NinePieceImage(imageValue->cachedImage(cachedResourceLoader), maskImage.imageSlices(), maskImage.fill(), maskImage.borderSlices(), maskImage.outset(), maskImage.horizontalRule(), maskImage.verticalRule()));
                     }
                 }
                 break;
             }
 
-            case CSSPropertyWebkitMaskBoxImage: {
-                const NinePieceImage& maskBoxImage = m_style->maskBoxImage();
-                if (maskBoxImage.image() && maskBoxImage.image()->isPendingImage()) {
-                    CSSImageValue* imageValue = static_cast<StylePendingImage*>(maskBoxImage.image())->cssImageValue();
-                    m_style->setMaskBoxImage(NinePieceImage(imageValue->cachedImage(cachedResourceLoader), maskBoxImage.slices(), maskBoxImage.horizontalRule(), maskBoxImage.verticalRule()));
+            case CSSPropertyWebkitMaskBoxImageSource: {
+                if (m_style->maskBoxImageSource() && m_style->maskBoxImageSource()->isPendingImage()) {
+                    CSSImageValue* imageValue = static_cast<StylePendingImage*>(m_style->maskBoxImageSource())->cssImageValue();
+                    m_style->setMaskBoxImageSource(imageValue->cachedImage(cachedResourceLoader));
                 }
                 break;
             }

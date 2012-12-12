@@ -64,6 +64,7 @@
 #include "HTMLNames.h"
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
 #include "HTMLTextAreaElement.h"
+#include "GraphicsLayerAndroid.h"
 #endif
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
@@ -104,6 +105,8 @@
 #define MIN_INTERSECT_FOR_REVEAL 32
 
 using namespace std;
+
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
 
 namespace WebCore {
 
@@ -330,6 +333,10 @@ void RenderLayer::updateLayerPositions(UpdateLayerPositionsFlags flags, IntPoint
 
     if (flags & UpdatePagination)
         updatePagination();
+// SAMSUNG CHANGE Fix for [CQ - MPSG100006198]
+    /*else
+        m_isPaginated = false;*/
+// SAMSUNG CHANGE Fix for [CQ - MPSG100006198]
 
     if (m_hasVisibleContent) {
         RenderView* view = renderer()->view();
@@ -1136,15 +1143,6 @@ void RenderLayer::insertOnlyThisLayer()
         RenderLayer* parentLayer = renderer()->parent()->enclosingLayer();
         ASSERT(parentLayer);
         RenderLayer* beforeChild = parentLayer->reflectionLayer() != this ? renderer()->parent()->findNextLayer(parentLayer, renderer()) : 0;
-       
-/* if(!beforeChild && renderer()->previousSibling())
-        {
-            RenderLayer* layer = renderer()->previousSibling()->enclosingLayer();
-
-            if(layer != NULL  && layer->parent() == parentLayer)
-                beforeChild = layer;
-        }
-*/
         parentLayer->addChild(this, beforeChild);
     }
 
@@ -1396,11 +1394,27 @@ void RenderLayer::scrollTo(int x, int y)
         view->updateWidgetPositions();
     }
 
+#if PLATFORM(ANDROID)
+    GraphicsLayerAndroid* backingLayer = 0;
+    bool scrollableContent = false;
+#endif
+
 #if USE(ACCELERATED_COMPOSITING)
     if (compositor()->inCompositingMode()) {
         // Our stacking context is guaranteed to contain all of our descendants that may need
         // repositioning, so update compositing layers from there.
+#if ENABLE(ANDROID_OVERFLOW_SCROLL)
+        if (view && backing() && backing()->graphicsLayer()) {
+            backingLayer = static_cast<GraphicsLayerAndroid*>(backing()->graphicsLayer());
+            scrollableContent = backingLayer->contentLayer()
+                && backingLayer->contentLayer()->contentIsScrollable();
+        }
+        // If we have a scrollable content, no need to do this
+        RenderLayer* compositingAncestor = enclosingCompositingLayer();
+        if (!scrollableContent && compositingAncestor) {
+#else
         if (RenderLayer* compositingAncestor = stackingContext()->enclosingCompositingLayer()) {
+#endif
             if (compositor()->compositingConsultsOverlap())
                 compositor()->updateCompositingLayers(CompositingUpdateOnScroll, compositingAncestor);
             else {
@@ -1419,25 +1433,30 @@ void RenderLayer::scrollTo(int x, int y)
         // The caret rect needs to be invalidated after scrolling
         frame->selection()->setCaretRectNeedsUpdate();
 
+#if !ENABLE(ANDROID_OVERFLOW_SCROLL)
         FloatQuad quadForFakeMouseMoveEvent = FloatQuad(rectForRepaint);
         if (repaintContainer)
             quadForFakeMouseMoveEvent = repaintContainer->localToAbsoluteQuad(quadForFakeMouseMoveEvent);
         frame->eventHandler()->dispatchFakeMouseMoveEventSoonInQuad(quadForFakeMouseMoveEvent);
+#endif
     }
 
     // Just schedule a full repaint of our object.
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
     // On android, scrollable areas are put on composited layers, so we
     // do not need to repaint simply because we are scrolling
-    if (view && !hasOverflowScroll())
+    if (view && !(hasOverflowScroll() || scrollableContent))
         renderer()->repaintUsingContainer(repaintContainer, rectForRepaint);
+    if (backingLayer && (hasOverflowScroll() || scrollableContent))
+        backingLayer->updateScrollOffset();
 #else
     if (view)
         renderer()->repaintUsingContainer(repaintContainer, rectForRepaint);
 #endif
 
     // Schedule the scroll DOM event.
-    renderer()->node()->document()->eventQueue()->enqueueOrDispatchScrollEvent(renderer()->node(), EventQueue::ScrollEventElementTarget);
+    if (renderer()->node())
+        renderer()->node()->document()->eventQueue()->enqueueOrDispatchScrollEvent(renderer()->node(), EventQueue::ScrollEventElementTarget);
 }
 
 void RenderLayer::scrollRectToVisible(const IntRect& rect, bool scrollToAnchor, const ScrollAlignment& alignX, const ScrollAlignment& alignY)
@@ -2787,7 +2806,6 @@ void RenderLayer::paintPaginatedChildLayer(RenderLayer* childLayer, RenderLayer*
             break;
     }
 
-    //SAMSUNG CHANGE, yeonju.ann : when rotate the screen, crash is generated
     //ASSERT(columnLayers.size());
     if (!columnLayers.size())
         return; 
@@ -3274,11 +3292,9 @@ RenderLayer* RenderLayer::hitTestPaginatedChildLayer(RenderLayer* childLayer, Re
             break;
     }
 
-    //SAMSUNG CHANGE, yeonju.ann : when rotate the screen, crash is generated
     //ASSERT(columnLayers.size());
     if (!columnLayers.size())
         return 0; 
-
     return hitTestChildLayerColumns(childLayer, rootLayer, request, result, hitTestRect, hitTestPoint, transformState, zOffset,
                                     columnLayers, columnLayers.size() - 1);
 }
@@ -3537,24 +3553,12 @@ void RenderLayer::calculateRects(const RenderLayer* rootLayer, const IntRect& pa
         }
 
         // If we establish a clip at all, then go ahead and make sure our background
-        // rect is intersected with our layer's bounds.
-        // FIXME: This could be changed to just use generic visual overflow.
-        // See https://bugs.webkit.org/show_bug.cgi?id=37467 for more information.
-        if (const ShadowData* boxShadow = renderer()->style()->boxShadow()) {
-            IntRect overflow = layerBounds;
-            do {
-                if (boxShadow->style() == Normal) {
-                    IntRect shadowRect = layerBounds;
-                    shadowRect.move(boxShadow->x(), boxShadow->y());
-                    shadowRect.inflate(boxShadow->blur() + boxShadow->spread());
-                    overflow.unite(shadowRect);
-                }
-
-                boxShadow = boxShadow->next();
-            } while (boxShadow);
-            backgroundRect.intersect(overflow);
-        } else
-            backgroundRect.intersect(layerBounds);
+        // rect is intersected with our layer's bounds including our visual overflow,
+        // since any visual overflow like box-shadow or border-outset is not clipped by overflow:auto/hidden.
+        IntRect layerBoundsWithVisualOverflow = renderBox()->visualOverflowRect();
+        renderBox()->flipForWritingMode(layerBoundsWithVisualOverflow); // Layers are in physical coordinates, so the overflow has to be flipped.
+        layerBoundsWithVisualOverflow.move(x, y);
+        backgroundRect.intersect(layerBoundsWithVisualOverflow);
     }
 }
 
@@ -3658,9 +3662,10 @@ IntRect RenderLayer::localBoundingBox() const
     } else {
         RenderBox* box = renderBox();
         ASSERT(box);
-        if (box->hasMask())
+        if (box->hasMask()) {
             result = box->maskClipRect();
-        else {
+            box->flipForWritingMode(result); // The mask clip rect is in physical coordinates, so we have to flip, since localBoundingBox is not.
+        } else {
             IntRect bbox = box->borderBoxRect();
             result = bbox;
             IntRect overflowRect = box->visualOverflowRect();
@@ -4051,12 +4056,6 @@ void RenderLayer::setBackingNeedsRepaint()
 void RenderLayer::setBackingNeedsRepaintInRect(const IntRect& r)
 {
     ASSERT(isComposited());
-
-    //SAMSUNG CHANGES >>
-    if(backing() == NULL)
-        return;
-    //SAMSUNG CHANGES <<
-
     if (backing()->paintingGoesToWindow()) {
         // If we're trying to repaint the placeholder document layer, propagate the
         // repaint to the native view system.
@@ -4091,6 +4090,7 @@ bool RenderLayer::shouldBeNormalFlowOnly() const
                 || renderer()->hasReflection()
                 || renderer()->hasMask()
                 || renderer()->isVideo()
+                || renderer()->isCanvas() //Canvas Bench mark  “Start Test”  and “Test Result” are not visible .
                 || renderer()->isEmbeddedObject()
                 || renderer()->isApplet()
                 || renderer()->isRenderIFrame()
@@ -4112,6 +4112,7 @@ bool RenderLayer::isSelfPaintingLayer() const
         || renderer()->hasMask()
         || renderer()->isTableRow()
         || renderer()->isVideo()
+        || renderer()->isCanvas() //Canvas Bench mark  “Start Test”  and “Test Result” are not visible .
         || renderer()->isEmbeddedObject()
         || renderer()->isApplet()
         || renderer()->isRenderIFrame();

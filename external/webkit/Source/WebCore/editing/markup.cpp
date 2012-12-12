@@ -56,8 +56,9 @@
 #include "visible_units.h"
 #include <wtf/StdLibExtras.h>
 #include <wtf/unicode/CharacterNames.h>
-
+//SISO_HTMLComposer start
 using namespace android;
+//SISO_HTMLComposer end
 using namespace std;
 
 namespace WebCore {
@@ -123,9 +124,11 @@ public:
     , m_shouldAnnotate(shouldAnnotate)
     {
     }
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 Node* serializeNodes(Node* startNode, Node* pastEnd,const String& basePath = String()/*SAMSUNG_HTML_EDIT_EXTENSION*/, android::WebHTMLMarkupData* markupData = 0);
-//SISO_HTMLCOMPOSER end
+
+  //  Node* serializeNodes(Node* startNode, Node* pastEnd);
+//SISO_HTMLComposer end
 
     virtual void appendString(const String& s) { return MarkupAccumulator::appendString(s); }
     void wrapWithNode(Node*, bool convertBlocksToInlines = false, RangeFullySelectsNode = DoesFullySelectNode);
@@ -319,10 +322,10 @@ void StyledMarkupAccumulator::removeExteriorStyles(CSSMutableStyleDeclaration* s
 {
     style->removeProperty(CSSPropertyFloat);
 }
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 Node* StyledMarkupAccumulator::serializeNodes(Node* startNode, Node* pastEnd,const String& basePath /*SAMSUNG_HTML_EDIT_EXTENSION*/, android::WebHTMLMarkupData* markupData)
 {
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer end
     Vector<Node*> ancestorsToClose;
     Node* next;
     Node* lastClosed = 0;
@@ -469,7 +472,9 @@ static bool isElementPresentational(const Node* node)
     RefPtr<CSSMutableStyleDeclaration> style = styleFromMatchedRulesAndInlineDecl(node);
     if (!style)
         return false;
+//SISO_HTMLComposer start
     return !propertyMissingOrEqualToNone(style.get(), CSSPropertyTextDecoration) || !Editor::hasTransparentBackgroundColor(style.get());
+//SISO_HTMLComposer end
 }
 
 static bool shouldIncludeWrapperForFullySelectedRoot(Node* fullySelectedRoot, CSSMutableStyleDeclaration* style)
@@ -525,9 +530,9 @@ static Node* highestAncestorToWrapMarkup(const Range* range, Node* fullySelected
 
 // FIXME: Shouldn't we omit style info when annotate == DoNotAnnotateForInterchange? 
 // FIXME: At least, annotation and style info should probably not be included in range.markupString()
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 String createMarkup(const Range* range, Vector<Node*>* nodes, EAnnotateForInterchange shouldAnnotate, bool convertBlocksToInlines, EAbsoluteURLs shouldResolveURLs,const String& basePath  /*SISO_HTMLCOMPOSER*/, WebHTMLMarkupData* markupData )
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 {
     DEFINE_STATIC_LOCAL(const String, interchangeNewlineString, ("<br class=\"" AppleInterchangeNewline "\">"));
 
@@ -595,9 +600,9 @@ String createMarkup(const Range* range, Vector<Node*>* nodes, EAnnotateForInterc
 
     Node* specialCommonAncestor = highestAncestorToWrapMarkup(updatedRange.get(), fullySelectedRoot, shouldAnnotate);
 
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
     Node* lastClosed = accumulator.serializeNodes(startNode, pastEnd,basePath  /*SISO_HTMLCOMPOSER*/,markupData);
-//SISO_HTMLCOMPOSER end	
+//SISO_HTMLComposer end
 
     if (specialCommonAncestor && lastClosed) {
         // Also include all of the ancestors of lastClosed up to this special ancestor.
@@ -693,9 +698,9 @@ PassRefPtr<DocumentFragment> createFragmentFromMarkup(Document* document, const 
     return fragment.release();
 }
 
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 String createMarkup(const Node* node, EChildrenOnly childrenOnly, Vector<Node*>* nodes, EAbsoluteURLs shouldResolveURLs,const String& basePath  /*SAMSUNG_HTML_EDIT_EXTENSION*/, WebHTMLMarkupData* markupData)
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 {
     if (!node)
         return "";
@@ -708,9 +713,9 @@ String createMarkup(const Node* node, EChildrenOnly childrenOnly, Vector<Node*>*
     }
 
     MarkupAccumulator accumulator(nodes, shouldResolveURLs);
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
     return accumulator.serializeNodes(const_cast<Node*>(node), deleteButtonContainerElement, childrenOnly,String(),markupData);
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 }
 
 static void fillContainerFromString(ContainerNode* paragraph, const String& string)
@@ -925,7 +930,7 @@ String urlToMarkup(const KURL& url, const String& title)
     append(markup, "</a>");
     return String::adopt(markup);
 }
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 WebHTMLMarkupData* createFullMarkup(const Node* node,const String& basePath)
 {
     WebHTMLMarkupData* markupData = new WebHTMLMarkupData();    
@@ -960,6 +965,6 @@ WebHTMLMarkupData* createFullMarkup(const Node* node,const String& basePath)
     //Char Set is currently not added to the markup data
     return markupData;
 }
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 
 }

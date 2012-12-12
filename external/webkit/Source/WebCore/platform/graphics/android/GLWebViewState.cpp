@@ -23,99 +23,57 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define LOG_TAG "GLWebViewState"
+#define LOG_NDEBUG 1
+
 #include "config.h"
 #include "GLWebViewState.h"
 
 #if USE(ACCELERATED_COMPOSITING)
 
-// SAMSUNG CHANGE >> White flickering issue.
-#include "Layer.h"
-// SAMSUNG CHANGE <<
+#include "AndroidLog.h"
 #include "BaseLayerAndroid.h"
 #include "ClassTracker.h"
 #include "GLUtils.h"
 #include "ImagesManager.h"
 #include "LayerAndroid.h"
+#include "private/hwui/DrawGlInfo.h"
 #include "ScrollableLayerAndroid.h"
 #include "SkPath.h"
 #include "TilesManager.h"
-#include "TilesTracker.h"
-#include "CanvasLayerAndroid.h"
-#include "TreeManager.h"
-#include <wtf/CurrentTime.h>
-
+#include "TransferQueue.h"
+#include "SurfaceCollection.h"
+#include "SurfaceCollectionManager.h"
 #include <pthread.h>
-#include <cutils/log.h>
-#include <wtf/text/CString.h>
-
-#undef XLOGC
-#define XLOGC(...) android_printLog(ANDROID_LOG_DEBUG, "GLWebViewState", __VA_ARGS__)
-
-#ifdef DEBUG
-
-#undef XLOG
-#define XLOG(...) android_printLog(ANDROID_LOG_DEBUG, "GLWebViewState", __VA_ARGS__)
-
-#else
-
-#undef XLOG
-#define XLOG(...)
-
-#endif // DEBUG
-
-#define FIRST_TILED_PAGE_ID 1
-#define SECOND_TILED_PAGE_ID 2
-
-#define FRAMERATE_CAP 0.01666 // We cap at 60 fps
+#include <wtf/CurrentTime.h>
 
 // log warnings if scale goes outside this range
 #define MIN_SCALE_WARNING 0.1
-#define MAX_SCALE_WARNING 10
+#define MAX_SCALE_WARNING 11
+
+// fps indicator is FPS_INDICATOR_HEIGHT pixels high.
+// The max width is equal to MAX_FPS_VALUE fps.
+#define FPS_INDICATOR_HEIGHT 10
+#define MAX_FPS_VALUE 60
+
+#define COLLECTION_SWAPPED_COUNTER_MODULE 10
 
 namespace WebCore {
 
-using namespace android;
+using namespace android::uirenderer;
 
 GLWebViewState::GLWebViewState()
-    : m_zoomManager(this)
-    , m_currentPictureCounter(0)
-    , m_usePageA(true)
-    , m_frameworkInval(0, 0, 0, 0)
-    , m_frameworkLayersInval(0, 0, 0, 0)
+    : m_frameworkLayersInval(0, 0, 0, 0)
+    , m_doFrameworkFullInval(false)
     , m_isScrolling(false)
+    , m_isVisibleContentRectScrolling(false)
     , m_goingDown(true)
     , m_goingLeft(false)
-    , m_expandedTileBoundsX(0)
-    , m_expandedTileBoundsY(0)
-    , m_highEndGfx(false)
     , m_scale(1)
-#if 0
-    , m_current_time(0.0f)
-    , m_start_time(0.0f)
-    , m_total_time(0.0f)
-    , m_iterations(0)
-    , m_avg_fps(0.0f)
-    , m_start(true)
-#endif 
-   , m_layersRenderingMode(kAllTextures)
-//SAMSUNG CHANGES>>
-    , m_isZooming(false)
-    , m_isMobileSite(false)
-    , m_textureBitmapUpdated(false)
-    , mFpsScrollCount(0)
-    , mFpsZoomCount(0)
-    , mFpsCount(0)
-    , m_previousZoomAnimationScale(-1)
-    , m_isFirstDraw(true)
-//SAMSUNG CHANGES<<
+    , m_layersRenderingMode(kAllTextures)
+    , m_surfaceCollectionManager()
 {
-    m_viewport.setEmpty();
-    m_futureViewportTileBounds.setEmpty();
-    m_viewportTileBounds.setEmpty();
-    m_preZoomBounds.setEmpty();
-
-    m_tiledPageA = new TiledPage(FIRST_TILED_PAGE_ID, this);
-    m_tiledPageB = new TiledPage(SECOND_TILED_PAGE_ID, this);
+    m_visibleContentRect.setEmpty();
 
 #ifdef DEBUG_COUNT
     ClassTracker::instance()->increment("GLWebViewState");
@@ -129,42 +87,26 @@ GLWebViewState::GLWebViewState()
 
 GLWebViewState::~GLWebViewState()
 {
-    // Take care of the transfer queue such that Tex Gen thread will not stuck
-    TilesManager::instance()->unregisterGLWebViewState(this);
-
-    // We have to destroy the two tiled pages first as their destructor
-    // may depend on the existence of this GLWebViewState and some of its
-    // instance variables in order to complete.
-    // Explicitely, currently we need to have the m_paintingBaseLayer around
-    // in order to complete any pending paint operations (the tiled pages
-    // will remove any pending operations, and wait if one is underway).
-    delete m_tiledPageA;
-    delete m_tiledPageB;
 #ifdef DEBUG_COUNT
     ClassTracker::instance()->decrement("GLWebViewState");
 #endif
 
 }
 
-void GLWebViewState::setBaseLayer(BaseLayerAndroid* layer, const SkRegion& inval,
-                                  bool showVisualIndicator, bool isPictureAfterFirstLayout)
+bool GLWebViewState::setBaseLayer(BaseLayerAndroid* layer, bool showVisualIndicator,
+                                  bool isPictureAfterFirstLayout)
 {
-    if (!layer || isPictureAfterFirstLayout) {
-        // TODO: move this into TreeManager
-        m_zoomManager.swapPages(); // reset zoom state
-        m_tiledPageA->discardTextures();
-        m_tiledPageB->discardTextures();
+    if (!layer || isPictureAfterFirstLayout)
         m_layersRenderingMode = kAllTextures;
-    }
 
-
-    // copy content from old composited root to new
+    SurfaceCollection* collection = 0;
     if (layer) {
-        XLOG("new base layer %p, (inval region empty %d) with child %p", layer, inval.isEmpty(), layer->getChild(0));
+        ALOGV("layer tree %p, with child %p", layer, layer->getChild(0));
         layer->setState(this);
-        layer->markAsDirty(inval); // TODO: set in webview.cpp
+        collection = new SurfaceCollection(layer);
     }
-    m_treeManager.updateWithTree(layer, isPictureAfterFirstLayout);
+    bool queueFull = m_surfaceCollectionManager.updateWithSurfaceCollection(
+        collection, isPictureAfterFirstLayout);
     m_glExtras.setDrawExtra(0);
 
 #ifdef MEASURES_PERF
@@ -174,158 +116,58 @@ void GLWebViewState::setBaseLayer(BaseLayerAndroid* layer, const SkRegion& inval
 #endif
 
     TilesManager::instance()->setShowVisualIndicator(showVisualIndicator);
+    return queueFull;
 }
-
-// SAMSUNG CHANGE >> White flickering issue.
-Color GLWebViewState::getBaseLayerBgColor() 
-{ 
-	Layer* paintingLayer = m_treeManager.getPaintingTree();
-	Layer* drawingLayer = m_treeManager.getDrawingTree();
-	Layer* layer = 0;
-	layer = paintingLayer ? paintingLayer : (drawingLayer ? drawingLayer : 0 );
-	if( layer ) 
-		return layer->getBackgroundColor();
-	else
-		return Color(255,255,255,255);
-}
-// SAMSUNG CHANGE <<
 
 void GLWebViewState::scrollLayer(int layerId, int x, int y)
 {
-    m_treeManager.updateScrollableLayer(layerId, x, y);
-
-    // TODO: only inval the area of the scrolled layer instead of
-    // doing a fullInval()
-    if (m_layersRenderingMode == kSingleSurfaceRendering)
-        fullInval();
+    m_surfaceCollectionManager.updateScrollableLayer(layerId, x, y);
 }
 
-void GLWebViewState::invalRegion(const SkRegion& region)
+void GLWebViewState::setVisibleContentRect(const SkRect& visibleContentRect, float scale)
 {
-    if (m_layersRenderingMode == kSingleSurfaceRendering) {
-        // TODO: do the union of both layers tree to compute
-        //the minimum inval instead of doing a fullInval()
-        fullInval();
-        return;
-    }
-    SkRegion::Iterator iterator(region);
-    while (!iterator.done()) {
-        SkIRect r = iterator.rect();
-        IntRect ir(r.fLeft, r.fTop, r.width(), r.height());
-        inval(ir);
-        iterator.next();
-    }
-}
-
-void GLWebViewState::inval(const IntRect& rect)
-{
-        m_currentPictureCounter++;
-        if (!rect.isEmpty()) {
-            // find which tiles fall within the invalRect and mark them as dirty
-            m_tiledPageA->invalidateRect(rect, m_currentPictureCounter);
-            m_tiledPageB->invalidateRect(rect, m_currentPictureCounter);
-            if (m_frameworkInval.isEmpty())
-                m_frameworkInval = rect;
-            else
-                m_frameworkInval.unite(rect);
-            XLOG("intermediate invalRect(%d, %d, %d, %d) after unite with rect %d %d %d %d", m_frameworkInval.x(),
-                 m_frameworkInval.y(), m_frameworkInval.width(), m_frameworkInval.height(),
-                 rect.x(), rect.y(), rect.width(), rect.height());
-        }
-    TilesManager::instance()->getProfiler()->nextInval(rect, zoomManager()->currentScale());
-}
-
-unsigned int GLWebViewState::paintBaseLayerContent(SkCanvas* canvas)
-{
-    m_treeManager.drawCanvas(canvas, m_layersRenderingMode == kSingleSurfaceRendering);
-    return m_currentPictureCounter;
-}
-
-TiledPage* GLWebViewState::sibling(TiledPage* page)
-{
-    return (page == m_tiledPageA) ? m_tiledPageB : m_tiledPageA;
-}
-
-TiledPage* GLWebViewState::frontPage()
-{
-    android::Mutex::Autolock lock(m_tiledPageLock);
-    return m_usePageA ? m_tiledPageA : m_tiledPageB;
-}
-
-TiledPage* GLWebViewState::backPage()
-{
-    android::Mutex::Autolock lock(m_tiledPageLock);
-    return m_usePageA ? m_tiledPageB : m_tiledPageA;
-}
-
-void GLWebViewState::swapPages()
-{
-    android::Mutex::Autolock lock(m_tiledPageLock);
-    m_usePageA ^= true;
-    TiledPage* oldPage = m_usePageA ? m_tiledPageB : m_tiledPageA;
-    zoomManager()->swapPages();
-    oldPage->discardTextures();
-    //SAMSUNG CHNAGES >>	
-    if(mSharpenStartTime != -1){
-         mSharpenEndTime = WTF::currentTimeMS();	
-         double sharpenTime = (mSharpenEndTime - mSharpenStartTime);
-         XLOGC("Disappearing white area time and Sharpening time after zooming: %.3f milliSecs", sharpenTime );		 
-	  		//XLOGC("White Area time during zooming: %.3f milliSecs", mWhiteAreaTime );		 
-	  		mSharpenStartTime = mSharpenEndTime = -1;	 
-    }
-    //SAMSUNG CHNAGES <<	
-}
-
-int GLWebViewState::baseContentWidth()
-{
-    return m_treeManager.baseContentWidth();
-}
-int GLWebViewState::baseContentHeight()
-{
-    return m_treeManager.baseContentHeight();
-}
-
-void GLWebViewState::setViewport(SkRect& viewport, float scale)
-{
-    if ((m_viewport == viewport) &&
-        (zoomManager()->futureScale() == scale))
-        return;
-
-    m_goingDown = m_viewport.fTop - viewport.fTop <= 0;
-    m_goingLeft = m_viewport.fLeft - viewport.fLeft >= 0;
-    m_viewport = viewport;
-
-    XLOG("New VIEWPORT %.2f - %.2f %.2f - %.2f (w: %2.f h: %.2f scale: %.2f currentScale: %.2f futureScale: %.2f)",
-         m_viewport.fLeft, m_viewport.fTop, m_viewport.fRight, m_viewport.fBottom,
-         m_viewport.width(), m_viewport.height(), scale,
-         zoomManager()->currentScale(), zoomManager()->futureScale());
-
+    // allocate max possible number of tiles visible with this visibleContentRect / expandedTileBounds
     const float invTileContentWidth = scale / TilesManager::tileWidth();
     const float invTileContentHeight = scale / TilesManager::tileHeight();
 
-    m_viewportTileBounds.set(
-            static_cast<int>(floorf(viewport.fLeft * invTileContentWidth)),
-            static_cast<int>(floorf(viewport.fTop * invTileContentHeight)),
-            static_cast<int>(ceilf(viewport.fRight * invTileContentWidth)),
-            static_cast<int>(ceilf(viewport.fBottom * invTileContentHeight)));
+    int viewMaxTileX =
+        static_cast<int>(ceilf((visibleContentRect.width()-1) * invTileContentWidth)) + 1;
+    int viewMaxTileY =
+        static_cast<int>(ceilf((visibleContentRect.height()-1) * invTileContentHeight)) + 1;
 
-    // allocate max possible number of tiles visible with this viewport
-    int viewMaxTileX = static_cast<int>(ceilf((viewport.width()-1) * invTileContentWidth)) + 1;
-    int viewMaxTileY = static_cast<int>(ceilf((viewport.height()-1) * invTileContentHeight)) + 1;
+    TilesManager* tilesManager = TilesManager::instance();
+    int maxTextureCount = viewMaxTileX * viewMaxTileY * (tilesManager->highEndGfx() ? 6 : 2); // SAMSUNG CHANGE ++ : [P120827-2788]increase to 6 from 4 if highEndGfx enabled
 
-    int maxTextureCount = (viewMaxTileX + m_expandedTileBoundsX * 2) *
-        (viewMaxTileY + m_expandedTileBoundsY * 2) * (m_highEndGfx ? 4 : 2);
+    tilesManager->setCurrentTextureCount(maxTextureCount);
 
-    TilesManager::instance()->setMaxTextureCount(maxTextureCount);
-    m_tiledPageA->updateBaseTileSize();
-    m_tiledPageB->updateBaseTileSize();
+    // TODO: investigate whether we can move this return earlier.
+    if ((m_visibleContentRect == visibleContentRect)
+        && (m_scale == scale)) {
+        // everything below will stay the same, early return.
+        m_isVisibleContentRectScrolling = false;
+        return;
+    }
+    m_scale = scale;
+
+    m_goingDown = m_visibleContentRect.fTop - visibleContentRect.fTop <= 0;
+    m_goingLeft = m_visibleContentRect.fLeft - visibleContentRect.fLeft >= 0;
+
+    // detect visibleContentRect scrolling from short programmatic scrolls/jumps
+    m_isVisibleContentRectScrolling = m_visibleContentRect != visibleContentRect
+        && SkRect::Intersects(m_visibleContentRect, visibleContentRect);
+    m_visibleContentRect = visibleContentRect;
+
+    ALOGV("New visibleContentRect %.2f - %.2f %.2f - %.2f (w: %2.f h: %.2f scale: %.2f )",
+          m_visibleContentRect.fLeft, m_visibleContentRect.fTop,
+          m_visibleContentRect.fRight, m_visibleContentRect.fBottom,
+          m_visibleContentRect.width(), m_visibleContentRect.height(), scale);
 }
 
 #ifdef MEASURES_PERF
 void GLWebViewState::dumpMeasures()
 {
     for (int i = 0; i < m_timeCounter; i++) {
-        XLOGC("%d delay: %d ms", m_totalTimeCounter + i,
+        ALOGD("%d delay: %d ms", m_totalTimeCounter + i,
              static_cast<int>(m_delayTimes[i]*1000));
         m_delayTimes[i] = 0;
     }
@@ -333,14 +175,6 @@ void GLWebViewState::dumpMeasures()
     m_timeCounter = 0;
 }
 #endif // MEASURES_PERF
-
-void GLWebViewState::resetFrameworkInval()
-{
-    m_frameworkInval.setX(0);
-    m_frameworkInval.setY(0);
-    m_frameworkInval.setWidth(0);
-    m_frameworkInval.setHeight(0);
-}
 
 void GLWebViewState::addDirtyArea(const IntRect& rect)
 {
@@ -361,71 +195,41 @@ void GLWebViewState::resetLayersDirtyArea()
     m_frameworkLayersInval.setY(0);
     m_frameworkLayersInval.setWidth(0);
     m_frameworkLayersInval.setHeight(0);
+    m_doFrameworkFullInval = false;
 }
 
-// SAMSUNG CHANGE >> White flickering issue.
-// WAS:void GLWebViewState::drawBackground(Color& backgroundColor)
-// WAS:{
-// WAS:    if (TilesManager::instance()->invertedScreen()) {
-// WAS:        float color = 1.0 - ((((float) backgroundColor.red() / 255.0) +
-// WAS:                      ((float) backgroundColor.green() / 255.0) +
-// WAS:                      ((float) backgroundColor.blue() / 255.0)) / 3.0);
-// WAS:        glClearColor(color, color, color, 1);
-// WAS:    } else {
-// WAS:        glClearColor((float)backgroundColor.red() / 255.0,
-// WAS:                     (float)backgroundColor.green() / 255.0,
-// WAS:                     (float)backgroundColor.blue() / 255.0, 1);
-// WAS:    }
-// WAS:    glClear(GL_COLOR_BUFFER_BIT);
-// WAS:}
-void GLWebViewState::drawBackground(SkColor& backgroundColor)
+void GLWebViewState::doFrameworkFullInval()
 {
-					  
-    if (TilesManager::instance()->invertedScreen()) {
-        float color = 1.0 - ((((float) SkColorGetR(backgroundColor) / 255.0) +
-                      ((float) SkColorGetG(backgroundColor) / 255.0) +
-                      ((float) SkColorGetB(backgroundColor) / 255.0)) / 3.0);
-        glClearColor(color, color, color, 1);
-    } else {
-        glClearColor((float)SkColorGetR(backgroundColor) / 255.0,
-                     (float)SkColorGetG(backgroundColor) / 255.0,
-                     (float)SkColorGetB(backgroundColor) / 255.0, 1);
-    }
-    glClear(GL_COLOR_BUFFER_BIT);
+    m_doFrameworkFullInval = true;
 }
-// SAMSUNG CHANGE <<
 
-double GLWebViewState::setupDrawing(IntRect& viewRect, SkRect& visibleRect,
-                                  IntRect& webViewRect, int titleBarHeight,
-                                  IntRect& screenClip, float scale)
+double GLWebViewState::setupDrawing(const IntRect& invScreenRect,
+                                    const SkRect& visibleContentRect,
+                                    const IntRect& screenRect, int titleBarHeight,
+                                    const IntRect& screenClip, float scale)
 {
-    int left = viewRect.x();
-    int top = viewRect.y();
-    int width = viewRect.width();
-    int height = viewRect.height();
+    TilesManager* tilesManager = TilesManager::instance();
 
-    ShaderProgram* shader = TilesManager::instance()->shader();
-    if (shader->program() == -1) {
-        XLOG("Reinit shader");
-        shader->init();
+    // Make sure GL resources are created on the UI thread.
+    // They are created either for the first time, or after EGL context
+    // recreation caused by onTrimMemory in the framework.
+    ShaderProgram* shader = tilesManager->shader();
+    if (shader->needsInit()) {
+        ALOGD("Reinit shader");
+        shader->initGLResources();
     }
-    shader->setViewport(visibleRect, scale);
-    shader->setViewRect(viewRect);
-    shader->setWebViewRect(webViewRect);
-    shader->setTitleBarHeight(titleBarHeight);
-    shader->setScreenClip(screenClip);
-    shader->resetBlending();
-
-    shader->calculateAnimationDelta();
-
-    glViewport(left + shader->getAnimationDeltaX(),
-               top - shader->getAnimationDeltaY(),
-               width, height);
+    TransferQueue* transferQueue = tilesManager->transferQueue();
+    if (transferQueue->needsInit()) {
+        ALOGD("Reinit transferQueue");
+        transferQueue->initGLResources(TilesManager::tileWidth(),
+                                       TilesManager::tileHeight());
+    }
+    shader->setupDrawing(invScreenRect, visibleContentRect, screenRect,
+                         titleBarHeight, screenClip, scale);
 
     double currentTime = WTF::currentTime();
 
-    setViewport(visibleRect, scale);
-    m_zoomManager.processNewScale(currentTime, scale);
+    setVisibleContentRect(visibleContentRect, scale);
 
     return currentTime;
 }
@@ -435,11 +239,11 @@ bool GLWebViewState::setLayersRenderingMode(TexturesResult& nbTexturesNeeded)
     bool invalBase = false;
 
     if (!nbTexturesNeeded.full)
-        TilesManager::instance()->setMaxLayerTextureCount(0);
+        TilesManager::instance()->setCurrentLayerTextureCount(0);
     else
-        TilesManager::instance()->setMaxLayerTextureCount((2*nbTexturesNeeded.full)+1);
+        TilesManager::instance()->setCurrentLayerTextureCount((2 * nbTexturesNeeded.full) + 1);
 
-    int maxTextures = TilesManager::instance()->maxLayerTextureCount();
+    int maxTextures = TilesManager::instance()->currentLayerTextureCount();
     LayersRenderingMode layersRenderingMode = m_layersRenderingMode;
 
     if (m_layersRenderingMode == kSingleSurfaceRendering) {
@@ -473,7 +277,7 @@ bool GLWebViewState::setLayersRenderingMode(TexturesResult& nbTexturesNeeded)
     if (m_layersRenderingMode != layersRenderingMode) {
         char* mode[] = { "kAllTextures", "kClippedTextures",
             "kScrollableAndFixedLayers", "kFixedLayers", "kSingleSurfaceRendering" };
-        XLOGC("Change from mode %s to %s -- We need textures: fixed: %d,"
+        ALOGD("Change from mode %s to %s -- We need textures: fixed: %d,"
               " scrollable: %d, clipped: %d, full: %d, max textures: %d",
               static_cast<char*>(mode[layersRenderingMode]),
               static_cast<char*>(mode[m_layersRenderingMode]),
@@ -491,160 +295,118 @@ bool GLWebViewState::setLayersRenderingMode(TexturesResult& nbTexturesNeeded)
         m_layersRenderingMode = kSingleSurfaceRendering;
 
     // update the base surface if needed
-    if (m_layersRenderingMode != layersRenderingMode
-        && invalBase) {
-        m_tiledPageA->discardTextures();
-        m_tiledPageB->discardTextures();
-        fullInval();
-        return true;
-    }
-    return false;
+    // TODO: inval base layergroup when going into single surface mode
+    return (m_layersRenderingMode != layersRenderingMode && invalBase);
 }
 
-void GLWebViewState::fullInval()
+// -invScreenRect is the webView's rect with inverted Y screen coordinate.
+// -visibleContentRect is the visible area in content coordinate.
+// They are both based on  webView's rect and calculated in Java side.
+//
+// -screenClip is in screen coordinate, so we need to invert the Y axis before
+// passing into GL functions. Clip can be smaller than the webView's rect.
+//
+// TODO: Try to decrease the number of parameters as some info is redundant.
+int GLWebViewState::drawGL(IntRect& invScreenRect, SkRect& visibleContentRect,
+                           IntRect* invalRect, IntRect& screenRect, int titleBarHeight,
+                           IntRect& screenClip, float scale,
+                           bool* collectionsSwappedPtr, bool* newCollectionHasAnimPtr,
+                           bool shouldDraw)
 {
-    // TODO -- use base layer's size.
-    IntRect ir(0, 0, 1E6, 1E6);
-    inval(ir);
-}
+    TilesManager* tilesManager = TilesManager::instance();
+    if (shouldDraw)
+        tilesManager->getProfiler()->nextFrame(visibleContentRect.fLeft,
+                                               visibleContentRect.fTop,
+                                               visibleContentRect.fRight,
+                                               visibleContentRect.fBottom,
+                                               scale);
+    tilesManager->incDrawGLCount();
 
-bool GLWebViewState::drawGL(IntRect& rect, SkRect& viewport, IntRect* invalRect,
-                            IntRect& webViewRect, int titleBarHeight,
-                            IntRect& clip, float scale,
-                            bool* treesSwappedPtr, bool* newTreeHasAnimPtr)
-{
-#if 0//logging
-    if(m_start)
-    {
-        m_start_time = currentTime();
-        m_current_time = currentTime();
-        m_total_time = 0;
-        m_iterations = 0;
-        m_avg_fps = 0;
-        m_counter_test = 0;
-        m_start = false;
-    }
-    else{
-        m_current_time = currentTime();
-        m_total_time = m_current_time - m_start_time;
-        ++m_iterations;
-        if(m_total_time > 15)
-        {
-            ++m_counter_test;
-            m_avg_fps = m_iterations/m_total_time;
-        }
-    }
-#endif 
-    m_scale = scale;
-    TilesManager::instance()->getProfiler()->nextFrame(viewport.fLeft,
-                                                       viewport.fTop,
-                                                       viewport.fRight,
-                                                       viewport.fBottom,
-                                                       scale);
-    TilesManager::instance()->incDrawGLCount();
+    ALOGV("drawGL, invScreenRect(%d, %d, %d, %d), visibleContentRect(%.2f, %.2f, %.2f, %.2f)",
+          invScreenRect.x(), invScreenRect.y(), invScreenRect.width(), invScreenRect.height(),
+          visibleContentRect.fLeft, visibleContentRect.fTop,
+          visibleContentRect.fRight, visibleContentRect.fBottom);
 
-#ifdef DEBUG
-    TilesManager::instance()->getTilesTracker()->clear();
-#endif
+    ALOGV("drawGL, invalRect(%d, %d, %d, %d), screenRect(%d, %d, %d, %d)"
+          "screenClip (%d, %d, %d, %d), scale %f titleBarHeight %d",
+          invalRect->x(), invalRect->y(), invalRect->width(), invalRect->height(),
+          screenRect.x(), screenRect.y(), screenRect.width(), screenRect.height(),
+          screenClip.x(), screenClip.y(), screenClip.width(), screenClip.height(), scale, titleBarHeight);
 
-    float viewWidth = (viewport.fRight - viewport.fLeft) * TILE_PREFETCH_RATIO;
-    float viewHeight = (viewport.fBottom - viewport.fTop) * TILE_PREFETCH_RATIO;
-    bool useMinimalMemory = TilesManager::instance()->useMinimalMemory();
-    bool useHorzPrefetch = useMinimalMemory ? 0 : viewWidth < baseContentWidth();
-    bool useVertPrefetch = useMinimalMemory ? 0 : viewHeight < baseContentHeight();
-    m_expandedTileBoundsX = (useHorzPrefetch) ? TILE_PREFETCH_DISTANCE : 0;
-    m_expandedTileBoundsY = (useVertPrefetch) ? TILE_PREFETCH_DISTANCE : 0;
-
-    XLOG("drawGL, rect(%d, %d, %d, %d), viewport(%.2f, %.2f, %.2f, %.2f)",
-         rect.x(), rect.y(), rect.width(), rect.height(),
-         viewport.fLeft, viewport.fTop, viewport.fRight, viewport.fBottom);
+    m_inUnclippedDraw = shouldDraw && (screenRect == screenClip);
 
     resetLayersDirtyArea();
 
-    // when adding or removing layers, use the the paintingBaseLayer's tree so
-    // that content that moves to the base layer from a layer is synchronized
-
     if (scale < MIN_SCALE_WARNING || scale > MAX_SCALE_WARNING)
-        XLOGC("WARNING, scale seems corrupted before update: %e", scale);
+        ALOGW("WARNING, scale seems corrupted before update: %e", scale);
 
-    // Here before we draw, update the BaseTile which has updated content.
-    // Inside this function, just do GPU blits from the transfer queue into
-    // the BaseTiles' texture.
-    TilesManager::instance()->transferQueue()->updateDirtyBaseTiles();
+    tilesManager->updateTilesIfContextVerified();
+
+    // gather the textures we can use, make sure this happens before any
+    // texture preparation work.
+    tilesManager->gatherTextures();
 
     // Upload any pending ImageTexture
     // Return true if we still have some images to upload.
     // TODO: upload as many textures as possible within a certain time limit
-    bool ret = ImagesManager::instance()->prepareTextures(this);
+    int returnFlags = 0;
+    if (ImagesManager::instance()->prepareTextures(this))
+        returnFlags |= DrawGlInfo::kStatusDraw;
 
-    if (scale < MIN_SCALE_WARNING || scale > MAX_SCALE_WARNING)
-        XLOGC("WARNING, scale seems corrupted after update: %e", scale);
+    if (scale < MIN_SCALE_WARNING || scale > MAX_SCALE_WARNING) {
+        ALOGW("WARNING, scale seems corrupted after update: %e", scale);
+        scale = 1.0f; // WORKAROUND for corrupted scale: use 1.0
+    }
 
-    // gather the textures we can use
-    TilesManager::instance()->gatherLayerTextures();
-
-    double currentTime = setupDrawing(rect, viewport, webViewRect, titleBarHeight, clip, scale);
-
+    double currentTime = setupDrawing(invScreenRect, visibleContentRect, screenRect,
+                                      titleBarHeight, screenClip, scale);
 
     TexturesResult nbTexturesNeeded;
-    bool fastSwap = isScrolling() || m_layersRenderingMode == kSingleSurfaceRendering;
-    ret |= m_treeManager.drawGL(currentTime, rect, viewport,
-                                scale, fastSwap,
-                                treesSwappedPtr, newTreeHasAnimPtr,
-                                &nbTexturesNeeded);
-    if (!ret)
-        resetFrameworkInval();
+    bool scrolling = isScrolling();
+    bool singleSurfaceMode = m_layersRenderingMode == kSingleSurfaceRendering;
+    m_glExtras.setVisibleContentRect(visibleContentRect);
+
+    returnFlags |= m_surfaceCollectionManager.drawGL(currentTime, invScreenRect,
+                                                     visibleContentRect,
+                                                     scale, scrolling,
+                                                     singleSurfaceMode,
+                                                     collectionsSwappedPtr,
+                                                     newCollectionHasAnimPtr,
+                                                     &nbTexturesNeeded, shouldDraw);
 
     int nbTexturesForImages = ImagesManager::instance()->nbTextures();
-    XLOG("*** We have %d textures for images, %d full, %d clipped, total %d / %d",
+    ALOGV("*** We have %d textures for images, %d full, %d clipped, total %d / %d",
           nbTexturesForImages, nbTexturesNeeded.full, nbTexturesNeeded.clipped,
           nbTexturesNeeded.full + nbTexturesForImages,
           nbTexturesNeeded.clipped + nbTexturesForImages);
     nbTexturesNeeded.full += nbTexturesForImages;
     nbTexturesNeeded.clipped += nbTexturesForImages;
-    ret |= setLayersRenderingMode(nbTexturesNeeded);
 
-    FloatRect extrasclip(0, 0, rect.width(), rect.height());
-    TilesManager::instance()->shader()->clip(extrasclip);
-
-    m_glExtras.drawGL(webViewRect, viewport, titleBarHeight);
+    if (setLayersRenderingMode(nbTexturesNeeded)) {
+        TilesManager::instance()->dirtyAllTiles();
+        returnFlags |= DrawGlInfo::kStatusDraw | DrawGlInfo::kStatusInvoke;
+    }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    // Clean up GL textures for video layer.
-    TilesManager::instance()->videoLayerManager()->deleteUnusedTextures();
-    ret |= TilesManager::instance()->invertedScreenSwitch();
-
-    if (ret) {
-        // ret==true && empty inval region means we've inval'd everything,
+    if (returnFlags & DrawGlInfo::kStatusDraw) {
+        // returnFlags & kStatusDraw && empty inval region means we've inval'd everything,
         // but don't have new content. Keep redrawing full view (0,0,0,0)
         // until tile generation catches up and we swap pages.
-        bool fullScreenInval = m_frameworkInval.isEmpty();
-
-        if (TilesManager::instance()->invertedScreenSwitch()) {
-            fullScreenInval = true;
-            TilesManager::instance()->setInvertedScreenSwitch(false);
-        }
+        bool fullScreenInval = m_frameworkLayersInval.isEmpty() || m_doFrameworkFullInval;
 
         if (!fullScreenInval) {
-            FloatRect frameworkInval = TilesManager::instance()->shader()->rectInInvScreenCoord(
-                    m_frameworkInval);
-            // Inflate the invalidate rect to avoid precision lost.
-            frameworkInval.inflate(1);
-            IntRect inval(frameworkInval.x(), frameworkInval.y(),
-                    frameworkInval.width(), frameworkInval.height());
+            m_frameworkLayersInval.inflate(1);
 
-            inval.unite(m_frameworkLayersInval);
+            invalRect->setX(m_frameworkLayersInval.x());
+            invalRect->setY(m_frameworkLayersInval.y());
+            invalRect->setWidth(m_frameworkLayersInval.width());
+            invalRect->setHeight(m_frameworkLayersInval.height());
 
-            invalRect->setX(inval.x());
-            invalRect->setY(inval.y());
-            invalRect->setWidth(inval.width());
-            invalRect->setHeight(inval.height());
+            ALOGV("invalRect(%d, %d, %d, %d)", invalRect->x(),
+                  invalRect->y(), invalRect->width(), invalRect->height());
 
-            XLOG("invalRect(%d, %d, %d, %d)", inval.x(),
-                    inval.y(), inval.width(), inval.height());
-
-            if (!invalRect->intersects(rect)) {
+            if (!invalRect->intersects(invScreenRect)) {
                 // invalidate is occurring offscreen, do full inval to guarantee redraw
                 fullScreenInval = true;
             }
@@ -656,46 +418,28 @@ bool GLWebViewState::drawGL(IntRect& rect, SkRect& viewport, IntRect* invalRect,
             invalRect->setWidth(0);
             invalRect->setHeight(0);
         }
-    } else {
-        resetFrameworkInval();
     }
 
-//SAMSUNG CHNAGES>>
-   
-    //Calculate FPS for scrolling
-    if(isScrolling())
-    {
-       mFpsCount++;
-       if(m_textureBitmapUpdated)
-       {
-       	  mFpsScrollCount++;
-          m_textureBitmapUpdated = false;
-          if(m_isFirstDraw)
-    	  {
-    		m_isFirstDraw = false;
-    		mFirstDrawTime = WTF::currentTimeMS();
-    		XLOGC("First drawing after touching for scrolling. The first drawing time : %f", mFirstDrawTime);		
-    	  }
-       }
-    }
+    if (shouldDraw)
+        showFrameInfo(invScreenRect, *collectionsSwappedPtr);
 
-    //Calculate FPS for Zooming
-    if(isZooming())
-    {
-       mFpsCount++;
-       if(scale != m_previousZoomAnimationScale)
-       {
-          mFpsZoomCount++;
-          m_previousZoomAnimationScale = scale;
-		  if(m_isFirstDraw)
-    	  {
-    		m_isFirstDraw = false;
-    		mFirstDrawTime = WTF::currentTimeMS();
-    		XLOGC("First scaling after touching for zoomming. Number of frame until first drawing %d", mFpsCount);		
-    	  }
-       }
-    }
-//SAMSUNG CHNAGES<<
+    return returnFlags;
+}
+
+void GLWebViewState::showFrameInfo(const IntRect& rect, bool collectionsSwapped)
+{
+    bool showVisualIndicator = TilesManager::instance()->getShowVisualIndicator();
+
+    bool drawOrDumpFrameInfo = showVisualIndicator;
+#ifdef MEASURES_PERF
+    drawOrDumpFrameInfo |= m_measurePerfs;
+#endif
+    if (!drawOrDumpFrameInfo)
+        return;
+
+    double currentDrawTime = WTF::currentTime();
+    double delta = currentDrawTime - m_prevDrawTime;
+    m_prevDrawTime = currentDrawTime;
 
 #ifdef MEASURES_PERF
     if (m_measurePerfs) {
@@ -705,74 +449,39 @@ bool GLWebViewState::drawGL(IntRect& rect, SkRect& viewport, IntRect* invalRect,
     }
 #endif
 
-#ifdef DEBUG
-    TilesManager::instance()->getTilesTracker()->showTrackTextures();
-    ImagesManager::instance()->showImages();
-#endif
-    CanvasLayerAndroid::cleanupAssets();
-    return ret;
+    IntRect frameInfoRect = rect;
+    frameInfoRect.setHeight(FPS_INDICATOR_HEIGHT);
+    double ratio = (1.0 / delta) / MAX_FPS_VALUE;
+
+    clearRectWithColor(frameInfoRect, 1, 1, 1, 1);
+    frameInfoRect.setWidth(frameInfoRect.width() * ratio);
+    clearRectWithColor(frameInfoRect, 1, 0, 0, 1);
+
+    // Draw the collection swap counter as a circling progress bar.
+    // This will basically show how fast we are updating the collection.
+    static int swappedCounter = 0;
+    if (collectionsSwapped)
+        swappedCounter = (swappedCounter + 1) % COLLECTION_SWAPPED_COUNTER_MODULE;
+
+    frameInfoRect = rect;
+    frameInfoRect.setHeight(FPS_INDICATOR_HEIGHT);
+    frameInfoRect.move(0, FPS_INDICATOR_HEIGHT);
+
+    clearRectWithColor(frameInfoRect, 1, 1, 1, 1);
+    ratio = (swappedCounter + 1.0) / COLLECTION_SWAPPED_COUNTER_MODULE;
+
+    frameInfoRect.setWidth(frameInfoRect.width() * ratio);
+    clearRectWithColor(frameInfoRect, 0, 1, 0, 1);
 }
 
-//SAMSUNG CHNAGES>>
-void GLWebViewState::glbitmapUpdated()
+void GLWebViewState::clearRectWithColor(const IntRect& rect, float r, float g,
+                                      float b, float a)
 {
-   m_textureBitmapUpdated = true;
+    glScissor(rect.x(), rect.y(), rect.width(), rect.height());
+    glClearColor(r, g, b, a);
+    glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void GLWebViewState::setIsScrolling(bool isScrolling)
-{ 
-   m_isScrolling = isScrolling;
-   
-   if (isScrolling == false)
-   {
-      double time = (WTF::currentTimeMS() - mScrollStartTime);
-      XLOGC("==========Browser FPS MEasurement for Scrolling==========");
-      XLOGC("Total Time taken for scrolling: %.3f milliSecs", time );
-      XLOGC("Number of OpenGL frames drawn: %d , FPS: %.f", mFpsCount, ((1000 / time)* mFpsCount));
-      XLOGC("Number of frames with browser content change: %d , FPS: %.f", mFpsScrollCount , ((1000 / time) * mFpsScrollCount));
-      XLOGC("=========================================================");
-      mFpsScrollCount = 0;
-      mFpsCount = 0;
-      m_isFirstDraw = true;
-   }else{
-     mScrollStartTime = WTF::currentTimeMS();
-   }
-}
-
-bool GLWebViewState::isScrolling()
-{ 
-   return m_isScrolling;
-}
-
-void GLWebViewState::setIsZooming(bool isZooming)
-{ 
-   m_isZooming = isZooming;
-   
-   if (isZooming == false)
-   {
-      double time = WTF::currentTimeMS() - mZoomStartTime;
-      XLOGC("=============Browser FPS MEasurement for Zooming=============");
-      XLOGC("Total Time taken for Zooming: %.3f milliSecs", time );
-      XLOGC("Number of OpenGL frames drawn: %d , FPS: %.f", mFpsCount, ((1000 / time)* mFpsCount) );
-      XLOGC("Number of frames with browser pinch zoom scale change: %d , FPS: %.f", mFpsZoomCount,((1000 / time)* mFpsZoomCount));
-      XLOGC("First action time from touching to moving : %.3f milliSecs ", mFirstDrawTime - mZoomStartTime);
-      XLOGC("=============================================================");
-      mFpsZoomCount = 0;
-      mFpsCount = 0;
-      mFirstDrawTime = 0;
-      m_isFirstDraw = true;
-	  mSharpenStartTime = WTF::currentTimeMS();  
-   }else{
-     mZoomStartTime = WTF::currentTimeMS();
-     mSharpenStartTime =  mSharpenEndTime = -1;		  
-   }
-}
-
-bool GLWebViewState::isZooming()
-{ 
-   return m_isZooming;
-}
-//SAMSUNG CHNAGES<<
 } // namespace WebCore
 
 #endif // USE(ACCELERATED_COMPOSITING)

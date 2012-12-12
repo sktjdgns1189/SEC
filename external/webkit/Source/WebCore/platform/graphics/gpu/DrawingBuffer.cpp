@@ -56,7 +56,6 @@ PassRefPtr<DrawingBuffer> DrawingBuffer::create(GraphicsContext3D* context, cons
 
 void DrawingBuffer::clear()
 {
-#if 0
     if (!m_context)
         return;
         
@@ -95,24 +94,20 @@ void DrawingBuffer::clear()
     m_fbo = 0;
     
     m_context.clear();
-#endif	
 }
 
 void DrawingBuffer::createSecondaryBuffers()
 {
-#if 0
     // create a multisample FBO
     if (multisample()) {
         m_multisampleFBO = m_context->createFramebuffer();
         m_context->bindFramebuffer(GraphicsContext3D::FRAMEBUFFER, m_multisampleFBO);
         m_multisampleColorBuffer = m_context->createRenderbuffer();
     }
-#endif	
 }
 
 void DrawingBuffer::resizeDepthStencil(int sampleCount)
 {
-#if 0
     const GraphicsContext3D::Attributes& attributes = m_context->getContextAttributes();
     if (attributes.depth && attributes.stencil && m_packedDepthStencilExtensionSupported) {
         if (!m_depthStencilBuffer)
@@ -147,12 +142,10 @@ void DrawingBuffer::resizeDepthStencil(int sampleCount)
         }
     }
     m_context->bindRenderbuffer(GraphicsContext3D::RENDERBUFFER, 0);
-#endif	
 }
 
 void DrawingBuffer::clearFramebuffer()
 {
-#if 0
     m_context->bindFramebuffer(GraphicsContext3D::FRAMEBUFFER, m_multisampleFBO ? m_multisampleFBO : m_fbo);
     const GraphicsContext3D::Attributes& attributes = m_context->getContextAttributes();
     float clearDepth = 0;
@@ -196,12 +189,10 @@ void DrawingBuffer::clearFramebuffer()
         m_context->enable(GraphicsContext3D::SCISSOR_TEST);
     else
         m_context->disable(GraphicsContext3D::SCISSOR_TEST);
-#endif	
 }
 
 bool DrawingBuffer::reset(const IntSize& newSize)
 {
-#if 0
     if (!m_context)
         return false;
 
@@ -274,13 +265,11 @@ bool DrawingBuffer::reset(const IntSize& newSize)
 
     didReset();
 
-#endif
     return true;
 }
 
 void DrawingBuffer::commit(long x, long y, long width, long height)
 {
-#if 0
     if (!m_context)
         return;
         
@@ -298,105 +287,16 @@ void DrawingBuffer::commit(long x, long y, long width, long height)
     }
     
     m_context->bindFramebuffer(GraphicsContext3D::FRAMEBUFFER, m_fbo);
-#endif	
 }
 
 void DrawingBuffer::bind()
 {
-#if 0
     if (!m_context)
         return;
         
     m_context->bindFramebuffer(GraphicsContext3D::FRAMEBUFFER, m_multisampleFBO ? m_multisampleFBO : m_fbo);
     m_context->viewport(0, 0, m_size.width(), m_size.height());
-#endif	
 }
-
-//SAMSUNG Changes for WEBGL - Start
-#if PLATFORM(ANDROID) && ENABLE(WEBGL)
-DrawingBuffer::DrawingBuffer(GraphicsContext3D* context,
-                             const IntSize& size,
-                             bool multisampleExtensionSupported,
-                             bool packedDepthStencilExtensionSupported)
-    : m_context(context)
-    , m_size(-1, -1)
-    , m_multisampleExtensionSupported(multisampleExtensionSupported)
-    , m_packedDepthStencilExtensionSupported(packedDepthStencilExtensionSupported)
-    , m_fbo(context->createFramebuffer())
-    , m_colorBuffer(0)
-    , m_depthStencilBuffer(0)
-    , m_depthBuffer(0)
-    , m_stencilBuffer(0)
-    , m_multisampleFBO(0)
-    , m_multisampleColorBuffer(0)
-{
-#if 0
-    ASSERT(m_fbo);
-    if (!m_fbo) {
-        clear();
-        return;
-    }
-
-    // create a texture to render into
-    m_colorBuffer = context->createTexture();
-    context->bindTexture(GraphicsContext3D::TEXTURE_2D, m_colorBuffer);
-    context->texParameterf(GraphicsContext3D::TEXTURE_2D, GraphicsContext3D::TEXTURE_MAG_FILTER, GraphicsContext3D::LINEAR);
-    context->texParameterf(GraphicsContext3D::TEXTURE_2D, GraphicsContext3D::TEXTURE_MIN_FILTER, GraphicsContext3D::LINEAR);
-    context->texParameteri(GraphicsContext3D::TEXTURE_2D, GraphicsContext3D::TEXTURE_WRAP_S, GraphicsContext3D::CLAMP_TO_EDGE);
-    context->texParameteri(GraphicsContext3D::TEXTURE_2D, GraphicsContext3D::TEXTURE_WRAP_T, GraphicsContext3D::CLAMP_TO_EDGE);
-    context->bindTexture(GraphicsContext3D::TEXTURE_2D, 0);
-
-    // Create the FBO
-    m_fbo = context->createFramebuffer();
-    ASSERT(m_fbo);
-    if (!m_fbo) {
-        clear();
-        return;
-    }
-
-    createSecondaryBuffers();
-    reset(size);
-#endif	
-}
-
-DrawingBuffer::~DrawingBuffer()
-{
-   clear();
-}
-
-void DrawingBuffer::didReset()
-{
-}
-
-#if USE(ACCELERATED_COMPOSITING)
-PlatformLayer* DrawingBuffer::platformLayer()
-{
-	return m_context->platformLayer();
-       // return 0;
-}
-#endif
-
-Platform3DObject DrawingBuffer::platformColorBuffer() const
-{
-    return 0 ;//m_colorBuffer;
-}
-
-void DrawingBuffer::publishToPlatformLayer()
-{
-	if (!m_context)
-        	return;
-
-#if ENABLE(ACCELERATED_2D_CANVAS)       
-    	if (m_callback)
-    		{
-        	m_callback->willPublish();		
-	//	m_context->flush();
-    		}
-#endif		
-
-}
-#endif
-//SAMSUNG Changes for WEBGL - End
 
 } // namespace WebCore
 

@@ -28,10 +28,14 @@
 #include <mach/regs-clock.h>
 #include <mach/pmu.h>
 #include <mach/midas-sound.h>
+#ifdef CONFIG_MACH_GC1
+#include <mach/gc1-jack.h>
+#endif
 
 #include <linux/mfd/wm8994/core.h>
 #include <linux/mfd/wm8994/registers.h>
 #include <linux/mfd/wm8994/pdata.h>
+#include <linux/mfd/wm8994/gpio.h>
 
 #if defined(CONFIG_SND_USE_MUIC_SWITCH)
 #include <linux/mfd/max77693-private.h>
@@ -41,11 +45,7 @@
 #include "i2s.h"
 #include "s3c-i2s-v2.h"
 #include "../codecs/wm8994.h"
-#ifdef CONFIG_SND_SAMSUNG_RECOVERY
-#include "../codecs/wm8993.h"
-#include <linux/regulator/machine.h>
-#include <linux/mfd/wm8994/gpio.h>
-#endif
+
 
 #define MIDAS_DEFAULT_MCLK1	24000000
 #define MIDAS_DEFAULT_MCLK2	32768
@@ -60,6 +60,7 @@
 #define WM1811_JACKDET_BTN1	0x10
 #define WM1811_JACKDET_BTN2	0x08
 
+
 static struct wm8958_micd_rate midas_det_rates[] = {
 	{ MIDAS_DEFAULT_MCLK2,     true,  0,  0 },
 	{ MIDAS_DEFAULT_MCLK2,    false,  0,  0 },
@@ -67,12 +68,21 @@ static struct wm8958_micd_rate midas_det_rates[] = {
 	{ MIDAS_DEFAULT_SYNC_CLK, false,  7,  7 },
 };
 
+#ifdef CONFIG_MACH_GC1
+static struct wm8958_micd_rate midas_jackdet_rates[] = {
+	{ MIDAS_DEFAULT_MCLK2,     true,  0,  0 },
+	{ MIDAS_DEFAULT_MCLK2,    false,  0,  0 },
+	{ MIDAS_DEFAULT_SYNC_CLK,  true, 10, 10 },
+	{ MIDAS_DEFAULT_SYNC_CLK, false,  7,  8 },
+};
+#else
 static struct wm8958_micd_rate midas_jackdet_rates[] = {
 	{ MIDAS_DEFAULT_MCLK2,     true,  0,  0 },
 	{ MIDAS_DEFAULT_MCLK2,    false,  0,  0 },
 	{ MIDAS_DEFAULT_SYNC_CLK,  true, 12, 12 },
 	{ MIDAS_DEFAULT_SYNC_CLK, false,  7,  8 },
 };
+#endif
 
 static int aif2_mode;
 const char *aif2_mode_text[] = {
@@ -94,13 +104,6 @@ const char *lineout_mode_text[] = {
 	"Off", "On"
 };
 
-#ifdef CONFIG_SND_SAMSUNG_RECOVERY
-static int recovery_mode;
-const char *recovery_mode_text[] = {
-	"Normal", "Recovery"
-};
-#endif
-
 #ifndef CONFIG_SEC_DEV_JACK
 /* To support PBA function test */
 static struct class *jack_class;
@@ -119,6 +122,28 @@ struct wm1811_machine_priv {
 	struct wake_lock jackdet_wake_lock;
 };
 
+#ifdef CONFIG_MACH_GC1
+static struct snd_soc_codec *wm1811_codec;
+
+void set_wm1811_micbias2(bool on)
+{
+	if (wm1811_codec == NULL) {
+		pr_err(KERN_ERR "WM1811 MICBIAS2 set error!\n");
+		return;
+	}
+
+	if (on) {
+		snd_soc_update_bits(wm1811_codec, WM8994_POWER_MANAGEMENT_1,
+			WM8994_MICB2_ENA, WM8994_MICB2_ENA);
+	} else {
+		snd_soc_update_bits(wm1811_codec, WM8994_POWER_MANAGEMENT_1,
+			WM8994_MICB2_ENA, 0);
+
+	}
+return;
+}
+EXPORT_SYMBOL(set_wm1811_micbias2);
+#endif
 
 static void midas_gpio_init(void)
 {
@@ -200,17 +225,6 @@ static int set_lineout_mode(struct snd_kcontrol *kcontrol,
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 
 	lineout_mode = ucontrol->value.integer.value[0];
-
-#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
-	if (lineout_mode) {
-		wm8994_vmid_mode(codec, WM8994_VMID_FORCE);
-		gpio_set_value(GPIO_LINEOUT_EN, 1);
-	} else {
-		gpio_set_value(GPIO_LINEOUT_EN, 0);
-		msleep(50);
-		wm8994_vmid_mode(codec, WM8994_VMID_NORMAL);
-	}
-#endif
 	dev_dbg(codec->dev, "set lineout mode : %s\n",
 		lineout_mode_text[lineout_mode]);
 	return 0;
@@ -227,12 +241,6 @@ static const struct soc_enum kpcs_mode_enum[] = {
 static const struct soc_enum input_clamp_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(input_clamp_text), input_clamp_text),
 };
-
-#ifdef CONFIG_SND_SAMSUNG_RECOVERY
-static const struct soc_enum recovery_mode_enum[] = {
-	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(recovery_mode_text), recovery_mode_text),
-};
-#endif
 
 static int get_aif2_mode(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
@@ -298,6 +306,7 @@ static int set_input_clamp(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+
 
 static int midas_ext_micbias(struct snd_soc_dapm_widget *w,
 			     struct snd_kcontrol *kcontrol, int event)
@@ -399,6 +408,16 @@ static int midas_lineout_switch(struct snd_soc_dapm_widget *w,
 	}
 #endif
 
+#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		gpio_set_value(GPIO_LINEOUT_EN, 1);
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		gpio_set_value(GPIO_LINEOUT_EN, 0);
+		break;
+	}
+#endif
 	return 0;
 }
 
@@ -493,7 +512,6 @@ static void midas_micdet(u16 status, void *data)
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(wm1811->codec);
 	int report;
 
-	dev_info(wm1811->codec->dev, "%s() ++\n", __func__);
 
 	wake_lock_timeout(&wm1811->jackdet_wake_lock, 5 * HZ);
 
@@ -501,7 +519,7 @@ static void midas_micdet(u16 status, void *data)
 	if (!(status & WM8958_MICD_STS)) {
 		if (!wm8994->jackdet) {
 			/* If nothing present then clear our statuses */
-			dev_err(wm1811->codec->dev, "Detected open circuit\n");
+			dev_dbg(wm1811->codec->dev, "Detected open circuit\n");
 			wm8994->jack_mic = false;
 			wm8994->mic_detecting = true;
 
@@ -514,9 +532,6 @@ static void midas_micdet(u16 status, void *data)
 		/*ToDo*/
 		/*return;*/
 	}
-
-	dev_info(wm1811->codec->dev, "%s: %d %d\n",
-				__func__, status, wm8994->mic_detecting);
 
 	/* If the measurement is showing a high impedence we've got a
 	 * microphone.
@@ -533,12 +548,7 @@ static void midas_micdet(u16 status, void *data)
 				    SND_JACK_HEADSET);
 	}
 
-#ifdef CONFIG_TARGET_LOCALE_KOR
-	if (wm8994->mic_detecting && (status & 0x4)
-		&& wm8994->jack_mic == false) {
-#else
 	if (wm8994->mic_detecting && status & 0x4) {
-#endif
 		dev_info(wm1811->codec->dev, "Detected headphone\n");
 		wm8994->mic_detecting = false;
 
@@ -591,317 +601,7 @@ static void midas_micdet(u16 status, void *data)
 		snd_soc_jack_report(wm8994->micdet[0].jack, report,
 				    wm8994->btn_mask);
 	}
-
-	dev_info(wm1811->codec->dev, "%s() --\n", __func__);
 }
-
-#ifdef CONFIG_SND_SAMSUNG_RECOVERY
-static int get_recovery_mode(struct snd_kcontrol *kcontrol,
-	struct snd_ctl_elem_value *ucontrol)
-{
-	ucontrol->value.integer.value[0] = recovery_mode;
-	return 0;
-}
-
-/**
- * set_recovery_mode: Emergency recovery mode
- * If returned EIO for pcm write, recover wm1811 by reset IC
- */
-
-
-static int set_recovery_mode(struct snd_kcontrol *kcontrol,
-	struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
-	struct wm8994 *control = codec->control_data;
-	struct wm1811_machine_priv *wm1811
-		= snd_soc_card_get_drvdata(codec->card);
-	struct snd_soc_dai *aif1_dai = codec->card->rtd[0].codec_dai;
-	struct snd_soc_dai *aif2_dai = codec->card->rtd[1].codec_dai;
-	int i;
-	int ret;
-	int pulls = 0;
-
-	if (recovery_mode == ucontrol->value.integer.value[0])
-		return 0;
-
-	recovery_mode = ucontrol->value.integer.value[0];
-	if (!recovery_mode)
-		return 0;
-
-	dev_info(codec->dev, "******************* %s Enter !!!\n", __func__);
-
-	/* irq clear */
-	/* Mask the individual interrupt sources */
-	for (i = 0; i < ARRAY_SIZE(control->irq_masks_cur); i++) {
-		control->irq_masks_cur[i] = 0xffff;
-		control->irq_masks_cache[i] = 0xffff;
-		wm8994_reg_write(control, WM8994_INTERRUPT_STATUS_1_MASK + i,
-				 0xffff);
-	}
-
-	/*
-	  * midas_card_suspend_post
-	  */
-	ret = snd_soc_dai_set_sysclk(aif2_dai,
-				     WM8994_SYSCLK_MCLK2,
-				     MIDAS_DEFAULT_MCLK2,
-				     SND_SOC_CLOCK_IN);
-	if (ret < 0)
-		dev_err(codec->dev, "Failed to switch to MCLK2\n");
-
-	/*
-	  * wm8994_codec_suspend
-	  */
-/* -- use snd_soc_dai_set_pll
-	for (i = 0; i < ARRAY_SIZE(wm8994->fll); i++) {
-		ret = _wm8994_set_fll(codec, i + 1, 0, 0, 0);
-		if (ret < 0)
-			dev_warn(codec->dev, "Failed to stop FLL%d: %d\n",
-				 i + 1, ret);
-	}
-*/
-	ret = snd_soc_dai_set_pll(aif2_dai, WM8994_FLL2,
-				  0, 0, 0);
-
-	if (ret < 0)
-		dev_err(codec->dev,
-			"Failed to change FLL2\n");
-
-	ret = snd_soc_dai_set_sysclk(aif1_dai,
-				     WM8994_SYSCLK_MCLK2,
-				     MIDAS_DEFAULT_MCLK2,
-				     SND_SOC_CLOCK_IN);
-	if (ret < 0)
-		dev_err(codec->dev,
-			"Failed to switch to MCLK2\n");
-
-	ret = snd_soc_dai_set_pll(aif1_dai, WM8994_FLL1,
-				  0, 0, 0);
-	if (ret < 0)
-		dev_err(codec->dev,
-			"Failed to stop FLL1\n");
-
-	codec->dapm.bias_level = SND_SOC_BIAS_OFF;
-
-	/*
-	  * wm8994_suspend
-	  */
-	/* Disable LDO pulldowns while the device is suspended if we
-	 * don't know that something will be driving them. */
-	wm8994_set_bits(control, WM8994_PULL_CONTROL_2,
-			WM8994_LDO1ENA_PD | WM8994_LDO2ENA_PD |
-			WM8994_SPKMODE_PU | WM8994_CSNADDR_PD,
-			pulls);
-
-	/* For similar reasons we also stash the regulator states */
-	control->ldo_regs[0] = wm8994_reg_read(control, WM8994_LDO_1);
-	control->ldo_regs[1] = wm8994_reg_read(control, WM8994_LDO_2);
-
-
-	wm8994_reg_write(control, WM8994_SOFTWARE_RESET, 0x8994);
-
-	ret = regulator_bulk_disable(control->num_supplies,
-				     control->supplies);
-	if (ret != 0) {
-		dev_err(codec->dev, "Failed to disable supplies: %d\n", ret);
-		return ret;
-	}
-
-	msleep(50);
-
-	/*
-	  * wm8994_resume
-	  */
-	ret = regulator_bulk_enable(control->num_supplies,
-				    control->supplies);
-	if (ret != 0) {
-		dev_err(codec->dev, "Failed to enable supplies: %d\n", ret);
-		return ret;
-	}
-
-	/* Write register at a time as we use the cache on the CPU so store
-	 * it in native endian.
-	 */
-	for (i = 0; i < ARRAY_SIZE(control->irq_masks_cur); i++) {
-		ret = wm8994_reg_write(control, WM8994_INTERRUPT_STATUS_1_MASK
-				       + i, control->irq_masks_cur[i]);
-		if (ret < 0)
-			dev_err(codec->dev, "Failed to restore interrupt masks: %d\n",
-				ret);
-	}
-
-	ret = wm8994_reg_write(control, WM8994_LDO_1, control->ldo_regs[0]);
-	if (ret < 0)
-		dev_err(codec->dev,
-			"Failed to restore LDO registers[0]: %d\n", ret);
-
-	ret = wm8994_reg_write(control, WM8994_LDO_2, control->ldo_regs[1]);
-	if (ret < 0)
-		dev_err(codec->dev,
-			"Failed to restore LDO registers[1]: %d\n", ret);
-
-	/* Disable LDO pulldowns while the device is active */
-	wm8994_set_bits(control, WM8994_PULL_CONTROL_2,
-			WM8994_LDO1ENA_PD | WM8994_LDO2ENA_PD,
-			0);
-
-	/*
-	  * wm8994_device_init
-	  */
-	/* Samsung-specific customization of MICBIAS levels */
-	wm8994_reg_write(control, 0x102, 0x3);
-	wm8994_reg_write(control, 0xcb, 0x5151);
-	wm8994_reg_write(control, 0xd3, 0x3f3f);
-	wm8994_reg_write(control, 0xd4, 0x3f3f);
-	wm8994_reg_write(control, 0xd5, 0x3f3f);
-	wm8994_reg_write(control, 0xd6, 0x3226);
-	wm8994_reg_write(control, 0x102, 0x0);
-	wm8994_reg_write(control, 0xd1, 0x87);
-	wm8994_reg_write(control, 0x3b, 0x9);
-	wm8994_reg_write(control, 0x3c, 0x2);
-
-	if (wm8994->pdata) {
-		/* GPIO configuration is only applied if it's non-zero */
-		for (i = 0; i < ARRAY_SIZE(wm8994->pdata->gpio_defaults); i++) {
-			if (wm8994->pdata->gpio_defaults[i]) {
-				wm8994_set_bits(control,
-					WM8994_GPIO_1 + i, 0xffff,
-					wm8994->pdata->gpio_defaults[i]);
-			}
-		}
-
-		if (wm8994->pdata->spkmode_pu)
-			pulls |= WM8994_SPKMODE_PU;
-	}
-	/* Disable unneeded pulls */
-	wm8994_set_bits(control, WM8994_PULL_CONTROL_2,
-			WM8994_LDO1ENA_PD | WM8994_LDO2ENA_PD |
-			WM8994_SPKMODE_PU | WM8994_CSNADDR_PD,
-			pulls);
-
-	/* In some system designs where the regulators are not in use,
-	 * we can achieve a small reduction in leakage currents by
-	 * floating LDO outputs.  This bit makes no difference if the
-	 * LDOs are enabled, it only affects cases where the LDOs were
-	 * in operation and are then disabled.
-	 */
-	for (i = 0; i < WM8994_NUM_LDO_REGS; i++) {
-		wm8994_set_bits(control, WM8994_LDO_1 + i,
-				WM8994_LDO1_DISCH, WM8994_LDO1_DISCH);
-	}
-
-	/* IRQ Masking */
-	/* Enable top level interrupt if it was masked */
-	wm8994_reg_write(control, WM8994_INTERRUPT_CONTROL, 0);
-
-	/*
-	  * wm8994_codec_resume
-	  */
-	/* Restore the registers */
-	codec->cache_sync = 1;
-	ret = snd_soc_cache_sync(codec);
-	if (ret != 0)
-		dev_err(codec->dev, "Failed to sync cache: %d\n", ret);
-
-/*	wm8994_set_bias_level(codec, SND_SOC_BIAS_STANDBY); */
-	snd_soc_write(codec, 0x102, 0x3);
-	snd_soc_write(codec, 0x56, 0x7);
-	snd_soc_write(codec, 0x5d, 0x7e);
-	snd_soc_write(codec, 0x5e, 0x0);
-	snd_soc_write(codec, 0x102, 0x0);
-
-	snd_soc_update_bits(codec, WM8958_MICBIAS1,
-			    WM8958_MICB1_MODE,
-			    WM8958_MICB1_MODE);
-	snd_soc_update_bits(codec, WM8958_MICBIAS2,
-			    WM8958_MICB2_MODE,
-			    WM8958_MICB2_MODE);
-	codec->dapm.bias_level = SND_SOC_BIAS_STANDBY;
-
-	/* Discharge LINEOUT1 & 2 */
-	snd_soc_update_bits(codec, WM8994_ANTIPOP_1,
-			    WM8994_LINEOUT1_DISCH |
-			    WM8994_LINEOUT2_DISCH,
-			    WM8994_LINEOUT1_DISCH |
-			    WM8994_LINEOUT2_DISCH);
-
-	switch (control->type) {
-	case WM8994:
-		if (wm8994->micdet[0].jack || wm8994->micdet[1].jack)
-			snd_soc_update_bits(codec, WM8994_MICBIAS,
-					    WM8994_MICD_ENA, WM8994_MICD_ENA);
-		break;
-	case WM1811:
-		if (wm8994->jackdet && wm8994->jack_cb) {
-			/* Restart from idle */
-			snd_soc_update_bits(codec, WM8994_ANTIPOP_2,
-					    WM1811_JACKDET_MODE_MASK,
-					    WM1811_JACKDET_MODE_JACK);
-			break;
-		}
-		break;
-	case WM8958:
-		if (wm8994->jack_cb)
-			snd_soc_update_bits(codec, WM8958_MIC_DETECT_1,
-					    WM8958_MICD_ENA, WM8958_MICD_ENA);
-		break;
-	}
-
-	/*
-	  * wm8994_codec_probe
-	  */
-	/* Hack setting for enable IRQ */
-	/* Mask the individual interrupt sources */
-		control->irq_masks_cur[0] = 0xffdf;
-		control->irq_masks_cache[0] = 0xffdf;
-		control->irq_masks_cur[1] = 0xfffd;
-		control->irq_masks_cache[1] = 0xfffd;
-		wm8994_reg_write(control, WM8994_INTERRUPT_STATUS_1_MASK,
-				 0xffdf);
-		wm8994_reg_write(control, WM8994_INTERRUPT_STATUS_2_MASK,
-				 0xfffd);
-
-	/*
-	  * midas_wm1811_init_paiftx
-	  */
-	midas_snd_set_mclk(true, true);
-
-#ifndef CONFIG_SEC_DEV_JACK
-	/* Force AIF1CLK on as it will be master for jack detection */
-	if (wm8994->revision > 1) {
-		ret = snd_soc_dapm_force_enable_pin(&codec->dapm, "AIF1CLK");
-		if (ret < 0)
-			dev_err(codec->dev, "Failed to enable AIF1CLK: %d\n",
-					ret);
-	}
-#endif
-
-	ret = snd_soc_dai_set_sysclk(aif1_dai, WM8994_SYSCLK_MCLK2,
-				     MIDAS_DEFAULT_MCLK2, SND_SOC_CLOCK_IN);
-	if (ret < 0)
-		dev_err(codec->dev, "Failed to boot clocking\n");
-
-	/* in wm8958_mic_detect(codec, &wm1811->jack, midas_micdet,
-		wm1811);  */
-	midas_micd_set_rate(codec);
-
-	/*
-	  * wm8994_aif2_probe
-	  */
-	/* Disable the pulls on the AIF if we're using it to save power. */
-	snd_soc_update_bits(codec, WM8994_GPIO_3,
-			    WM8994_GPN_PU | WM8994_GPN_PD, 0);
-	snd_soc_update_bits(codec, WM8994_GPIO_4,
-			    WM8994_GPN_PU | WM8994_GPN_PD, 0);
-	snd_soc_update_bits(codec, WM8994_GPIO_5,
-			    WM8994_GPN_PU | WM8994_GPN_PD, 0);
-
-	recovery_mode = 0;
-	return 0;
-}
-#endif
 
 #ifdef CONFIG_SND_SAMSUNG_I2S_MASTER
 static int set_epll_rate(unsigned long rate)
@@ -1130,7 +830,7 @@ static int midas_wm1811_aif2_hw_params(struct snd_pcm_substream *substream,
 	}
 
 #if defined(CONFIG_LTE_MODEM_CMC221) || defined(CONFIG_MACH_M0_CTC)
-#if defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1VZW)
+#if defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_BAFFIN_KOR_LGT)
 	/* Set the codec DAI configuration */
 	if (aif2_mode == 0) {
 		if (kpcs_mode == 1)
@@ -1143,9 +843,15 @@ static int midas_wm1811_aif2_hw_params(struct snd_pcm_substream *substream,
 				| SND_SOC_DAIFMT_IB_NF
 				| SND_SOC_DAIFMT_CBS_CFS);
 	} else
+#if defined(CONFIG_MACH_C1_KOR_LGT)
+		ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_DSP_A
+				| SND_SOC_DAIFMT_IB_NF
+				| SND_SOC_DAIFMT_CBM_CFM);
+#else
 		ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S
 				| SND_SOC_DAIFMT_NB_NF
 				| SND_SOC_DAIFMT_CBM_CFM);
+#endif
 #else
 	if (aif2_mode == 0)
 		/* Set the codec DAI configuration */
@@ -1172,7 +878,7 @@ static int midas_wm1811_aif2_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		return ret;
 
-#if defined(CONFIG_LTE_MODEM_CMC221) || defined(CONFIG_MACH_M0_CTC)
+#if defined(CONFIG_LTE_MODEM_CMC221)
 	if (kpcs_mode == 1) {
 		switch (prate) {
 		case 8000:
@@ -1187,6 +893,8 @@ static int midas_wm1811_aif2_hw_params(struct snd_pcm_substream *substream,
 	} else {
 	bclk = 2048000;
 	}
+#elif defined(CONFIG_MACH_M0_CTC)
+	bclk = 2048000;
 #else
 	switch (prate) {
 	case 8000:
@@ -1266,10 +974,6 @@ static const struct snd_kcontrol_new midas_controls[] = {
 	SOC_ENUM_EXT("LineoutSwitch Mode", lineout_mode_enum[0],
 		get_lineout_mode, set_lineout_mode),
 
-#ifdef CONFIG_SND_SAMSUNG_RECOVERY
-	SOC_ENUM_EXT("Recovery Mode", recovery_mode_enum[0],
-		get_recovery_mode, set_recovery_mode),
-#endif
 };
 
 const struct snd_soc_dapm_widget midas_dapm_widgets[] = {
@@ -1299,10 +1003,13 @@ const struct snd_soc_dapm_route midas_dapm_routes[] = {
 
 	{ "RCV", NULL, "HPOUT2N" },
 	{ "RCV", NULL, "HPOUT2P" },
-
+#if defined(CONFIG_MACH_BAFFIN_KOR_SKT) || defined(CONFIG_MACH_BAFFIN_KOR_KT)
+	{ "LINE", NULL, "HPOUT1L" },
+	{ "LINE", NULL, "HPOUT1R" },
+#else
 	{ "LINE", NULL, "LINEOUT2N" },
 	{ "LINE", NULL, "LINEOUT2P" },
-
+#endif
 	{ "HDMI", NULL, "LINEOUT1N" },
 	{ "HDMI", NULL, "LINEOUT1P" },
 
@@ -1522,6 +1229,10 @@ static int midas_wm1811_init_paiftx(struct snd_soc_pcm_runtime *rtd)
 	midas_aif1_dai = aif1_dai;
 #endif
 
+#ifdef CONFIG_MACH_GC1
+	wm1811_codec = codec;
+#endif
+
 	midas_snd_set_mclk(true, false);
 
 	rtd->codec_dai->driver->playback.channels_max =
@@ -1544,7 +1255,7 @@ static int midas_wm1811_init_paiftx(struct snd_soc_pcm_runtime *rtd)
 				     MIDAS_DEFAULT_MCLK2, SND_SOC_CLOCK_IN);
 	if (ret < 0)
 		dev_err(codec->dev, "Failed to boot clocking\n");
-#ifndef CONFIG_SEC_DEV_JACK
+
 	/* Force AIF1CLK on as it will be master for jack detection */
 	if (wm8994->revision > 1) {
 		ret = snd_soc_dapm_force_enable_pin(&codec->dapm, "AIF1CLK");
@@ -1552,7 +1263,7 @@ static int midas_wm1811_init_paiftx(struct snd_soc_pcm_runtime *rtd)
 			dev_err(codec->dev, "Failed to enable AIF1CLK: %d\n",
 					ret);
 	}
-#endif
+
 	ret = snd_soc_dapm_disable_pin(&codec->dapm, "S5P RP");
 	if (ret < 0)
 		dev_err(codec->dev, "Failed to disable S5P RP: %d\n", ret);
@@ -1651,6 +1362,7 @@ static int midas_wm1811_init_paiftx(struct snd_soc_pcm_runtime *rtd)
 	if (device_create_file(jack_dev, &dev_attr_reselect_jack) < 0)
 		pr_err("Failed to create device file (%s)!\n",
 			dev_attr_reselect_jack.attr.name);
+
 #endif /* CONFIG_SEC_DEV_JACK */
 	return snd_soc_dapm_sync(&codec->dapm);
 }
@@ -1703,18 +1415,11 @@ static struct snd_soc_dai_link midas_dai[] = {
 
 static int midas_card_suspend_pre(struct snd_soc_card *card)
 {
-#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
 	struct snd_soc_codec *codec = card->rtd->codec;
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
 
-	if (lineout_mode == 1 &&
-		wm8994->vmid_mode == WM8994_VMID_FORCE) {
-		dev_dbg(codec->dev,
-			"%s: entering force vmid mode\n", __func__);
-		gpio_set_value(GPIO_LINEOUT_EN, 0);
-		msleep(50);
-		wm8994_vmid_mode(codec, WM8994_VMID_NORMAL);
-	}
+#ifdef CONFIG_SEC_DEV_JACK
+	snd_soc_dapm_disable_pin(&codec->dapm, "AIF1CLK");
 #endif
 
 	return 0;
@@ -1801,17 +1506,23 @@ static int midas_card_resume_pre(struct snd_soc_card *card)
 
 static int midas_card_resume_post(struct snd_soc_card *card)
 {
-#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
 	struct snd_soc_codec *codec = card->rtd->codec;
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
+	int reg = 0;
 
-	if (lineout_mode == 1 &&
-		wm8994->vmid_mode == WM8994_VMID_NORMAL) {
-		dev_dbg(codec->dev,
-			"%s: entering normal vmid mode\n", __func__);
-		wm8994_vmid_mode(codec, WM8994_VMID_FORCE);
-		gpio_set_value(GPIO_LINEOUT_EN, 1);
+	/* workaround for jack detection
+	 * sometimes WM8994_GPIO_1 type changed wrong function type
+	 * so if type mismatched, update to IRQ type
+	 */
+	reg = snd_soc_read(codec, WM8994_GPIO_1);
+
+	if ((reg & WM8994_GPN_FN_MASK) != WM8994_GP_FN_IRQ) {
+		dev_err(codec->dev, "%s: GPIO1 type 0x%x\n", __func__, reg);
+		snd_soc_write(codec, WM8994_GPIO_1, WM8994_GP_FN_IRQ);
 	}
+
+#ifdef CONFIG_SEC_DEV_JACK
+	snd_soc_dapm_force_enable_pin(&codec->dapm, "AIF1CLK");
 #endif
 
 	return 0;

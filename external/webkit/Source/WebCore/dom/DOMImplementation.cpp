@@ -303,8 +303,10 @@ bool DOMImplementation::isTextMIMEType(const String& mimeType)
         || (mimeType.startsWith("text/") && mimeType != "text/html"
             && mimeType != "text/xml" && mimeType != "text/xsl"
             //[[LTN SIDI n.passos 2012.04.12 - O0100054394 - iMelody download (port SeineICS CL#O0100053251)
-            && mimeType != "text/x-imelody"))
-            //LTN SIDI]] 
+            && mimeType != "text/x-imelody"
+           //PLM P120829-0114 .ics file not correctly open in Internet 12.08.29
+           && mimeType != "text/calendar"))
+            //LTN SIDI]]
         return true;
 
     return false;

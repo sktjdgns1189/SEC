@@ -983,10 +983,10 @@ IntRect RenderInline::clippedOverflowRectForRepaint(RenderBoxModelObject* repain
 
     IntRect r(-ow + left, -ow + top, boundingBox.width() + ow * 2, boundingBox.height() + ow * 2);
 
-    if (cb && cb->hasColumns())
+    if (cb->hasColumns())
         cb->adjustRectForColumns(r);
 
-    if (cb && cb->hasOverflowClip()) {
+    if (cb->hasOverflowClip()) {
         // cb->height() is inaccurate if we're in the middle of a layout of |cb|, so use the
         // layer's size instead.  Even if the layer's size is wrong, the layer itself will repaint
         // anyway if its size does change.
@@ -999,7 +999,7 @@ IntRect RenderInline::clippedOverflowRectForRepaint(RenderBoxModelObject* repain
     
     // FIXME: need to ensure that we compute the correct repaint rect when the repaint container
     // is an inline.
-    if (repaintContainer != this && cb)
+    if (repaintContainer != this)
         cb->computeRectForRepaint(repaintContainer, r);
 
     if (ow) {

@@ -160,7 +160,8 @@ bool PluginWidgetAndroid::setDrawingModel(ANPDrawingModel model) {
 
     if (model == kOpenGL_ANPDrawingModel && m_layer == 0) {
         jobject webview = m_core->getWebViewJavaObject();
-        m_layer = new WebCore::MediaLayer(webview);
+        AutoJObject webViewCore = m_core->getJavaObject();
+        m_layer = new WebCore::MediaLayer(webview, webViewCore.get());
     }
     else if (model != kOpenGL_ANPDrawingModel && m_layer != 0) {
         m_layer->unref();
@@ -378,12 +379,8 @@ void PluginWidgetAndroid::updateEventFlags(ANPEventFlags flags) {
     Document* doc = m_pluginView->parentFrame()->document();
 #if ENABLE(TOUCH_EVENTS)
     if((m_eventFlags ^ flags) & kTouch_ANPEventFlag) {
-//SAMSUNG CHNAGES >>
-        if (flags & kTouch_ANPEventFlag) {
+        if (flags & kTouch_ANPEventFlag)
            doc->addListenerTypeIfNeeded(eventNames().touchstartEvent);
-           m_pluginView->getElement()->setHasTouchListener(true);
-        }
-//SAMSUNG CHNAGES <<
     }
 #endif
 
@@ -600,9 +597,9 @@ void PluginWidgetAndroid::scrollToVisiblePluginRect() {
     android::WebViewCore* core = android::WebViewCore::getWebViewCore(scrollView);
 #if DEBUG_VISIBLE_RECTS
     PLUGIN_LOG("%s call scrollTo (%d,%d) to center (%d,%d)", __FUNCTION__,
-            scrollDocX, scrollDocX, rectCenterX, rectCenterY);
+            scrollDocX, scrollDocY, rectCenterX, rectCenterY);
 #endif
-    core->scrollTo(scrollDocX, scrollDocX, true);
+    core->scrollTo(scrollDocX, scrollDocY, true);
 }
 
 void PluginWidgetAndroid::requestFullScreen() {

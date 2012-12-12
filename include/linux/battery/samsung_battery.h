@@ -19,11 +19,21 @@
 #include <linux/delay.h>
 #include <linux/power_supply.h>
 #include <linux/android_alarm.h>
+#if defined(CONFIG_S3C_ADC)
+#include <plat/adc.h>
+#endif
+#if defined(CONFIG_STMPE811_ADC)
+#include <linux/stmpe811-adc.h>
+#endif
+
 
 /* macro */
 #define MAX(x, y)	((x) > (y) ? (x) : (y))
 #define MIN(x, y)	((x) < (y) ? (x) : (y))
 #define ABS(x)		((x) < 0 ? (-1 * (x)) : (x))
+#define INRANGE(val, x, y)	(((x <= val) && (val <= y)) ||	\
+				 ((y <= val) && (val <= x)) ? 1 : 0)
+
 
 /* common */
 enum {
@@ -79,7 +89,7 @@ struct battery_info {
 	unsigned int charge_virt_state;
 	unsigned int charge_type;
 	unsigned int charge_current;
-	unsigned int charge_current_avg;
+	int charge_current_avg;
 	unsigned int input_current;
 
 	/* battery state */
@@ -91,6 +101,8 @@ struct battery_info {
 	unsigned int battery_soc;
 	unsigned int battery_raw_soc;
 	int battery_r_s_delta;
+	int battery_full_soc;
+	int battery_vf_adc;
 
 	/* temperature */
 	int battery_temper;
@@ -101,6 +113,9 @@ struct battery_info {
 
 	/* cable type */
 	unsigned int cable_type;
+	unsigned int cable_sub_type;
+	unsigned int cable_pwr_type;
+	int online_prop;
 
 	/* For SAMSUNG charge spec */
 	unsigned int vf_state;
@@ -109,26 +124,43 @@ struct battery_info {
 	unsigned int freezed_state;
 	unsigned int full_charged_state;
 	unsigned int abstimer_state;
+	unsigned int abstimer_active;
 	unsigned int recharge_phase;
 	unsigned int recharge_start;
 	unsigned int health_state;
 
-	unsigned int lpm_state;
+	/* SIOP */
 	unsigned int siop_state;
 	unsigned int siop_charge_current;
+	unsigned int siop_lv;
+
+	/* etc... */
+	unsigned int lpm_state;
 	unsigned int led_state;
+	unsigned int slate_mode;
 
 	/* ambiguous state */
 	unsigned int ambiguous_state;
 
 	/* event sceanario */
 	unsigned int event_state;
+	unsigned int event_type;
 
 	/* time management */
 	unsigned int charge_start_time;
-	struct alarm	alarm;
+	struct timespec current_time;
+	struct alarm	monitor_alarm;
+	struct alarm	event_alarm;
 	bool		slow_poll;
 	ktime_t		last_poll;
+
+	/* irq */
+	int batdet_gpio;
+	int batdet_irq;
+	bool batdet_irq_st;
+
+	/* adc power */
+	bool adc_pwr_st;
 
 	struct proc_dir_entry *entry;
 
@@ -139,15 +171,22 @@ struct battery_info {
 	/* factory mode */
 	bool factory_mode;
 
-#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
-	bool is_unspec_phase;
-	bool is_unspec_recovery;
-	int battery_full_soc;
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	/* error test charging off mode */
+	bool errortest_stopcharging;
+#endif
+
+	/* previous state */
 	unsigned int prev_cable_type;
 	unsigned int prev_battery_health;
 	unsigned int prev_charge_virt_state;
 	unsigned int prev_battery_soc;
 	struct wake_lock update_wake_lock;
+
+#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)\
+	|| defined(CONFIG_MACH_T0_CHN_CTC)
+	bool is_unspec_phase;
+	bool is_unspec_recovery;
 #endif
 };
 
@@ -155,10 +194,30 @@ struct battery_info {
 extern bool is_jig_attached;
 
 /* charger detect source */
-#if defined(CONFIG_MACH_M0) || defined(CONFIG_TARGET_LOCALE_KOR)
+#if defined(CONFIG_MACH_BAFFIN)
 #undef USE_CHGIN_INTR
 #else
 #define USE_CHGIN_INTR
+#endif
+
+/* extended online type */
+#if defined(CONFIG_MACH_T0)
+#define EXTENDED_ONLINE_TYPE
+#else
+#undef EXTENDED_ONLINE_TYPE
+#endif
+
+enum online_property {
+	ONLINE_PROP_UNKNOWN = 0,
+	ONLINE_PROP_AC,
+	ONLINE_PROP_USB,
+};
+
+/* use 2step charge termination */
+#if defined(CONFIG_MACH_T0)
+#define USE_2STEP_TERM
+#else
+#undef USE_2STEP_TERM
 #endif
 
 /*
@@ -185,14 +244,19 @@ enum voltage_type {
 enum soc_type {
 	SOC_TYPE_ADJUSTED	= 0,
 	SOC_TYPE_RAW		= 1,
-#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
 	SOC_TYPE_FULL		= 2,
-#endif
 };
 
 /*
  * Use for battery
  */
+
+enum status_full_type {
+	STATUS_NOT_FULL		= 0,
+	STATUS_1ST_FULL,
+	STATUS_2ND_FULL,
+};
+
 #define OFF_CURR	0	/* charger off current */
 #define KEEP_CURR	-1	/* keep previous current */
 
@@ -211,8 +275,15 @@ enum soc_type {
 #define ADC_ERR_CNT	5
 #define ADC_ERR_DELAY	200
 
+/* WORKAROUND: define audio dock current */
+#define DOCK_TYPE_AUDIO_CURR		1000
+#define DOCK_TYPE_SMART_NOTG_CURR	1700
+#define DOCK_TYPE_SMART_OTG_CURR	1000
+#define DOCK_TYPE_LOW_CURR		475
+
 /* voltage diff for recharge voltage calculation */
-#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
+#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)\
+	|| defined(CONFIG_MACH_T0_CHN_CTC)
 /* KOR model spec : max-voltage minus 60mV */
 #define RECHG_DROP_VALUE	60000
 #else
@@ -252,10 +323,28 @@ enum {
 	TEMPER_UNKNOWN,
 };
 
+/* vf detect source */
+enum {
+	VF_DET_ADC = 0,
+	VF_DET_CHARGER,
+	VF_DET_GPIO,
+	VF_DET_ADC_GPIO,
+
+	VF_DET_UNKNOWN,
+};
+
+
 /* siop state */
 enum {
 	SIOP_DEACTIVE = 0,
 	SIOP_ACTIVE,
+};
+
+enum siop_level {
+	SIOP_LV0 = 0,
+	SIOP_LV1,
+	SIOP_LV2,
+	SIOP_LV3,
 };
 
 /* monitoring mode */
@@ -310,6 +399,14 @@ enum event_type {
 	EVENT_TYPE_LTE,
 	EVENT_TYPE_WIFI,
 	EVENT_TYPE_USE,
+
+	EVENT_TYPE_MAX,
+};
+
+enum event_state {
+	EVENT_STATE_CLEAR = 0,
+	EVENT_STATE_IN_TIMER,
+	EVENT_STATE_SET,
 };
 
 /**
@@ -335,6 +432,9 @@ struct samsung_battery_platform_data {
 	unsigned int chg_curr_wpc;
 	unsigned int chg_curr_dock;
 	unsigned int chg_curr_etc;
+	unsigned int chg_curr_siop_lv1;
+	unsigned int chg_curr_siop_lv2;
+	unsigned int chg_curr_siop_lv3;
 
 	/* variable monitoring interval */
 	unsigned int chng_interval;
@@ -347,6 +447,7 @@ struct samsung_battery_platform_data {
 	/* Recharge sceanario */
 	unsigned int recharge_voltage;
 	unsigned int abstimer_charge_duration;
+	unsigned int abstimer_charge_duration_wpc;
 	unsigned int abstimer_recharge_duration;
 
 	/* cable detect */
@@ -363,17 +464,32 @@ struct samsung_battery_platform_data {
 	/* CTIA spec */
 	bool ctia_spec;
 
-	/* CTIA temperature */
-	int event_state;
-	int event_overheat_stop_temp;
-	int lpm_overheat_stop_temp;
+	/* event sceanario */
+	unsigned int event_time;
 
-	/* Temperature source 0: fuelgauge, 1: ap adc, 2: ex. adc */
+	/* CTIA temperature */
+	int event_overheat_stop_temp;
+	int event_overheat_recovery_temp;
+	int event_freeze_stop_temp;
+	int event_freeze_recovery_temp;
+	int lpm_overheat_stop_temp;
+	int lpm_overheat_recovery_temp;
+	int lpm_freeze_stop_temp;
+	int lpm_freeze_recovery_temp;
+
+	/* temperature source 0: fuelgauge, 1: ap adc, 2: ex. adc */
 	int temper_src;
 	int temper_ch;
 #ifdef CONFIG_S3C_ADC
 	int (*covert_adc) (int, int);
 #endif
+
+	/* battery vf source 0: adc(polling), 1: charger(interrupt) */
+	int vf_det_src;
+	int vf_det_ch;
+	int vf_det_th_l;
+	int vf_det_th_h;
+	int batt_present_gpio;
 
 	/* suspend in charging */
 	bool suspend_chging;

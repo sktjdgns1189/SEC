@@ -35,9 +35,6 @@
 #error "Chromium should not compile this file and instead define its own version of these factories."
 #endif
 
-#define LOG_NDEBUG 0
-#define LOGTAG "FileSystem"
-
 #if ENABLE(FILE_SYSTEM)
 
 #include "CrossThreadTask.h"
@@ -50,12 +47,12 @@
 #include "ScriptExecutionContext.h"
 #include "SecurityOrigin.h"
 #include <wtf/PassRefPtr.h>
+//SAMSUNG CHANGE HTML5 FILEAPI <<
 #include "AsyncFileSystemAndroid.h"
-#include <wtf/text/CString.h>
-#include "FileSystem.h"
-#undef LOG
-#include <utils/Log.h>
+#include "FileSystem.h" 
+//SAMSUNG CHANGE HTML5 FILEAPI >>
 
+using namespace android;
 namespace WebCore {
 
 LocalFileSystem* LocalFileSystem::s_instance = 0;
@@ -86,9 +83,7 @@ String LocalFileSystem::fileSystemBasePath() const
 
 static void openFileSystem(ScriptExecutionContext*, const String& basePath, const String& identifier, AsyncFileSystem::Type type, bool create, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
-    //SAMSUNG CHANGE HTML5 FILEAPI <<
     AsyncFileSystemAndroid::openFileSystem(basePath, identifier, type, create, callbacks);
-    //SAMSUNG CHANGE HTML5 FILEAPI >>
 }
 
 void LocalFileSystem::readFileSystem(ScriptExecutionContext* context, AsyncFileSystem::Type type, PassOwnPtr<AsyncFileSystemCallbacks> callbacks, bool)
@@ -103,6 +98,12 @@ void LocalFileSystem::requestFileSystem(ScriptExecutionContext* context, AsyncFi
     context->postTask(createCallbackTask(&openFileSystem, fileSystemBasePath(), context->securityOrigin()->databaseIdentifier(), type, true, callbacks));
 }
 
+//SAMSUNG CHANGE HTML5 FILEAPI <<
+void LocalFileSystem::fileSystemStorage(unsigned quota)
+{
+    AsyncFileSystemAndroid::fileSystemStorage(quota);
+}
+//SAMSUNG CHANGE HTML5 FILEAPI >>
 } // namespace
 
 #endif // ENABLE(FILE_SYSTEM)

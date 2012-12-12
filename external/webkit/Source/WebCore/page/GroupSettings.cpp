@@ -31,6 +31,9 @@ namespace WebCore {
 GroupSettings::GroupSettings()
     : m_localStorageQuotaBytes(5 * 1024 * 1024) // Suggested by the HTML5 spec.
     , m_indexedDBQuotaBytes(5 * 1024 * 1024)
+    // Samsung Change - HTML5 FileSystem API	>>
+    ,m_fileSystemQuotaBytes(5* 1024 * 1024)
+    // Samsung Change - HTML5 FileSystem API	<<
 {
 }
 
@@ -49,5 +52,11 @@ void GroupSettings::setIndexedDBQuotaBytes(int64_t quota)
     m_indexedDBQuotaBytes = quota;
 }
 
+// Samsung Change - HTML5 FileSystem API	>>
+void GroupSettings::setFileSystemQuotaBytes(unsigned quota)
+{
+   m_fileSystemQuotaBytes = quota;
+}
+// Samsung Change - HTML5 FileSystem API	<<
 
 } // namespace WebCore

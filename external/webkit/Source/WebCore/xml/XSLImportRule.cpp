@@ -97,9 +97,8 @@ void XSLImportRule::loadSheet()
         if (parent->isXSLStyleSheet() && absHref == static_cast<XSLStyleSheet*>(parent)->finalURL().string())
             return;
     }
-    if(cachedResourceLoader){   
-        m_cachedSheet = cachedResourceLoader->requestXSLStyleSheet(absHref);
-    }
+    
+    m_cachedSheet = cachedResourceLoader->requestXSLStyleSheet(absHref);
     
     if (m_cachedSheet) {
         m_cachedSheet->addClient(this);

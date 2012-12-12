@@ -29,11 +29,6 @@ namespace WebCore {
 
 StyleInheritedData::StyleInheritedData()
     : line_height(RenderStyle::initialLineHeight())
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    , specified_line_height(RenderStyle::initialLineHeight())
-#endif
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
     , list_style_image(RenderStyle::initialListStyleImage())
     , color(RenderStyle::initialColor())
     , horizontal_border_spacing(RenderStyle::initialHorizontalBorderSpacing())
@@ -48,11 +43,6 @@ StyleInheritedData::~StyleInheritedData()
 StyleInheritedData::StyleInheritedData(const StyleInheritedData& o)
     : RefCounted<StyleInheritedData>()
     , line_height(o.line_height)
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    , specified_line_height(o.specified_line_height)
-#endif
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
     , list_style_image(o.list_style_image)
     , font(o.font)
     , color(o.color)
@@ -65,11 +55,6 @@ bool StyleInheritedData::operator==(const StyleInheritedData& o) const
 {
     return
         line_height == o.line_height &&
-        //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-        specified_line_height == o.specified_line_height &&
-#endif
-        //SAMSUNG CHANGE END webkit-text-size-adjust >>
         StyleImage::imagesEquivalent(list_style_image.get(), o.list_style_image.get()) &&
         font == o.font &&
         color == o.color &&

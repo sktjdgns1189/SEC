@@ -37,12 +37,7 @@ LOCAL_SRC_FILES:= \
 	../attrib/gattrib.c \
 	../attrib/utils.c \
 
-# SS_BLUETOOTH(is80.hwang) 2012.02.10
-ifeq ($(BOARD_HAVE_BLUETOOTH_CSR),true)
-LOCAL_SRC_FILES += \
-	../tools/csr_hci.c
-endif
-# SS_BLUETOOTH(is80.hwang) End
+
 LOCAL_CFLAGS:= \
 	-DVERSION=\"4.93\" \
 	-DSTORAGEDIR=\"/data/misc/bluetoothd\" \
@@ -65,6 +60,10 @@ LOCAL_CFLAGS += \
 	-DSEC_PRODUCT_SHIP
 endif
 
+ifeq ($(SEC_FMRADIO_BROADCOM),true)
+LOCAL_CFLAGS += -DSEC_FMRADIO_BROADCOM
+endif
+
 LOCAL_C_INCLUDES:= \
 	$(LOCAL_PATH)/../attrib \
 	$(LOCAL_PATH)/../btio \
@@ -81,7 +80,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libbtio \
 	libdbus \
 	libcutils \
-	libglib \
+	libglib
 
 LOCAL_STATIC_LIBRARIES := \
 	libbuiltinplugin \

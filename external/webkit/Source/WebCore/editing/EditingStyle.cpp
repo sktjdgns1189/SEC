@@ -51,6 +51,9 @@ namespace WebCore {
 // FIXME: The current editingStyleProperties contains all inheritableProperties but we may not need to preserve all inheritable properties
 static const int editingStyleProperties[] = {
     // CSS inheritable properties
+//SISO_HTMLComposer start
+    CSSPropertyBackgroundColor,
+//SISO_HTMLComposer end
     CSSPropertyBorderCollapse,
     CSSPropertyColor,
     CSSPropertyFontFamily,
@@ -265,18 +268,18 @@ float EditingStyle::NoFontDelta = 0.0f;
 EditingStyle::EditingStyle()
     : m_shouldUseFixedDefaultFontSize(false)
     , m_fontSizeDelta(NoFontDelta)
-//HTMLComposer start
+//SISO_HTMLComposer start
 	, m_editAction(EditActionUnspecified)
-//HTMLComposer end
+//SISO_HTMLComposer end
 {
 }
 
 EditingStyle::EditingStyle(Node* node, PropertiesToInclude propertiesToInclude)
     : m_shouldUseFixedDefaultFontSize(false)
     , m_fontSizeDelta(NoFontDelta)
-//HTMLComposer start
+//SISO_HTMLComposer start
 	, m_editAction(EditActionUnspecified)
-//HTMLComposer end
+//SISO_HTMLComposer end
 {
     init(node, propertiesToInclude);
 }
@@ -284,9 +287,9 @@ EditingStyle::EditingStyle(Node* node, PropertiesToInclude propertiesToInclude)
 EditingStyle::EditingStyle(const Position& position)
     : m_shouldUseFixedDefaultFontSize(false)
     , m_fontSizeDelta(NoFontDelta)
-//HTMLComposer start
+//SISO_HTMLComposer start
 	, m_editAction(EditActionUnspecified)
-//HTMLComposer end
+//SISO_HTMLComposer end
 {
     init(position.deprecatedNode(), OnlyInheritableProperties);
 }
@@ -295,9 +298,9 @@ EditingStyle::EditingStyle(const CSSStyleDeclaration* style)
     : m_mutableStyle(style->copy())
     , m_shouldUseFixedDefaultFontSize(false)
     , m_fontSizeDelta(NoFontDelta)
-//HTMLComposer start
+//SISO_HTMLComposer start
 	, m_editAction(EditActionUnspecified)
-//HTMLComposer end
+//SISO_HTMLComposer end
 {
     extractFontSizeDelta();
 }
@@ -306,9 +309,9 @@ EditingStyle::EditingStyle(int propertyID, const String& value)
     : m_mutableStyle(0)
     , m_shouldUseFixedDefaultFontSize(false)
     , m_fontSizeDelta(NoFontDelta)
-//HTMLComposer start
+//SISO_HTMLComposer start
 	, m_editAction(EditActionUnspecified)
-//HTMLComposer end
+//SISO_HTMLComposer end
 {
     setProperty(propertyID, value);
 }
@@ -331,15 +334,14 @@ void EditingStyle::init(Node* node, PropertiesToInclude propertiesToInclude)
         RenderStyle* renderStyle = node->computedStyle();
         removeTextFillAndStrokeColorsIfNeeded(renderStyle);
         replaceFontSizeByKeywordIfPossible(renderStyle, computedStyleAtPosition.get());
-//HTMLComposer start
+//SISO_HTMLComposer start
 		if(node->document() && node->document()->frame() 
 			&& (node->document()->frame()->textZoomFactor() > 1.0
 			|| node->document()->frame()->pageZoomFactor() > 1.0)) {
 			replaceComputedFontSizeBySpecifiedSize(computedStyleAtPosition.get());
 		}
-//HTMLComposer end
+//SISO_HTMLComposer end
 	}
-
 
     m_shouldUseFixedDefaultFontSize = computedStyleAtPosition->useFixedFontDefaultSize();
     extractFontSizeDelta();
@@ -374,7 +376,7 @@ void EditingStyle::replaceFontSizeByKeywordIfPossible(RenderStyle* renderStyle, 
         m_mutableStyle->setProperty(CSSPropertyFontSize, computedStyle->getFontSizeCSSValuePreferringKeyword()->cssText());
 }
 
-//HTMLComposer start
+//SISO_HTMLComposer start
 void EditingStyle::replaceComputedFontSizeBySpecifiedSize(CSSComputedStyleDeclaration* computedStyle)
 {
 	RefPtr<CSSValue> fontsize = m_mutableStyle->getPropertyCSSValue(CSSPropertyFontSize);
@@ -383,7 +385,7 @@ void EditingStyle::replaceComputedFontSizeBySpecifiedSize(CSSComputedStyleDeclar
         m_mutableStyle->setProperty(CSSPropertyFontSize, computedStyle->getFontSizeCSSValueBySpecifiedSize()->cssText());
 	}
 }
-//HTMLComposer end
+//SISO_HTMLComposer end
 
 void EditingStyle::extractFontSizeDelta()
 {
@@ -475,9 +477,9 @@ PassRefPtr<EditingStyle> EditingStyle::copy() const
         copy->m_mutableStyle = m_mutableStyle->copy();
     copy->m_shouldUseFixedDefaultFontSize = m_shouldUseFixedDefaultFontSize;
     copy->m_fontSizeDelta = m_fontSizeDelta;
-//HTMLComposer start
+//SISO_HTMLComposer start
 	copy->m_editAction = m_editAction;
-//HTMLComposer end
+//SISO_HTMLComposer end
     return copy;
 }
 
@@ -946,10 +948,10 @@ void StyleChange::extractTextStyles(Document* document, CSSMutableStyleDeclarati
     if (RefPtr<CSSValue> fontSize = style->getPropertyCSSValue(CSSPropertyFontSize)) {
         if (!fontSize->isPrimitiveValue())
             style->removeProperty(CSSPropertyFontSize); // Can't make sense of the number. Put no font size.
-//HTML Composer Start
+//SISO_HTMLComposer start
         else if (int legacyFontSize = legacyFontSizeFromCSSValue(document, static_cast<CSSPrimitiveValue*>(fontSize.get()),
                 shouldUseFixedFontDefaultSize, UsePixelValuesIfSpecified)) {
-//HTML Composer End
+//SISO_HTMLComposer end
             m_applyFontSize = String::number(legacyFontSize);
             style->removeProperty(CSSPropertyFontSize);
         }
@@ -1070,10 +1072,10 @@ int legacyFontSizeFromCSSValue(Document* document, CSSPrimitiveValue* value, boo
         int legacyFontSize = CSSStyleSelector::legacyFontSize(document, pixelFontSize, shouldUseFixedFontDefaultSize);
         // Use legacy font size only if pixel value matches exactly to that of legacy font size.
         int cssPrimitiveEquivalent = legacyFontSize - 1 + CSSValueXSmall;
-//HTML Composer Start
+//SISO_HTMLComposer start
 		if(mode == UsePixelValuesIfSpecified && pixelFontSize)
 			return 0;
-//HTML Composer End
+//SISO_HTMLComposer end
         if (mode == AlwaysUseLegacyFontSize || CSSStyleSelector::fontSizeForKeyword(document, cssPrimitiveEquivalent, shouldUseFixedFontDefaultSize) == pixelFontSize)
             return legacyFontSize;
 

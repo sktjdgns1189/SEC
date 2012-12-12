@@ -103,7 +103,7 @@ public:
         virtual void begin() = 0;
         virtual void commit() = 0;
         virtual void rollback() = 0;
-	virtual ~Transaction() {};
+	virtual ~Transaction() {}; //SAMSUNG CHANGES HTML5 IDB
     };
     virtual PassRefPtr<Transaction> createTransaction() = 0;
 };

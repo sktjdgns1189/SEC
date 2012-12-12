@@ -222,28 +222,21 @@ namespace WebCore {
 
         static bool supportsXMLVersion(const String&);
 //SAMSUNG CHANGE
+        virtual int lineNumber() const;
+        int columnNumber() const;
+
 
         virtual void insert(const SegmentedString&);
         virtual void append(const SegmentedString&);
         virtual void finish();
 //SAMSUNG CHANGE
-
     private:
-//SAMSUNG CHANGE
-//        XMLDocumentParser(Document*, FrameView* = 0);
-//        XMLDocumentParser(DocumentFragment*, Element*, FragmentScriptingPermission);
-//SAMSUNG CHANGE
-        // From DocumentParser
-/* SAMSUNG CHANGE
-        virtual void insert(const SegmentedString&);
-        virtual void append(const SegmentedString&);
-        virtual void finish(); SAMSUNG CHANGE */
         virtual bool finishWasCalled();
         virtual bool isWaitingForScripts() const;
         virtual void stopParsing();
         virtual void detach();
-        virtual int lineNumber() const;
-        int columnNumber() const;
+//        virtual int lineNumber() const;
+//        int columnNumber() const;
 
         // from CachedResourceClient
         virtual void notifyFinished(CachedResource*);

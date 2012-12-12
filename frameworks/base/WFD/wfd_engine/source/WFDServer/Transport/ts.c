@@ -1045,7 +1045,7 @@ extern int write_ES_as_TS_PES_packet_with_pts_dts(
             ctx->mInputCounter = tempInputCounter;
         }
 #endif           
-		++(ctx->mStrmCounter);
+		//++(ctx->mStrmCounter);
 	}
 #endif
 		
@@ -1208,7 +1208,7 @@ extern int write_ES_as_TS_PES_packet_with_pcr(void 	*id,
                 ctx->mInputCounter = tempInputCounter;
            }
 #endif
-		++(ctx->mStrmCounter);
+		//++(ctx->mStrmCounter);
 	}
 #endif
 	//PSIDebug (" after PES_header with pcr pes_hdr_len = %d", pes_hdr_len); 
@@ -1531,6 +1531,8 @@ extern int write_pmt1(void  *id,
 	ctx = (TS_CTX_S*)id; 
 
 	section_length = 9 + 10 + 4;
+
+	section_length += 4; //add 4 byte for audio descriptor
 	
 	if (ctx->hdcpEnabled)
 	    section_length += HDCP_REGISTRATION_DESCRIPTOR_LENGTH;
@@ -1588,7 +1590,9 @@ extern int write_pmt1(void  *id,
 		{
 			//offset = 24;
 			pid = 0x1100;	//default audio pid :LPCM
-			len = 0;
+			//len = 0;
+			
+			len = 4;  //length(4byte) of audio descriptor
 
 //for temp 
 			//ctx->codecType = 1; 
@@ -1608,6 +1612,12 @@ extern int write_pmt1(void  *id,
 			data[offset+2] = (byte) (0x1100 & 0x00FF);
 			data[offset+3] = ((len & 0xFF00) >> 8) | 0xF0;
 			data[offset+4] =   len & 0x00FF;
+			
+			data[offset+5] = 0x83;					  
+			data[offset+6] = 0x02; 
+			data[offset+7] = 0x47; //48khz, 16bits, emphasis on 
+			data[offset+8] = 0x3f; //stereo 2ch
+			
 			//memcpy(data+offset+5,g_pmt.streams[ii].ES_info,len);
 			offset += 5 + len;
 		}

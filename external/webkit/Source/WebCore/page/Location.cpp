@@ -63,8 +63,7 @@ String Location::href() const
     if (!m_frame)
         return String();
 
-    const KURL& url = this->url();
-    return url.hasPath() ? url.prettyURL() : url.prettyURL() + "/";
+    return url().string();
 }
 
 String Location::protocol() const
@@ -83,7 +82,7 @@ String Location::host() const
     // Note: this is the IE spec. The NS spec swaps the two, it says
     // "The hostname property is the concatenation of the host and port properties, separated by a colon."
     const KURL& url = this->url();
-    return url.port() ? url.host() + ":" + String::number(url.port()) : url.host();
+    return url.hasPort() ? url.host() + ":" + String::number(url.port()) : url.host();
 }
 
 String Location::hostname() const
@@ -100,7 +99,7 @@ String Location::port() const
         return String();
 
     const KURL& url = this->url();
-    return url.port() ? String::number(url.port()) : "";
+    return url.hasPort() ? String::number(url.port()) : "";
 }
 
 String Location::pathname() const
@@ -147,15 +146,6 @@ String Location::getParameter(const String& name) const
     return parameters.get(name);
 }
 
-String Location::toString() const
-{
-    if (!m_frame)
-        return String();
-
-    const KURL& url = this->url();
-    return url.hasPath() ? url.prettyURL() : url.prettyURL() + "/";
-}
-
 void Location::setHref(const String& urlString, DOMWindow* activeWindow, DOMWindow* firstWindow)
 {
     if (!m_frame)
@@ -199,7 +189,7 @@ void Location::setPort(const String& portString, DOMWindow* activeWindow, DOMWin
         return;
     KURL url = m_frame->document()->url();
     int port = portString.toInt();
-    if (port < 0 || port > 0xFFFF)
+    if (port < 0 || port > 0xFFFF || portString.isEmpty())
         url.removePort();
     else
         url.setPort(port);

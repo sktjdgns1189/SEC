@@ -23,7 +23,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
+#define LOG_TAG "RenderLayerBacking"
+#define LOG_NDEBUG 1
+
 #include "config.h"
+#include "AndroidLog.h"
 
 #if USE(ACCELERATED_COMPOSITING)
 
@@ -306,25 +310,11 @@ bool RenderLayerBacking::updateGraphicsLayerConfiguration()
         layerConfigChanged = true;
     }
 #endif
-    else if (renderer->isCanvas()){
-        HTMLCanvasElement *canvas = static_cast<HTMLCanvasElement*>(renderer->node());
-        if (canvas->isUsingGpuRendering())
-        {
-            m_graphicsLayer->setContentsToGpuCanvas(canvas->platformLayer());
-        }
-        layerConfigChanged = true;
-    }
 
     if (renderer->isRenderPart())
         layerConfigChanged = RenderLayerCompositor::parentFrameContentLayers(toRenderPart(renderer));
 
     return layerConfigChanged;
-}
-
-void RenderLayerBacking::setContentsToGpuCanvas(LayerAndroid* layer)
-{
-    if(m_graphicsLayer)
-        m_graphicsLayer->setContentsToGpuCanvas(layer);
 }
 
 static IntRect clipBox(RenderBox* renderer)
@@ -930,6 +920,19 @@ bool RenderLayerBacking::isDirectlyCompositedImage() const
     
     if (!renderObject->isImage() || hasBoxDecorationsOrBackground(renderObject) || renderObject->hasClip())
         return false;
+		
+// SAMSUNG CHANGE ++ : maps.google.com > direction > "A", "B" icons are broken.		(This is JB opensource issue)
+// When LayerAndroid uses ImageTexture, ImageTexture draws the image fully, not partially.
+// If RenderImage is clipped by ancestor layer and it is composited layer, despite the image should be clipped properly, it is not clipped.
+// So we can find the solutions : 1. The RenderLayer which has clipped RenderImage should not be composited layer, 2. The RenderLayer should not set DirectCompositedImage.
+// I cannot find the first solution. so I decided to apply second solution.
+// But because of this, some of RenderImage which can use DirectCompositedImage cannot use that anymore. It is possible to make performance issue.
+// I tested performance with Vellamo and manual. but I couldn't find any performance issue.
+	if(owningLayer() &&	(owningLayer()->size().width() > compositedBounds().width() || owningLayer()->size().height() > compositedBounds().height())) {
+		ALOGD("isDirectlyCompositedImage : layer(%d,%d) [composited bounds %d,%d]",  owningLayer()->size().width(), owningLayer()->size().height(), compositedBounds().width(), compositedBounds().height());
+		return false;
+	}
+// SAMSUNG CAHNGE -- : maps.google.com > direction > "A", "B" icons are broken.	
 
     RenderImage* imageRenderer = toRenderImage(renderObject);
     if (CachedImage* cachedImage = imageRenderer->cachedImage()) {
@@ -1128,12 +1131,24 @@ void RenderLayerBacking::paintIntoLayer(RenderLayer* rootLayer, GraphicsContext*
 
     bool shouldPaint = (m_owningLayer->hasVisibleContent() || m_owningLayer->hasVisibleDescendant()) && m_owningLayer->isSelfPaintingLayer();
 
+#if PLATFORM(ANDROID)
+    if (shouldPaint && ((paintingPhase & GraphicsLayerPaintBackground)
+                        || (paintingPhase & GraphicsLayerPaintBackgroundDecorations))) {
+#else
     if (shouldPaint && (paintingPhase & GraphicsLayerPaintBackground)) {
+#endif
         // Paint our background first, before painting any child layers.
         // Establish the clip used to paint our background.
         setClip(context, paintDirtyRect, damageRect);
         
+#if PLATFORM(ANDROID)
+        PaintPhase phase = PaintPhaseBlockBackground;
+        if (paintingPhase & GraphicsLayerPaintBackgroundDecorations)
+            phase = PaintPhaseBlockBackgroundDecorations;
+        PaintInfo info(context, damageRect, phase, false, paintingRootForRenderer, 0);
+#else
         PaintInfo info(context, damageRect, PaintPhaseBlockBackground, false, paintingRootForRenderer, 0);
+#endif
         renderer()->paint(info, tx, ty);
 
         // Our scrollbar widgets paint exactly when we tell them to, so that they work properly with
@@ -1257,8 +1272,6 @@ void RenderLayerBacking::paintContents(const GraphicsLayer* graphicsLayer, Graph
 #endif
 
         // We have to use the same root as for hit testing, because both methods can compute and cache clipRects.
-        if((m_owningLayer==NULL) || (m_owningLayer->renderer()==NULL) || (m_owningLayer->renderer()->layer() == NULL))  // P120614-0161
-            return;
         paintIntoLayer(m_owningLayer, &context, dirtyRect, PaintBehaviorNormal, paintingPhase, renderer());
 
         InspectorInstrumentation::didPaint(cookie);
@@ -1343,6 +1356,7 @@ void RenderLayerBacking::animationPaused(double timeOffset, const String& animat
 void RenderLayerBacking::animationFinished(const String& animationName)
 {
     m_graphicsLayer->removeAnimation(animationName);
+    m_graphicsLayer->syncCompositingState(); //SAMSUNG CHANGE @ prevent block display issue when scrolling
 }
 
 bool RenderLayerBacking::startTransition(double timeOffset, int property, const RenderStyle* fromStyle, const RenderStyle* toStyle)

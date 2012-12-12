@@ -52,13 +52,15 @@ public:
 
     int paginationStrut() const { return m_paginationStrut; }
     void setPaginationStrut(int s) { m_paginationStrut = s; }
-// Samsung Adding for multicolumn text selection - Begin
+ 
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     int selectionTop(bool bTextSelection = false) const;
-// Samsung Adding for multicolumn text selection - End 
+//SAMSUNG ADVANCED TEXT SELECTION - END
     int selectionBottom() const;
-// Samsung Adding for multicolumn text selection - Begin
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     int selectionHeight(bool bTextSelection = false) const { return max(0, selectionBottom() - selectionTop(bTextSelection)); }
-// Samsung Adding for multicolumn text selection - End 
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
     int alignBoxesInBlockDirection(int heightOfBlock, GlyphOverflowAndFallbackFontsMap&, VerticalPositionCache&);
     void setLineTopBottomPositions(int top, int bottom);
 

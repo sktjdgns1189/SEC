@@ -51,8 +51,6 @@ class Image;
 class ImageData;
 class ImageBuffer;
 class IntSize;
-class LayerAndroid;
-class CanvasLayerAndroid;
 
 class CanvasObserver {
 public:
@@ -101,16 +99,6 @@ public:
     void didDraw(const FloatRect&);
 
     void paint(GraphicsContext*, const IntRect&);
-#if PLATFORM(ANDROID)
-    void clearRecording(const FloatRect& rect);
-    LayerAndroid* platformLayer();
-    bool canUseGpuRendering();
-    void enableGpuRendering()   {   m_gpuRendering = true;    }
-    void disableGpuRendering()  {   m_gpuRendering = false;    }
-    bool isUsingGpuRendering()  {   return m_gpuRendering;  }
-    void setSupportedCompositing(bool val)   {   m_supportedCompositing = val;   }
-	static void setGLEnabled(bool val)       {   s_glEnabled = val;              }
-#endif
 
     GraphicsContext* drawingContext() const;
 
@@ -145,20 +133,8 @@ public:
 
     void makeRenderingResultsAvailable();
 
-#ifdef ANDROID_INSTRUMENT
-    void* operator new(size_t size) {
-        return HTMLElement::operator new(size);
-    }
-    void* operator new[](size_t size) {
-        return HTMLElement::operator new[](size);
-    }
-
-    void operator delete(void* p, size_t size) {
-        HTMLElement::operator delete(p, size);
-    }
-    void operator delete[](void* p, size_t size) {
-        HTMLElement::operator delete[](p, size);
-    }
+#if PLATFORM(ANDROID)
+    void clearDirtyRect() { m_dirtyRect = FloatRect(); }
 #endif
 
 private:
@@ -195,16 +171,7 @@ private:
     mutable RefPtr<Image> m_presentedImage;
     mutable RefPtr<Image> m_copiedImage; // FIXME: This is temporary for platforms that have to copy the image buffer to render (and for CSSCanvasValue).
 #if PLATFORM(ANDROID)
-    bool m_recordingCanvasEnabled;
-    bool m_gpuCanvasEnabled;
-    bool m_canUseGpuRendering;
-    bool m_gpuRendering;
-    bool m_supportedCompositing;
-	bool m_gpuAccelerationStatus;
-	static bool s_glEnabled;
 	bool m_isDocumentActivationCallbackRegistered; // Samsung Changes P120328-0246 
-    static int s_canvas_id; //Canvas Ids TODO::recycle and overflow checks
-    CanvasLayerAndroid* m_canvasLayer;
 #endif
 };
 

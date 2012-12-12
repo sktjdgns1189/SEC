@@ -25,7 +25,7 @@ source "drivers/gpu/stub/Kconfig"
 
 source "drivers/gpu/ion/Kconfig"
 
-#OSS_C1 source "drivers/gpu/vithar/Kconfig"
+source "drivers/gpu/vithar/Kconfig"
 
 config VGASTATE
        tristate
@@ -265,6 +265,7 @@ comment "Frame buffer hardware drivers"
 
 source "drivers/video/samsung/Kconfig"
 source "drivers/video/samsung_extdisp/Kconfig"
+source "drivers/video/samsung_duallcd/Kconfig"
 
 config FB_CIRRUS
 	tristate "Cirrus Logic support"

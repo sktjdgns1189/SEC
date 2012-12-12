@@ -133,7 +133,6 @@ void WebSocketChannel::fail(const String& reason)
         m_handle->close(); // Will call didClose().
 }
 // SAMSUNG CHANGE added from chrome source <<
-
 void WebSocketChannel::disconnect()
 {
     LOG(Network, "WebSocketChannel %p disconnect", this);

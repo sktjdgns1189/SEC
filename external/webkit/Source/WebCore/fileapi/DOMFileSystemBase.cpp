@@ -31,10 +31,6 @@
 #include "config.h"
 #include "DOMFileSystemBase.h"
 
-#define LOG_NDEBUG 0
-#define LOGTAG "FileSystem"
-
-
 #if ENABLE(FILE_SYSTEM)
 
 #include "DOMFilePath.h"
@@ -51,9 +47,6 @@
 #include "ScriptExecutionContext.h"
 #include "VoidCallback.h"
 #include <wtf/OwnPtr.h>
-#include <wtf/text/CString.h>
-#undef LOG
-#include <utils/Log.h>
 
 namespace WebCore {
 
@@ -70,7 +63,7 @@ bool DOMFileSystemBase::crackFileSystemURL(const KURL& url, AsyncFileSystem::Typ
         return false;
 
     KURL originURL(ParsedURLString, url.path());
-    String path = originURL.path();
+    String path = decodeURLEscapeSequences(originURL.path());
     if (path.isEmpty() || path[0] != '/')
         return false;
     path = path.substring(1);
@@ -189,9 +182,7 @@ bool DOMFileSystemBase::remove(const EntryBase* entry, PassRefPtr<VoidCallback> 
         return false;
     //SAMSUNG CHANGE HTML5 FILEAPI <<
     String platformPath = m_asyncFileSystem->virtualToPlatformPath("");
-    LOGE("remove platformPath is %s ",platformPath.utf8().data());
     String delpath = entry->fullPath();
-    LOGE("remove delpath is %s ",delpath.utf8().data());
     m_asyncFileSystem->remove(delpath, VoidCallbacks::create(successCallback, errorCallback));
     //SAMSUNG CHANGE HTML5 FILEAPI >>
     return true;
@@ -205,9 +196,7 @@ bool DOMFileSystemBase::removeRecursively(const EntryBase* entry, PassRefPtr<Voi
         return false;
     //SAMSUNG CHANGE HTML5 FILEAPI <<
     String platformPath = m_asyncFileSystem->virtualToPlatformPath("");
-    LOGE("remove recursively platformPath is %s ",platformPath.utf8().data());
     String delpath = entry->fullPath();
-    LOGE("remove recursively delpath is %s ",delpath.utf8().data());
     m_asyncFileSystem->removeRecursively(delpath, VoidCallbacks::create(successCallback, errorCallback));
     //SAMSUNG CHANGE HTML5 FILEAPI >>
     return true;
@@ -227,8 +216,8 @@ bool DOMFileSystemBase::getFile(const EntryBase* base, const String& path, PassR
     String absolutePath;
     if (!pathToAbsolutePath(base, path, absolutePath))
         return false;
+
     String platformPath = m_asyncFileSystem->virtualToPlatformPath(absolutePath);
-    LOGE("absolutePath is %s ,platformPath is %s ",absolutePath.utf8().data(), platformPath.utf8().data());
     OwnPtr<EntryCallbacks> callbacks = EntryCallbacks::create(successCallback, errorCallback, this, absolutePath, false);
     if (flags && flags->isCreate())
         m_asyncFileSystem->createFile(platformPath, flags->isExclusive(), callbacks.release());
@@ -256,7 +245,6 @@ bool DOMFileSystemBase::readDirectory(PassRefPtr<DirectoryReaderBase> reader, co
 {
     ASSERT(DOMFilePath::isAbsolute(path));
     String platformPath = m_asyncFileSystem->virtualToPlatformPath(path);
-    LOGE("platformPath is %s ",platformPath.utf8().data());
     m_asyncFileSystem->readDirectory(platformPath, EntriesCallbacks::create(successCallback, errorCallback, reader, path));
     return true;
 }

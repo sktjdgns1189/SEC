@@ -33,7 +33,7 @@
 
 #include "CSSParser.h"
 #include "GraphicsContext.h"
-
+#include "SkColorShader.h"
 #include "SkGradientShader.h"
 #include "SkiaUtils.h"
 
@@ -171,11 +171,21 @@ SkShader* Gradient::platformGradient()
         SkPoint pts[2] = { m_p0, m_p1 };
         m_gradient = SkGradientShader::CreateLinear(pts, colors, pos, static_cast<int>(countUsed), tile);
     }
-
+	if (!m_gradient)
+	{
+		m_gradient = new  SkColorShader(colors[countUsed -1]);
+	}
+	else
+	{
+		m_gradient->setLocalMatrix(m_gradientSpaceTransformation);
+	}
+	return m_gradient ;
+#if 0
     ASSERT(m_gradient);
     SkMatrix matrix = m_gradientSpaceTransformation;
     m_gradient->setLocalMatrix(matrix);
     return m_gradient;
+#endif 
 }
 
 void Gradient::fill(GraphicsContext* context, const FloatRect& rect)

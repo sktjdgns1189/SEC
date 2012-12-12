@@ -32,19 +32,7 @@
 #include "RenderView.h"
 #include "Settings.h"
 
-#ifdef DEBUG
-
-#include <cutils/log.h>
-
-#undef XLOG
-#define XLOG(...) android_printLog(ANDROID_LOG_DEBUG, "RenderIFrame", __VA_ARGS__)
-
-#else
-
-#undef XLOG
-#define XLOG(...)
-
-#endif // DEBUG
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
 
 namespace WebCore {
 
@@ -104,23 +92,7 @@ bool RenderIFrame::flattenFrame()
         return false;
 
     Frame* frame = element->document()->frame();
-    // SAMSUNG CHANGE + flattenning is not enabled for IFRAME in Android. But if IFRAME internally has FRAMESET then apply flattenning logic to avoid inner scroll issues
-    //bool enabled = frame && frame->settings()->frameFlatteningEnabled();
-    bool enabled = false;
-    FrameView* currentView = static_cast<FrameView*>(widget());
-    if (currentView) {
-    	Frame* iframe = currentView->frame();
-    	if (iframe) {
-    	    Document* document = iframe->document();
-    	    Node* body = document->body();
-    	    if (body && body->hasTagName(framesetTag)) {
-               XLOG("MyLog : flattenFrame BODY is NOT NULL");
-               enabled = true;
-    	    }
-    	}
-    }
-    
-    // SAMSUNG CHANGE -
+    bool enabled = frame && frame->settings()->frameFlatteningEnabled();
 
     if (!enabled || !frame->page())
         return false;
@@ -148,7 +120,7 @@ void RenderIFrame::layout()
     RenderPart::layout();
 
     m_overflow.clear();
-    addShadowOverflow();
+    addBoxShadowAndBorderOverflow();
     updateLayerTransform();
 
     setNeedsLayout(false);

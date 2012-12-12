@@ -497,6 +497,10 @@ int main(int argc, char *argv[])
 
 	rfkill_init();
 
+#ifdef SEC_FMRADIO_BROADCOM
+	property_set("init.svc.bluetoothd","1");
+#endif
+
 	DBG("Entering main loop");
 
 	g_main_loop_run(event_loop);
@@ -519,6 +523,10 @@ int main(int argc, char *argv[])
 
 	if (config)
 		g_key_file_free(config);
+
+#ifdef SEC_FMRADIO_BROADCOM
+	property_set("init.svc.bluetoothd","0");
+#endif
 
 	info("Exit");
 

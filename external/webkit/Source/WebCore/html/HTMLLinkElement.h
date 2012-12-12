@@ -120,20 +120,12 @@ private:
     void addPendingSheet(PendingSheetType);
     void removePendingSheet();
 
-#ifdef ANDROID_INSTRUMENT
-    // Overridden to resolve the ambiguous
-    void* operator new(size_t size);
-    void* operator new[](size_t size);
-    void operator delete(void* p, size_t size);
-    void operator delete[](void* p, size_t size);
-#endif
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 private:
     HTMLLinkElement(const QualifiedName&, Document*, bool createdByParser);
 

@@ -45,9 +45,6 @@ WebResponse::WebResponse(net::URLRequest* request)
 
     m_url = request->url().spec();
     m_host = request->url().HostNoBrackets();
-	//SAMSUNG_CHANGES MPSG100002728 >>
-	m_referrer = request->referrer();
-	//SAMSUNG_CHANGES MPSG100002728 <<
     request->GetMimeType(&m_mime);
 
     request->GetCharset(&m_encoding);
@@ -109,13 +106,6 @@ const string& WebResponse::getUrl() const
 {
     return m_url;
 }
-
-//SAMSUNG_CHANGES MPSG100002728 >>
-const std::string& WebResponse::getReferrer() const
-{
-	return m_referrer;
-}
-//SAMSUNG_CHANGES MPSG100002728 <<
 
 void WebResponse::setUrl(const string& url)
 {

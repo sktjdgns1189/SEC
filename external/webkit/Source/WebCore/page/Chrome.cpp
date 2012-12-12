@@ -310,6 +310,26 @@ bool Chrome::runJavaScriptConfirm(Frame* frame, const String& message)
     return m_client->runJavaScriptConfirm(frame, frame->displayStringModifiedByEncoding(message));
 }
 
+// Samsung Change - Bing search >>
+bool Chrome::setBingSearch()
+{
+   #if ENABLE(SEARCHENGINE_LOGGING)
+      __android_log_print(ANDROID_LOG_DEBUG,"BINGSEARCH","entered the setBingSearch implementation of Chrome.cpp");
+   #endif
+   ASSERT(frame);
+   return m_client->setBingSearch();
+}
+
+int Chrome::isBingSearch()
+{
+   #if ENABLE(SEARCHENGINE_LOGGING)
+       __android_log_print(ANDROID_LOG_DEBUG,"BINGSEARCH","entered the isBingSearch implementation of Chrome.cpp");
+   #endif
+   ASSERT(frame);
+   return m_client->isBingSearch();
+}
+// Samsung Change - Bing search <<
+
 bool Chrome::runJavaScriptPrompt(Frame* frame, const String& prompt, const String& defaultValue, String& result)
 {
     willRunModalDialog(frame, ChromeClient::PromptDialog, m_client);
@@ -474,7 +494,7 @@ void Chrome::setCursor(const Cursor& cursor)
 #if ENABLE(REQUEST_ANIMATION_FRAME)
 void Chrome::scheduleAnimation()
 {
-#if !USE(REQUEST_ANIMATION_FRAME_TIMER) //SISO CHANGES ANIMATION
+#if !USE(REQUEST_ANIMATION_FRAME_TIMER) //SAMSUNG CHANGES HTML5 REQUEST ANIMATION
     m_client->scheduleAnimation();
 #endif
 }

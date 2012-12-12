@@ -38,21 +38,21 @@
 #include "RenderMediaControls.h"
 #endif
 #include "RenderSkinAndroid.h"
-#include "RenderSkinButton.h"
-#include "RenderSkinCombo.h"
 #include "RenderSkinMediaButton.h"
-#include "RenderSkinRadio.h"
+#include "RoundedIntRect.h"
 #include "SkCanvas.h"
 #include "UserAgentStyleSheets.h"
 #include "WebCoreFrameBridge.h"
+//SAMSUNG CHANGES HTML5 PROGRESS <<
 #if ENABLE(PROGRESS_TAG)
 #include "RenderProgress.h"
 #include "SkShader.h"
 #include "SkGradientShader.h"
 #endif
-#include "RenderSlider.h"
-#include "Settings.h"  // SAMSUNG CHANGE : ADVANCED COPY & PASTE
-
+//SAMSUNG CHANGES HTML5 PROGRESS >>
+// SAMSUNG ADVANCED TEXT SELECTION BEGIN
+#include "Settings.h"  
+// SAMSUNG ADVANCED TEXT SELECTION END
 namespace WebCore {
 
 // Add padding to the fontSize of ListBoxes to get their maximum sizes.
@@ -70,9 +70,39 @@ const int listboxPadding = 5;
 
 const RGBA32 selectionColor = makeRGB(66, 142, 186); //makeRGB(181, 224, 136); // SAMSUNG CHANGE
 
+// Colors copied from the holo resources
+const RGBA32 defaultBgColor = makeRGBA(204, 204, 204, 197);
+const RGBA32 defaultBgBright = makeRGBA(213, 213, 213, 221);
+const RGBA32 defaultBgDark = makeRGBA(92, 92, 92, 160);
+const RGBA32 defaultBgMedium = makeRGBA(132, 132, 132, 111);
+const RGBA32 defaultFgColor = makeRGBA(101, 101, 101, 225);
+const RGBA32 defaultCheckColor = makeRGBA(154, 204, 2, 255);
+
+const RGBA32 disabledBgColor = makeRGBA(205, 205, 205, 107);
+const RGBA32 disabledBgBright = makeRGBA(213, 213, 213, 133);
+const RGBA32 disabledBgDark = makeRGBA(92, 92, 92, 96);
+const RGBA32 disabledBgMedium = makeRGBA(132, 132, 132, 111);
+const RGBA32 disabledFgColor = makeRGBA(148, 148, 148, 137);
+
+const int paddingButton = 2;
+const int cornerButton = 2;
+
+// scale factors for various resolutions
+const float scaleFactor[RenderSkinAndroid::ResolutionCount] = {
+    1.0f, // medium res
+    1.5f, // high res
+    2.0f  // extra high res
+};
+
+//SAMSUNG CHANGES HTML5 PROGRESS <<
+#if ENABLE(PROGRESS_TAG)
+static const int progressActivityBlocks = 8;
+#endif
+//SAMSUNG CHANGES HTML5 PROGRESS >>
+
 static SkCanvas* getCanvasFromInfo(const PaintInfo& info)
 {
-    return info.context->platformContext()->mCanvas;
+    return info.context->platformContext()->getCanvas();
 }
 
 static android::WebFrame* getWebFrame(const Node* node)
@@ -81,32 +111,6 @@ static android::WebFrame* getWebFrame(const Node* node)
         return 0;
     return android::WebFrame::getWebFrame(node->document()->frame());
 }
-
-//SAMSUNG INPUT TYPE RANGE CHANGES <<
-static void drawVertLine(SkCanvas* canvas, int x, int y1, int y2, const SkPaint& paint)
-{
-    SkIRect skrect;
-    skrect.set(x, y1, x + 1, y2 + 1);
-    canvas->drawIRect(skrect, paint);
-}
-
-static void drawHorizLine(SkCanvas* canvas, int x1, int x2, int y, const SkPaint& paint)
-{
-    SkIRect skrect;
-    skrect.set(x1, y, x2 + 1, y + 1);
-    canvas->drawIRect(skrect, paint);
-}
-
-static void drawBox(SkCanvas* canvas, const IntRect& rect, const SkPaint& paint)
-{
-    const int right = rect.x() + rect.width() - 1;
-    const int bottom = rect.y() + rect.height() - 1;
-    drawHorizLine(canvas, rect.x(), right, rect.y(), paint);
-    drawVertLine(canvas, right, rect.y(), bottom, paint);
-    drawHorizLine(canvas, rect.x(), right, bottom, paint);
-    drawVertLine(canvas, rect.x(), rect.y(), bottom, paint);
-}
-//SAMSUNG INPUT TYPE RANGE CHANGES >>
 
 RenderTheme* theme()
 {
@@ -151,7 +155,7 @@ Color RenderThemeAndroid::platformActiveSelectionBackgroundColor() const
     return Color(selectionColor);
 }
 
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE >>
+// SAMSUNG ADVANCED TEXT SELECTION BEGIN
 Color RenderThemeAndroid::platformActiveSelectionBackgroundColor(Settings* s) const
 {
     Color color(selectionColor);
@@ -162,14 +166,12 @@ Color RenderThemeAndroid::platformActiveSelectionBackgroundColor(Settings* s) co
     }
     return color;
 }
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE <<
-
+// SAMSUNG ADVANCED TEXT SELECTION END
 Color RenderThemeAndroid::platformInactiveSelectionBackgroundColor() const
 {
     return Color(Color::transparent);
 }
-
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE >>
+// SAMSUNG ADVANCED TEXT SELECTION BEGIN
 Color RenderThemeAndroid::platformInactiveSelectionBackgroundColor(Settings* s) const
 {
     Color color(selectionColor);
@@ -180,7 +182,7 @@ Color RenderThemeAndroid::platformInactiveSelectionBackgroundColor(Settings* s) 
     }
     return color;
 }
-// SAMSUNG CHANGE : ADVANCED COPY & PASTE <<
+// SAMSUNG ADVANCED TEXT SELECTION END
 
 Color RenderThemeAndroid::platformActiveSelectionForegroundColor() const
 {
@@ -217,6 +219,16 @@ Color RenderThemeAndroid::platformInactiveListBoxSelectionForegroundColor() cons
     return Color(Color::transparent);
 }
 
+Color RenderThemeAndroid::platformActiveTextSearchHighlightColor() const
+{
+    return Color(0x00, 0x99, 0xcc, 0x99); // HOLO_DARK
+}
+
+Color RenderThemeAndroid::platformInactiveTextSearchHighlightColor() const
+{
+    return Color(0x33, 0xb5, 0xe5, 0x66); // HOLO_LIGHT
+}
+
 int RenderThemeAndroid::baselinePosition(const RenderObject* obj) const
 {
     // From the description of this function in RenderTheme.h:
@@ -225,7 +237,7 @@ int RenderThemeAndroid::baselinePosition(const RenderObject* obj) const
     // controls that need to do this.
     //
     // Our checkboxes and radio buttons need to be offset to line up properly.
-    return RenderTheme::baselinePosition(obj) - 2;
+    return RenderTheme::baselinePosition(obj) - 8;
 }
 
 void RenderThemeAndroid::addIntrinsicMargins(RenderStyle* style) const
@@ -233,10 +245,10 @@ void RenderThemeAndroid::addIntrinsicMargins(RenderStyle* style) const
     // Cut out the intrinsic margins completely if we end up using a small font size
     if (style->fontSize() < 11)
         return;
-    
+
     // Intrinsic margin value.
     const int m = 2;
-    
+
     // FIXME: Using width/height alone and not also dealing with min-width/max-width is flawed.
     if (style->width().isIntrinsicOrAuto()) {
         if (style->marginLeft().quirk())
@@ -269,27 +281,11 @@ bool RenderThemeAndroid::supportsFocus(ControlPart appearance)
 
 void RenderThemeAndroid::adjustButtonStyle(CSSStyleSelector*, RenderStyle* style, WebCore::Element*) const
 {
-    // Code is taken from RenderThemeSafari.cpp
-    // It makes sure we have enough space for the button text.
-    const int paddingHoriz = 12;
-    //SISO CHANGES START>> MPSG100003464 Improper search button display fetching http://m.rediff.com
-    //WAS: const int paddingVert = 8;
-    //SISO CHANGES END<<
-    style->setPaddingLeft(Length(paddingHoriz, Fixed));
-    style->setPaddingRight(Length(paddingHoriz, Fixed));
-   //SISO CHANGES START>> MPSG100003464 Improper search button display fetching http://m.rediff.com
-   //If we provide fixed vertical padding when button style has "height" property, causes wrong alignment of text in button.
-   //WAS: style->setPaddingTop(Length(paddingVert, Fixed));
-   //WAS: style->setPaddingBottom(Length(paddingVert, Fixed));
-   //SISO CHANGES END<<
-    // Set a min-height so that we can't get smaller than the mini button.
-   // Fix GA0100449299 . Change button min height. 
-    style->setMinHeight(Length(30, Fixed));
 }
 
 bool RenderThemeAndroid::paintCheckbox(RenderObject* obj, const PaintInfo& info, const IntRect& rect)
 {
-    RenderSkinRadio::Draw(getCanvasFromInfo(info), obj->node(), rect, true);
+    paintRadio(obj, info, rect);
     return false;
 }
 
@@ -301,15 +297,49 @@ bool RenderThemeAndroid::paintButton(RenderObject* obj, const PaintInfo& info, c
     if (formControlElement) {
         android::WebFrame* webFrame = getWebFrame(node);
         if (webFrame) {
-            RenderSkinAndroid* skins = webFrame->renderSkins();
-            if (skins) {
-                RenderSkinAndroid::State state = RenderSkinAndroid::kNormal;
-                if (!formControlElement->isEnabledFormControl())
-                    state = RenderSkinAndroid::kDisabled;
-                skins->renderSkinButton()->draw(getCanvasFromInfo(info), rect, state);
+            GraphicsContext *context = info.context;
+            IntRect innerrect = IntRect(rect.x() + paddingButton, rect.y() + paddingButton,
+                    rect.width() - 2 * paddingButton, rect.height() - 2 * paddingButton);
+            IntSize cornerrect = IntSize(cornerButton, cornerButton);
+            Color bg, bright, dark, medium;
+            if (formControlElement->isEnabledFormControl()) {
+                bg = Color(defaultBgColor);
+                bright = Color(defaultBgBright);
+                dark = Color(defaultBgDark);
+                medium = Color(defaultBgMedium);
+            } else {
+                bg = Color(disabledBgColor);
+                bright = Color(disabledBgBright);
+                dark = Color(disabledBgDark);
+                medium = Color(disabledBgMedium);
             }
+            context->save();
+            context->clip(
+                    IntRect(innerrect.x(), innerrect.y(), innerrect.width(), 1));
+            context->fillRoundedRect(innerrect, cornerrect, cornerrect,
+                    cornerrect, cornerrect, bright, context->fillColorSpace());
+            context->restore();
+            context->save();
+            context->clip(IntRect(innerrect.x(), innerrect.y() + innerrect.height() - 1,
+                    innerrect.width(), 1));
+            context->fillRoundedRect(innerrect, cornerrect, cornerrect,
+                    cornerrect, cornerrect, dark, context->fillColorSpace());
+            context->restore();
+            context->save();
+            context->clip(IntRect(innerrect.x(), innerrect.y() + 1, innerrect.width(),
+                    innerrect.height() - 2));
+            context->fillRoundedRect(innerrect, cornerrect, cornerrect,
+                    cornerrect, cornerrect, bg, context->fillColorSpace());
+            context->restore();
+            context->setStrokeColor(medium, context->strokeColorSpace());
+            context->setStrokeThickness(1.0f);
+            context->drawLine(IntPoint(innerrect.x(), innerrect.y() + cornerButton),
+                    IntPoint(innerrect.x(), innerrect.y() + innerrect.height() - cornerButton));
+            context->drawLine(IntPoint(innerrect.x() + innerrect.width(), innerrect.y() + cornerButton),
+                    IntPoint(innerrect.x() + innerrect.width(), innerrect.y() + innerrect.height() - cornerButton));
         }
     }
+
 
     // We always return false so we do not request to be redrawn.
     return false;
@@ -349,6 +379,8 @@ bool RenderThemeAndroid::paintMediaFullscreenButton(RenderObject* o, const Paint
       bool translucent = false;
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
+      if (!getCanvasFromInfo(paintInfo))
+          return true;
       RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect, RenderSkinMediaButton::FULLSCREEN, translucent);
       return false;
 }
@@ -358,6 +390,8 @@ bool RenderThemeAndroid::paintMediaMuteButton(RenderObject* o, const PaintInfo& 
       bool translucent = false;
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
+      if (!getCanvasFromInfo(paintInfo))
+          return true;
       RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect, RenderSkinMediaButton::MUTE, translucent);
       return false;
 }
@@ -368,6 +402,8 @@ bool RenderThemeAndroid::paintMediaPlayButton(RenderObject* o, const PaintInfo& 
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
       if (MediaControlPlayButtonElement* btn = static_cast<MediaControlPlayButtonElement*>(o->node())) {
+          if (!getCanvasFromInfo(paintInfo))
+              return true;
           if (btn->displayType() == MediaPlayButton)
               RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect, RenderSkinMediaButton::PLAY, translucent);
           else
@@ -382,6 +418,8 @@ bool RenderThemeAndroid::paintMediaSeekBackButton(RenderObject* o, const PaintIn
       bool translucent = false;
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
+      if (!getCanvasFromInfo(paintInfo))
+          return true;
       RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect, RenderSkinMediaButton::REWIND, translucent);
       return false;
 }
@@ -391,6 +429,8 @@ bool RenderThemeAndroid::paintMediaSeekForwardButton(RenderObject* o, const Pain
       bool translucent = false;
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
+      if (!getCanvasFromInfo(paintInfo))
+          return true;
       RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect, RenderSkinMediaButton::FORWARD, translucent);
       return false;
 }
@@ -400,7 +440,11 @@ bool RenderThemeAndroid::paintMediaControlsBackground(RenderObject* o, const Pai
       bool translucent = false;
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
-      RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect, RenderSkinMediaButton::BACKGROUND_SLIDER, translucent);
+      if (!getCanvasFromInfo(paintInfo))
+          return true;
+      RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect,
+                                  RenderSkinMediaButton::BACKGROUND_SLIDER,
+                                  translucent, 0, false);
       return false;
 }
 
@@ -409,6 +453,8 @@ bool RenderThemeAndroid::paintMediaSliderTrack(RenderObject* o, const PaintInfo&
       bool translucent = false;
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
+      if (!getCanvasFromInfo(paintInfo))
+          return true;
       RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect,
                                   RenderSkinMediaButton::SLIDER_TRACK, translucent, o);
       return false;
@@ -419,7 +465,11 @@ bool RenderThemeAndroid::paintMediaSliderThumb(RenderObject* o, const PaintInfo&
       bool translucent = false;
       if (o && toParentMediaElement(o) && toParentMediaElement(o)->hasTagName(HTMLNames::videoTag))
           translucent = true;
-      RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect, RenderSkinMediaButton::SLIDER_THUMB, translucent);
+      if (!getCanvasFromInfo(paintInfo))
+          return true;
+      RenderSkinMediaButton::Draw(getCanvasFromInfo(paintInfo), rect,
+                                  RenderSkinMediaButton::SLIDER_THUMB,
+                                  translucent, 0, false);
       return false;
 }
 
@@ -427,42 +477,69 @@ void RenderThemeAndroid::adjustSliderThumbSize(RenderObject* o) const
 {
     static const int sliderThumbWidth = RenderSkinMediaButton::sliderThumbWidth();
     static const int sliderThumbHeight = RenderSkinMediaButton::sliderThumbHeight();
-
-//SAMSUNG INPUT TYPE RANGE CHANGES <<
-    if(o->style()->appearance() == SliderThumbHorizontalPart){
-	o->style()->setWidth(Length(sliderThumbWidth, Fixed));
-        o->style()->setHeight(Length(sliderThumbHeight, Fixed));
-    }	
-    else if(o->style()->appearance() == SliderThumbVerticalPart){
-	o->style()->setWidth(Length(sliderThumbHeight, Fixed));
-        o->style()->setHeight(Length(sliderThumbWidth, Fixed));
-    }
-//SAMSUNG INPUT TYPE RANGE CHANGES >>
-    else if(o->style()->appearance() == MediaSliderThumbPart) {
-        o->style()->setWidth(Length(sliderThumbWidth, Fixed));
-        o->style()->setHeight(Length(sliderThumbHeight, Fixed));
-    }
+    o->style()->setWidth(Length(sliderThumbWidth, Fixed));
+    o->style()->setHeight(Length(sliderThumbHeight, Fixed));
 }
 
 #endif
 
 bool RenderThemeAndroid::paintRadio(RenderObject* obj, const PaintInfo& info, const IntRect& rect)
 {
-    RenderSkinRadio::Draw(getCanvasFromInfo(info), obj->node(), rect, false);
+    Node* node = obj->node();
+    Element* element = static_cast<Element*>(node);
+    if (element) {
+        InputElement* input = element->toInputElement();
+        GraphicsContext* context = info.context;
+		context->save(); // SAMSUNG CHANGE ++ : mobile naver login page on Desktop mode. Alpha affect NAVER logo image.
+        if (!element->isEnabledFormControl()) {
+            context->setAlpha(0.5f);
+        }
+        const IntRect inner = IntRect(rect.x() - 2, rect.y() - 2, rect.width() - 4, rect.height() - 4);
+        context->setFillColor(Color(defaultBgBright), context->fillColorSpace());
+        context->setStrokeColor(Color(defaultBgBright), context->strokeColorSpace());
+        context->setStrokeThickness(1.0f);
+//SAMSUNG CHANGE [Cq - 5912]
+/*        if (input->isCheckbox()) {
+            context->drawRect(inner);
+        } else {
+            context->drawEllipse(inner);
+        }
+        context->setStrokeColor(Color(defaultFgColor), context->strokeColorSpace());*/
+//SAMSUNG CHANGE [Cq - 5912]
+        if (input->isCheckbox()) {
+            context->drawRect(IntRect(inner.x() + 2, inner.y() + 2, inner.width() -4, inner.height() - 4));
+        } else {
+            context->drawEllipse(IntRect(inner.x() + 2, inner.y() + 2, inner.width() -4, inner.height() - 4));
+        }
+        if (input->isChecked()) {
+            context->setFillColor(Color(defaultCheckColor), context->fillColorSpace());
+            context->setStrokeColor(Color(defaultCheckColor), context->strokeColorSpace());
+            if (input->isCheckbox()) {
+                const float w2 = ((float) rect.width() / 2);
+                const float cx = ((float) rect.x());
+                const float cy = ((float) rect.y());
+                context->save();
+                // magic numbers due to weird scale in context
+                context->translate(cx + w2 / 2.2f, cy + w2 / 1.2f);
+                context->rotate(3.93f); // 225 degrees
+                context->drawRect(IntRect(0, 0, rect.width() / 4, 2));
+                context->rotate(1.57f); // 90 degrees
+                context->drawRect(IntRect(0, 0, rect.width() / 2, 2));
+                context->restore();
+            } else {
+                context->drawEllipse(IntRect(inner.x() + 5, inner.y() + 5, inner.width() - 10, inner.height() - 10));
+            }
+        }
+		
+		context->restore(); // SAMSUNG CHANGE ++ : mobile naver login page on Desktop mode.
+    }
     return false;
 }
 
 void RenderThemeAndroid::setCheckboxSize(RenderStyle* style) const
 {
-    //SAMSUNG_CHANGE_BEGIN
-    style->setWidth(Length(15, Fixed));
-    style->setHeight(Length(15, Fixed));
-    //SAMSUNG_CHANGE_END
-
-    /*
     style->setWidth(Length(19, Fixed));
     style->setHeight(Length(19, Fixed));
-    */
 }
 
 void RenderThemeAndroid::setRadioSize(RenderStyle* style) const
@@ -478,7 +555,7 @@ void RenderThemeAndroid::adjustTextFieldStyle(CSSStyleSelector*, RenderStyle* st
 
 bool RenderThemeAndroid::paintTextField(RenderObject*, const PaintInfo&, const IntRect&)
 {
-    return true;    
+    return true;
 }
 
 void RenderThemeAndroid::adjustTextAreaStyle(CSSStyleSelector*, RenderStyle* style, WebCore::Element*) const
@@ -500,25 +577,32 @@ void RenderThemeAndroid::adjustSearchFieldStyle(CSSStyleSelector*, RenderStyle* 
 
 bool RenderThemeAndroid::paintSearchField(RenderObject*, const PaintInfo&, const IntRect&)
 {
-    return true;    
+    return true;
 }
 
 static void adjustMenuListStyleCommon(RenderStyle* style)
 {
     // Added to make room for our arrow and make the touch target less cramped.
-    style->setPaddingLeft(Length(RenderSkinCombo::padding(), Fixed));
-    style->setPaddingTop(Length(RenderSkinCombo::padding(), Fixed));
-    style->setPaddingBottom(Length(RenderSkinCombo::padding(), Fixed));
-    style->setPaddingRight(Length(RenderSkinCombo::extraWidth(), Fixed));
-    style->setMinHeight(Length(RenderSkinCombo::minHeight(), Fixed));
+    const int padding = (int)(scaleFactor[RenderSkinAndroid::DrawableResolution()] + 0.5f);
+    style->setPaddingLeft(Length(padding,Fixed));
+    style->setPaddingTop(Length(padding, Fixed));
+    style->setPaddingBottom(Length(padding, Fixed));
+    // allocate height as arrow size
+    int arrow = std::max(18, style->fontMetrics().height() + 2 * padding);
+    style->setPaddingRight(Length(arrow, Fixed));
+    style->setMinHeight(Length(arrow, Fixed));
+    // SAMSUNG CHANGE : MPSG100006066 - Commented below line as the combo box text is not visible. The page has 
+    // line-height property of 3em because of which the text is displayed down but height is restricted to arrow height here
+    // so the text is not visible properly.
+    //style->setHeight(Length(arrow, Fixed));
 }
 
-void RenderThemeAndroid::adjustListboxStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeAndroid::adjustListboxStyle(CSSStyleSelector*, RenderStyle* style, Element* e) const
 {
     adjustMenuListButtonStyle(0, style, 0);
 }
 
-void RenderThemeAndroid::adjustMenuListStyle(CSSStyleSelector*, RenderStyle* style, Element* e) const
+void RenderThemeAndroid::adjustMenuListStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
 {
     adjustMenuListStyleCommon(style);
     addIntrinsicMargins(style);
@@ -528,11 +612,55 @@ bool RenderThemeAndroid::paintCombo(RenderObject* obj, const PaintInfo& info,  c
 {
   if (obj->style() && !obj->style()->visitedDependentColor(CSSPropertyBackgroundColor).alpha())
         return true;
-    return RenderSkinCombo::Draw(getCanvasFromInfo(info), obj->node(), rect.x(), rect.y(), rect.width(), rect.height());
+    Node* node = obj->node();
+    Element* element = static_cast<Element*>(node);
+    if (element) {
+        InputElement* input = element->toInputElement();
+        GraphicsContext* context = info.context;
+        if (!element->isEnabledFormControl()) {
+            context->setAlpha(0.5f);
+        }
+        IntRect bounds = IntRect(rect.x(), rect.y(), rect.width(), rect.height());
+        // paint bg color
+        RenderStyle* style = obj->style();
+        context->setFillColor(style->visitedDependentColor(CSSPropertyBackgroundColor),
+                context->fillColorSpace());
+        context->fillRect(FloatRect(bounds));
+        // copied form the original RenderSkinCombo:
+        // If this is an appearance where RenderTheme::paint returns true
+        // without doing anything, this means that
+        // RenderBox::PaintBoxDecorationWithSize will end up painting the
+        // border, so we shouldn't paint a border here.
+        if (style->appearance() != MenulistButtonPart &&
+                style->appearance() != ListboxPart &&
+                style->appearance() != TextFieldPart &&
+                style->appearance() != TextAreaPart) {
+            const int arrowSize = bounds.height();
+            // dropdown button bg
+            context->setFillColor(Color(defaultBgColor), context->fillColorSpace());
+            context->fillRect(FloatRect(bounds.maxX() - arrowSize + 0.5f, bounds.y() + .5f,
+                    arrowSize - 1, bounds.height() - 1));
+            // outline
+            context->setStrokeThickness(1.0f);
+            context->setStrokeColor(Color(defaultBgDark), context->strokeColorSpace());
+            context->strokeRect(bounds, 1.0f);
+            // arrow
+            context->setFillColor(Color(defaultFgColor), context->fillColorSpace());
+            Path tri = Path();
+            tri.clear();
+            const float aw = arrowSize - 10;
+            FloatPoint br = FloatPoint(bounds.maxX() - 4, bounds.maxY() - 4);
+            tri.moveTo(br);
+            tri.addLineTo(FloatPoint(br.x() - aw, br.y()));
+            tri.addLineTo(FloatPoint(br.x(), br.y() - aw));
+            context->fillPath(tri);
+        }
+    }
+    return false;
 }
 
-bool RenderThemeAndroid::paintMenuList(RenderObject* obj, const PaintInfo& info, const IntRect& rect) 
-{ 
+bool RenderThemeAndroid::paintMenuList(RenderObject* obj, const PaintInfo& info, const IntRect& rect)
+{
     return paintCombo(obj, info, rect);
 }
 
@@ -543,13 +671,13 @@ void RenderThemeAndroid::adjustMenuListButtonStyle(CSSStyleSelector*,
     const float baseFontSize = 11.0f;
     const int baseBorderRadius = 5;
     float fontScale = style->fontSize() / baseFontSize;
-    
+
     style->resetPadding();
     style->setBorderRadius(IntSize(int(baseBorderRadius + fontScale - 1), int(baseBorderRadius + fontScale - 1))); // FIXME: Round up?
 
     const int minHeight = 15;
     style->setMinHeight(Length(minHeight, Fixed));
-    
+
     style->setLineHeight(RenderStyle::initialLineHeight());
     // Found these padding numbers by trial and error.
     const int padding = 4;
@@ -558,29 +686,58 @@ void RenderThemeAndroid::adjustMenuListButtonStyle(CSSStyleSelector*,
     adjustMenuListStyleCommon(style);
 }
 
-bool RenderThemeAndroid::paintMenuListButton(RenderObject* obj, const PaintInfo& info, const IntRect& rect) 
+bool RenderThemeAndroid::paintMenuListButton(RenderObject* obj, const PaintInfo& info, const IntRect& rect)
 {
     return paintCombo(obj, info, rect);
 }
 
-bool RenderThemeAndroid::supportsFocusRing(const RenderStyle* style) const
+bool RenderThemeAndroid::paintSliderTrack(RenderObject* o, const PaintInfo& i, const IntRect& r)
 {
-    return style->opacity() > 0
-        && style->hasAppearance() 
-        && style->appearance() != TextFieldPart 
-        && style->appearance() != SearchFieldPart 
-        && style->appearance() != TextAreaPart 
-        && style->appearance() != CheckboxPart
-        && style->appearance() != RadioPart
-        && style->appearance() != PushButtonPart
-        && style->appearance() != SquareButtonPart
-        && style->appearance() != ButtonPart
-        && style->appearance() != ButtonBevelPart
-        && style->appearance() != MenulistPart
-        && style->appearance() != MenulistButtonPart;
+    SkCanvas* canvas = getCanvasFromInfo(i);
+    if (!canvas)
+        return true;
+    static const bool translucent = true;
+    RenderSkinMediaButton::Draw(canvas, r,
+                                RenderSkinMediaButton::SLIDER_TRACK,
+                                translucent, o, false);
+    return false;
 }
 
-//SAMSUNG PROGRESS TAG CHANGES <<
+bool RenderThemeAndroid::paintSliderThumb(RenderObject* o, const PaintInfo& i, const IntRect& r)
+{
+    SkCanvas* canvas = getCanvasFromInfo(i);
+    if (!canvas)
+        return true;
+    static const bool translucent = true;
+    RenderSkinMediaButton::Draw(canvas, r,
+                                RenderSkinMediaButton::SLIDER_THUMB,
+                                translucent, 0, false);
+    return false;
+}
+
+Color RenderThemeAndroid::platformFocusRingColor() const
+{
+    //static Color focusRingColor(0x33, 0xB5, 0xE5, 0x66); // Samsung change. Focus ring color
+    static Color focusRingColor(0xFF, 0x91, 0x29, 0x66); // changed from blue to orange
+    return focusRingColor;
+}
+
+bool RenderThemeAndroid::supportsFocusRing(const RenderStyle* style) const
+{
+    // Draw the focus ring ourselves unless it is a text area (webkit does borders better)
+    if (!style || !style->hasAppearance())
+        return true;
+    // Samsung change MPSG100006284 >> Enable Focus ring drawing for select element 
+    return style->appearance() != TextFieldPart
+            && style->appearance() != TextAreaPart
+            && style->appearance() != ListboxPart
+            && style->appearance() != ListButtonPart
+            && style->appearance() != MenulistPart
+            && style->appearance() != MenulistButtonPart;
+    // Samsung change MPSG100006284 <<
+}
+
+//SAMSUNG CHANGES HTML5 PROGRESS <<
 #if ENABLE(PROGRESS_TAG)
 // MSDN says that update intervals for the bar is 30ms.
 // http://msdn.microsoft.com/en-us/library/bb760842(v=VS.85).aspx
@@ -616,7 +773,7 @@ bool RenderThemeAndroid::paintProgressBar(RenderObject* o, const PaintInfo& i, c
     SkPoint pts[2];
     SkColor colors[3];
     SkScalar pos[] = { 0.0f, 0.5f, 1.0f};
-    SkCanvas* const canvas = i.context->platformContext()->mCanvas;
+    SkCanvas* const canvas = i.context->platformContext()->getCanvas();
 
     pts[0].fX = valueRect.x();
     pts[0].fY = valueRect.y();
@@ -697,71 +854,5 @@ IntRect RenderThemeAndroid::progressValueRectFor(RenderProgress* renderProgress,
     return renderProgress->isDeterminate() ? determinateProgressValueRectFor(renderProgress, rect) : indeterminateProgressValueRectFor(renderProgress, rect);
 }
 #endif
-//SAMSUNG PROGRESS TAG CHANGES >>
-
-//SAMSUNG INPUT TYPE RANGE CHANGES <<
-bool RenderThemeAndroid::paintSliderTrack(RenderObject*, const PaintInfo& i, const IntRect& rect)
-{
-    // Just paint a grey box for now (matches the color of a scrollbar background.
-    SkCanvas* const canvas = i.context->platformContext()->mCanvas;
-    int verticalCenter = rect.y() + rect.height() / 2;
-    int top = std::max(rect.y(), verticalCenter - 2);
-    int bottom = std::min(rect.y() + rect.height(), verticalCenter + 2);
-
-    SkPaint paint;
-    const SkColor grey = SkColorSetARGB(0xff, 0xe3, 0xdd, 0xd8);
-    paint.setColor(grey);
-
-    SkRect skrect;
-    skrect.set(rect.x(), top, rect.x() + rect.width(), bottom);
-    canvas->drawRect(skrect, paint);
-
-    return false;
-}
-
-bool RenderThemeAndroid::paintSliderThumb(RenderObject* o, const PaintInfo& i, const IntRect& rect)
-{
-    // Make a thumb similar to the scrollbar thumb.
-    const bool hovered = isHovered(o) || toRenderSlider(o->parent())->inDragMode();
-    const int midx = rect.x() + rect.width() / 2;
-    const int midy = rect.y() + rect.height() / 2;
-    const bool vertical = (o->style()->appearance() == SliderThumbVerticalPart);
-    SkCanvas* const canvas = i.context->platformContext()->mCanvas;
-
-    const SkColor thumbLightGrey = SkColorSetARGB(0xff, 0xf4, 0xf2, 0xef);
-    const SkColor thumbDarkGrey = SkColorSetARGB(0xff, 0xea, 0xe5, 0xe0);
-    SkPaint paint;
-    paint.setColor(hovered ? SK_ColorWHITE : thumbLightGrey);
-
-    SkIRect skrect;
-    if (vertical)
-        skrect.set(rect.x(), rect.y(), midx + 1, rect.maxY());
-    else
-        skrect.set(rect.x(), rect.y(), rect.maxX(), midy + 1);
-
-    canvas->drawIRect(skrect, paint);
-
-    paint.setColor(hovered ? thumbLightGrey : thumbDarkGrey);
-
-    if (vertical)
-        skrect.set(midx + 1, rect.y(), rect.maxX(), rect.maxY());
-    else
-        skrect.set(rect.x(), midy + 1, rect.maxX(), rect.maxY());
-
-    canvas->drawIRect(skrect, paint);
-
-    const SkColor borderDarkGrey = SkColorSetARGB(0xff, 0x9d, 0x96, 0x8e);
-    paint.setColor(borderDarkGrey);
-    drawBox(canvas, rect, paint);
-
-    if (rect.height() > 10 && rect.width() > 10) {
-        drawHorizLine(canvas, midx - 2, midx + 2, midy, paint);
-        drawHorizLine(canvas, midx - 2, midx + 2, midy - 3, paint);
-        drawHorizLine(canvas, midx - 2, midx + 2, midy + 3, paint);
-    }
-
-    return false;
-}
-//SAMSUNG INPUT TYPE RANGE CHANGES >>
-
+//SAMSUNG CHANGES HTML5 PROGRESS >>
 } // namespace WebCore

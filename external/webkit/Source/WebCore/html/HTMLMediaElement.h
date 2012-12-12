@@ -325,16 +325,16 @@ private:
     void refreshCachedTime() const;
 
     bool hasMediaControls();
-    void ensureMediaControls();
+    bool createMediaControls();
 
     virtual void* preDispatchEventHandler(Event*);
-
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
+
     Timer<HTMLMediaElement> m_loadTimer;
     Timer<HTMLMediaElement> m_asyncEventTimer;
     Timer<HTMLMediaElement> m_progressEventTimer;
@@ -426,6 +426,10 @@ private:
 
 #if PLATFORM(ANDROID)
     double m_lastTouch;
+    // When user gesture invoke load, play or pause, this turns to be true.
+    // After this becomes true, we ignore the user gesture requirement for play
+    // and pause.
+    bool m_userGestureInitiated;
 #endif
 };
 

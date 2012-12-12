@@ -55,6 +55,8 @@
 #include "HTMLVideoElement.h"
 #endif
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -221,7 +223,7 @@ void RenderEmbeddedObject::layout()
     RenderPart::layout();
 
     m_overflow.clear();
-    addShadowOverflow();
+    addBoxShadowAndBorderOverflow();
 
     updateLayerTransform();
 

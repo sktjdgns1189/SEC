@@ -60,10 +60,6 @@ namespace WebCore {
         // e.g., in the b/f cache or in a background tab).
         virtual bool willRenderImage(CachedImage*) { return false; }
 
-        // SAMSUNG CHANGE +
-        virtual bool isImageOffScreen(CachedImage*, bool) { return false; }
-        // SAMSUNG CHANGE -
-
         virtual void setCSSStyleSheet(const String& /* href */, const KURL& /* baseURL */, const String& /* charset */, const CachedCSSStyleSheet*) { }
         virtual void setXSLStyleSheet(const String& /* href */, const KURL& /* baseURL */, const String& /* sheet */) { }
         virtual void fontLoaded(CachedFont*) {};

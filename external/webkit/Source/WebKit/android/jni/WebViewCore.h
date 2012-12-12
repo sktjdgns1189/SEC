@@ -26,34 +26,41 @@
 #ifndef WebViewCore_h
 #define WebViewCore_h
 
-#include "Image.h" // SAMSUNG CHANGE
-#include "CacheBuilder.h"
-#include "CachedHistory.h"
 #include "ColorChooserClientAndroid.h" //SAMSUNG CHANGE HTML5 COLOR 
 #include "DeviceMotionAndOrientationManager.h"
 #include "DOMSelection.h"
 #include "FileChooser.h"
-#include "PictureSet.h"
+#include "FocusDirection.h"
+#include "HitTestResult.h"
+#include "PicturePile.h"
 #include "PlatformGraphicsContext.h"
-#include "PlatformString.h"  // SAMSUNG CHANGE
+#include "Position.h"
+#include "ScrollTypes.h"
 #include "SkColor.h"
 #include "SkTDArray.h"
 #include "SkRegion.h"
+#include "Text.h"
 #include "Timer.h"
 #include "WebCoreRefObject.h"
 #include "WebCoreJni.h"
 #include "WebRequestContext.h"
 #include "android_npapi.h"
+#include "VisiblePosition.h"
+#include "SelectText.h"
 
 #include <jni.h>
-#include <ui/KeycodeLabels.h>
+#include <androidfw/KeycodeLabels.h>
 #include <ui/PixelFormat.h>
 #include "SelectionController.h"  // SAMSUNG CHANGE
 #include "VisibleSelection.h"  // SAMSUNG CHANGE
 #include "Editor.h"  // SAMSUNG CHANGE
 
+#include <utils/threads.h>
+#include <wtf/Threading.h>
+
 namespace WebCore {
     class Color;
+    class GraphicsOperationCollection;
     class FrameView;
     class HTMLAnchorElement;
     class HTMLElement;
@@ -73,6 +80,7 @@ namespace WebCore {
 #if USE(ACCELERATED_COMPOSITING)
 namespace WebCore {
     class GraphicsLayerAndroid;
+    class LayerAndroid;
 }
 #endif
 
@@ -101,52 +109,9 @@ namespace android {
         AXIS_DOCUMENT = 6
     };
 
-    class CachedFrame;
-    class CachedNode;
-    class CachedRoot;
     class ListBoxReply;
-
-//SAMSUNG CHANGE +
-class WebFeedLink{
-    public:
-        WebFeedLink() { }
-
-        WebFeedLink(const String& url, const String& title, const String& type)
-            :mUrl(url) 
-            ,mTitle(title)
-            ,mType(type)
-        {
-        }
-        
-        WebFeedLink(const WebFeedLink& info)
-        {
-            mUrl = info.mUrl ;
-            mTitle = info.mTitle;
-            mType = info.mType;
-        }
-        
-        WebFeedLink& operator=(const WebFeedLink& info)
-        {
-            mUrl = info.mUrl ;
-            mTitle = info.mTitle;
-            mType = info.mType;
-            return *this;
-        }
-        
-        void setUrl(const String& url) { mUrl=url ; }
-        const String& url() const { return mUrl ; }
-        void setTitle(const String& title) { mTitle = title ; }
-        const String& title() const { return mTitle ; }
-        void setType(const String& type) { mType = type ; }
-        const String& type() const { return mType ; }
-        
-    private:
-        String mUrl;
-        String mTitle;
-        String mType;
-    };
-//SAMSUNG CHANGE -
-    //////////////SISO_HTMLCOMPOSER begin
+    class AndroidHitTestResult;
+//SISO_HTMLComposer start
 class WebSubPart{
 
     public:
@@ -218,7 +183,49 @@ class WebHTMLMarkupData{
     String mPlainText;
 };
 
-    //////////////SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
+
+//SAMSUNG CHANGE +
+class WebFeedLink{
+    public:
+        WebFeedLink() { }
+
+        WebFeedLink(const String& url, const String& title, const String& type)
+            :mUrl(url) 
+            ,mTitle(title)
+            ,mType(type)
+        {
+        }
+        
+        WebFeedLink(const WebFeedLink& info)
+        {
+            mUrl = info.mUrl ;
+            mTitle = info.mTitle;
+            mType = info.mType;
+        }
+        
+        WebFeedLink& operator=(const WebFeedLink& info)
+        {
+            mUrl = info.mUrl ;
+            mTitle = info.mTitle;
+            mType = info.mType;
+            return *this;
+        }
+        
+        void setUrl(const String& url) { mUrl=url ; }
+        const String& url() const { return mUrl ; }
+        void setTitle(const String& title) { mTitle = title ; }
+        const String& title() const { return mTitle ; }
+        void setType(const String& type) { mType = type ; }
+        const String& type() const { return mType ; }
+        
+    private:
+        String mUrl;
+        String mTitle;
+        String mType;
+    };
+//SAMSUNG CHANGE -
+
 
     class WebCoreReply : public WebCoreRefObject {
     public:
@@ -235,12 +242,12 @@ class WebHTMLMarkupData{
     };
 
     // one instance of WebViewCore per page for calling into Java's WebViewCore
-    class WebViewCore : public WebCoreRefObject {
-//+HTML_COMPOSER
+    class WebViewCore : public WebCoreRefObject, public WebCore::PicturePainter {
+//SISO_HTMLComposer start
     private:
         /*Added to save Imagenode  markup*/
         String imageNodeMarkup;
-//-HTML_COMPOSER
+//SISO_HTMLComposer end
     public:
         /**
          * Initialize the native WebViewCore with a JNI environment, a Java
@@ -248,24 +255,14 @@ class WebHTMLMarkupData{
          */
         WebViewCore(JNIEnv* env, jobject javaView, WebCore::Frame* mainframe);
         ~WebViewCore();
-		
- //SAMSUNG CHANGES: MPSG100004155 - input background color is not displayed >>
-        int getInputTextBackgroundColor(WebCore::Node* inputNodePtr);
- //SAMSUNG CHANGES: MPSG100004155 - input background color is not displayed <<
-		
+
         // helper function
         static WebViewCore* getWebViewCore(const WebCore::FrameView* view);
         static WebViewCore* getWebViewCore(const WebCore::ScrollView* view);
 
         // Followings are called from native WebCore to Java
 
-        /**
-         * Notification that a form was blurred.  Pass a message to hide the
-         * keyboard if it was showing for that Node.
-         * @param Node The Node that blurred.
-         */
-        void formDidBlur(const WebCore::Node*);
-        void focusNodeChanged(const WebCore::Node*);
+        void focusNodeChanged(WebCore::Node*);
 
         /**
          * Scroll to an absolute position.
@@ -276,7 +273,12 @@ class WebHTMLMarkupData{
          * This method calls Java to trigger a gradual scroll event.
          */
         void scrollTo(int x, int y, bool animate = false);
-
+//SAMSUNG CHANGES: MPSG100006003 >>		
+        void scrollRectOnScreen(IntRect rect);
+//SAMSUNG CHANGES <<
+//SAMSUNG changes <S-PEN Text Selection>
+        void startActionMode(bool textSelected);
+//SAMSUNG changes <S-PEN Text Selection>
         /**
          * Record the invalid rectangle
          */
@@ -289,13 +291,8 @@ class WebHTMLMarkupData{
          */
         void contentDraw();
 
-        /**
-         * copy the layers to the UI side
-         */
-        void layersDraw();
-
 #if USE(ACCELERATED_COMPOSITING)
-        GraphicsLayerAndroid* graphicsRootLayer() const;
+        WebCore::GraphicsLayerAndroid* graphicsRootLayer() const;
 #endif
 
         /** Invalidate the view/screen, NOT the content/DOM, but expressed in
@@ -335,12 +332,15 @@ class WebHTMLMarkupData{
          * Tell the java side to update the focused textfield
          * @param pointer   Pointer to the node for the input field.
          * @param   changeToPassword  If true, we are changing the textfield to
-         *          a password field, and ignore the String
+         *          a password field, and ignore the WTF::String
          * @param text  If changeToPassword is false, this is the new text that
          *              should go into the textfield.
          */
         void updateTextfield(WebCore::Node* pointer,
                 bool changeToPassword, const WTF::String& text);
+//SAMSUNG CHANGES MPSG100006129 >>
+        void updateTextSelectionStartAndEnd();
+//SAMSUNG CHANGES MPSG100006129 <<
 
         /**
          * Tell the java side to update the current selection in the focused
@@ -349,6 +349,16 @@ class WebHTMLMarkupData{
          * If there is no focus, or it is not a text input, this does nothing.
          */
         void updateTextSelection();
+//SAMSUNG - Google Text Selection >>		
+	void invokeUpdateTextSelection();
+//SAMSUNG - Google Text Selection <<
+
+
+        /**
+         * Updates the java side with the node's content size and scroll
+         * position.
+         */
+        void updateTextSizeAndScroll(WebCore::Node* node);
 
         void clearTextEntry();
         // JavaScript support
@@ -356,6 +366,9 @@ class WebHTMLMarkupData{
         bool jsConfirm(const WTF::String& url, const WTF::String& text);
         bool jsPrompt(const WTF::String& url, const WTF::String& message,
                 const WTF::String& defaultValue, WTF::String& result);
+//	SAMSUNG CHANGE >> Print functionality support for JS content					
+        void printPage();                
+//	SAMSUNG CHANGE <<
         bool jsUnload(const WTF::String& url, const WTF::String& message);
         bool jsInterrupt();
 
@@ -405,12 +418,13 @@ class WebHTMLMarkupData{
         jobject getDeviceMotionService();
         jobject getDeviceOrientationService();
 
-        void addMessageToConsole(const String& message, unsigned int lineNumber, const String& sourceID, int msgLevel);
+        void addMessageToConsole(const WTF::String& message, unsigned int lineNumber, const WTF::String& sourceID, int msgLevel);
 
         /**
          * Tell the Java side of the scrollbar mode
          */
-        void setScrollbarModes(ScrollbarMode horizontalMode, ScrollbarMode verticalMode);
+        void setScrollbarModes(WebCore::ScrollbarMode horizontalMode,
+                               WebCore::ScrollbarMode verticalMode);
 
         //
         // Followings support calls from Java to native WebCore
@@ -421,111 +435,117 @@ class WebHTMLMarkupData{
         WTF::String retrieveImageSource(int x, int y);
         WTF::String requestLabel(WebCore::Frame* , WebCore::Node* );
 
-	    //////////////SISO_HTMLCOMPOSER begin
-	    //// SISO_HTMLCOMPOSER -- by ananta.k on 23-3-11 ananta.k
-	     WebCore::IntRect   GetHitImageSize(int x, int y );
-//HTML Composer Start
-     WebCore::IntRect GetSelectedImageSize();
-//HTML Composer End
-// SAMSUNG CHANGE ++
-// Patch for MPSG100004567 - GA0100507167
-    bool IsNodeInIFrame();
-// SAMSUNG CHANGE --
-		/*Added to store markup string of image node begin*/
-		void setImageNodeMarkup(String imageNodeMarkup);
-		WTF::String getImageNodeMarkup();  
-		
-		
-		WebCore::VisibleSelection getImageSelectionController();
-		WebCore::VisibleSelection m_VisibleImageSelection;
-		void SetSelectionPreviousImage(WebCore::VisibleSelection imageSelection );
-		void saveImageSelectionController(	WebCore::VisibleSelection imageSelection );
-		void releaseImageSelectionController();
-		
-		
-		WebCore::Node* getSelectedImageNode();
-		void removeSelectedImageNode();
-		void setSelectionToMoveImage(bool inNewPosition);
-		bool checkSelectionToMoveImage();
-        bool isValidePositionToMoveImage();
-		void resizeImage(int width	,int height);
-		
-		WebCore::Node* m_SelectedImageNode ;
-		int xPositionToMoveImage;
-		int yPositionToMoveImage;
-		VisiblePosition imageVisiblePosition;
-		IntRect imageNodeRect;
-		bool imageCanMove;
-		
-		VisiblePosition  imgVisibleSelectionToReInsert;
-		/*Added to store markup string of image node end*/
+//SISO_HTMLComposer Start
+        WebCore::IntRect   GetHitImageSize(int x, int y );
+        WebCore::IntRect GetSelectedImageSize();
+        /*Added to store markup string of image node begin*/
+        void setImageNodeMarkup(String imageNodeMarkup);
+        WTF::String getImageNodeMarkup();  
 
-	    // SISO_HTMLCOMPOSER -- by ananta.k on 23-3-11 -end
-	    WebCore::Position m_prevPosition;
-	    WebCore::VisibleSelection m_VisibleSelection;
-	    int m_prevEndOffset;
-	    void saveSelectionController();
-	    void restorePreviousSelectionController();  
-	    void simulateDelKeyForCount(int count);
-	    WTF::String getTextAroundCursor(int count , bool isBefore);
-	    WTF::String getBodyText();
-	    WTF::String getBodyHTML();  
-	    void deleteSurroundingText(int left , int right);
-	    void getSelectionOffset(int& startOffset , int& endOffset);
-	    void getSelectionOffsetImage(int x1,int y1, int x2,int y2);
-	    bool execCommand(WTF::String& commandName ,  WTF::String& value);
-	    bool copyAndSaveImage(WTF::String& imageUrl);
-	    bool saveCachedImageToFile(WTF::String& imageUrl, WTF::String& filePath);
-	    WebHTMLMarkupData* getFullMarkupData();
-	    WebCore::IntRect getCursorRect(bool giveContentRect);
-	    void setEditable(bool enableEditing);
-	    void setSelectionEditable(int start, int end);
-	    void setSelectionEditableImage(int start, int end);
-	    void setSelectionNone();
-	    bool getSelectionNone();
-	    void setComposingSelectionNone();
-	    bool canUndo();
-	    bool canRedo();
-	    void undoRedoStateReset();
-	    bool isEditableSupport();
-	    bool getBodyEmpty();
-	    int contentSelectionType();
-	    int checkSelectionAtBoundry();
-	    Position getPreviousPosition(Position& pos ,int prevNum);
-	    Position getNextPosition(Position& pos ,int nextNum);
-	    void replaceComposing(WTF::String& htmlContent , bool isContentText);
-	//  void toggleUnderLine(); 
-	    void moveSingleCursorHandler(int x,int y);
-	    void setComposingRegion(int start, int end);
-	    VisibleSelection setSelectionInVisibleSelection(int start, int end);
-	    Vector<CompositionUnderline> undelineVec;
-	    void updateIMSelection(int curStr , int curEnd);
-	    int m_imStr;
-	    int m_imEnd; 
-	    
-	    void drawContentComposition(SkCanvas* canvas);
-	    VisibleSelection m_composingVisibleSelection;
-	    VisibleSelection m_underLineVisibleSelection;   
-	    void insertContent(String content,int newcursorpostion, bool composing, Vector<CompositionUnderline> spanVec , int& startOffset,int& endOffset);
-            void checkSelectedClosestWord();
-            int getStateInRichlyEditableText();
-            int getCurrentFontSize();
-			int getCurrentFontValue();
-            bool checkEndofWordAtPosition(int x, int y);
-	    //////////////////SISO_HTMLCOMPOSER end 
+
+        WebCore::VisibleSelection getImageSelectionController();
+        WebCore::VisibleSelection m_VisibleImageSelection;
+        void SetSelectionPreviousImage(WebCore::VisibleSelection imageSelection );
+        void saveImageSelectionController(	WebCore::VisibleSelection imageSelection );
+        void releaseImageSelectionController();
+
+
+        WebCore::Node* getSelectedImageNode();
+        void removeSelectedImageNode();
+        void setSelectionToMoveImage(bool inNewPosition);
+        bool checkSelectionToMoveImage();
+        bool isValidePositionToMoveImage();
+        void resizeImage(int width	,int height);
+
+        WebCore::Node* m_SelectedImageNode ;
+//+Feature_Support_SPen
+        WTF::String m_SelectedImageUri;
+//-Feature_Support_SPen
+        int xPositionToMoveImage;
+        int yPositionToMoveImage;
+        VisiblePosition imageVisiblePosition;
+        IntRect imageNodeRect;
+        bool imageCanMove;
+
+        VisiblePosition  imgVisibleSelectionToReInsert;
+        /*Added to store markup string of image node end*/
+
+        WebCore::Position m_prevPosition;
+        WebCore::VisibleSelection m_VisibleSelection;
+        int m_prevEndOffset;
+        void saveSelectionController();
+        void restorePreviousSelectionController();  
+        void simulateDelKeyForCount(int count);
+        WTF::String getTextAroundCursor(int count , bool isBefore);
+        WTF::String getBodyText();
+        WTF::String getBodyHTML();  
+        void deleteSurroundingText(int left , int right);
+        void getSelectionOffset(int& startOffset , int& endOffset);
+        void getSelectionOffsetImage();
+        bool execCommand(WTF::String& commandName ,  WTF::String& value);
+        bool copyAndSaveImage(WTF::String& imageUrl);
+        WebHTMLMarkupData* getFullMarkupData();
+        WebCore::IntRect getCursorRect(bool giveContentRect);
+        void setEditable(bool enableEditing);
+        void setSelectionEditable(int start, int end);
+        void setSelectionEditableImage(int start, int end);
+        void setSelectionNone();
+        bool getSelectionNone();
+        void setComposingSelectionNone();
+        bool canUndo();
+        bool canRedo();
+        void undoRedoStateReset();
+        bool isEditableSupport();
+        bool getBodyEmpty();
+        int contentSelectionType();
+        int checkSelectionAtBoundry();
+        Position getPreviousPosition(Position& pos ,int prevNum);
+        Position getNextPosition(Position& pos ,int nextNum);
+        void replaceComposing(WTF::String& htmlContent , bool isContentText);
+        //  void toggleUnderLine(); 
+        void moveSingleCursorHandler(int x,int y);
+        void setComposingRegion(int start, int end);
+        void setPageZoomFact(float factor);
+        VisibleSelection setSelectionInVisibleSelection(int start, int end);
+        Vector<CompositionUnderline> undelineVec;
+        void updateIMSelection(int curStr , int curEnd);
+        int m_imStr;
+        int m_imEnd; 
+
+        void drawContentComposition(SkCanvas* canvas);
+        VisibleSelection m_composingVisibleSelection;
+        VisibleSelection m_underLineVisibleSelection;   
+        void insertContent(String content,int newcursorpostion, bool composing, Vector<CompositionUnderline> spanVec , int& startOffset,int& endOffset);
+        void checkSelectedClosestWord();
+        int getStateInRichlyEditableText();
+        int getCurrentFontSize();
+        int getCurrentFontValue();
+        unsigned int getCurrentFontBgColor();
+        unsigned int getCurrentFontColor();
+        int checkEndofWordAtPosition(int x, int y);
+//+Feature_Support_SPen
+        WTF::String getSelectedImageUri();
+//-Feature_Support_Spen
+//+Feature_SPen_Gesture_TextSelection
+        void selectBWStartAndEnd(int startX, int startY, int endX, int endY);
+//-Feature_SPen_Gesture_TextSelection
+        void setCursorFromRangeSelectionController();
+        int isAtBoundary(int x, int y);
+        //SAMSUNG CHANGES >>
+        WebCore::IntRect getBlockBounds(const WebCore::IntPoint& pt);
+        WebCore::IntRect getBlockBounds(WebCore::Node* node);
+        //SAMSUNG CHANGES <<
+
+//SISO_HTMLComposer End 
         // If the focus is a textfield (<input>), textarea, or contentEditable,
         // scroll the selection on screen (if necessary).
         void revealSelection();
-        // Create a single picture to represent the drawn DOM (used by navcache)
-        void recordPicture(SkPicture* picture);
 
-        void moveFocus(WebCore::Frame* frame, WebCore::Node* node);
-        void moveMouse(WebCore::Frame* frame, int x, int y);
-        void moveMouseIfLatest(int moveGeneration,
-            WebCore::Frame* frame, int x, int y);
+        void moveMouse(int x, int y, WebCore::HitTestResult* hoveredNode = 0,
+                       bool isClickCandidate = false);
 
         // set the scroll amount that webview.java is currently showing
-        void setScrollOffset(int moveGeneration, bool sendScrollEvent, int dx, int dy);
+        void setScrollOffset(bool sendScrollEvent, int dx, int dy);
 
         void setGlobalBounds(int x, int y, int h, int v);
 
@@ -538,34 +558,24 @@ class WebHTMLMarkupData{
          * @return Whether keyCode was handled by this class.
          */
         bool key(const WebCore::PlatformKeyboardEvent& event);
-
-        /**
-         * Handle (trackball) click event / dpad center press from Java.
-         * Also used when typing into an unfocused textfield, in which case 'fake'
-         * will be true.
-         */
-        void click(WebCore::Frame* frame, WebCore::Node* node, bool fake);
+        bool chromeCanTakeFocus(WebCore::FocusDirection direction);
+        void chromeTakeFocus(WebCore::FocusDirection direction);
+        void setInitialFocus(const WebCore::PlatformKeyboardEvent& event);
 
         /**
          * Handle touch event
+         * Returns an int with the following flags:
+         * bit 0: hit an event handler
+         * bit 1: preventDefault was called
          */
-        bool handleTouchEvent(int action, Vector<int>& ids, Vector<IntPoint>& points, int actionIndex, int metaState);
+        int handleTouchEvent(int action, WTF::Vector<int>& ids,
+                              WTF::Vector<WebCore::IntPoint>& points,
+                              int actionIndex, int metaState);
 
         /**
-         * Handle motionUp event from the UI thread (called touchUp in the
-         * WebCore thread).
-         * @param touchGeneration Generation number for touches so we can ignore
-         *      touches when a newer one has been generated.
-         * @param frame Pointer to Frame containing the node that was touched.
-         * @param node Pointer to Node that was touched.
-         * @param x x-position of the touch.
-         * @param y y-position of the touch.
+         * Clicks the mouse at its current location
          */
-        void touchUp(int touchGeneration, WebCore::Frame* frame,
-                WebCore::Node* node, int x, int y
-//LIGHT TOUCH
-                , bool useLT = false);
-//LIGHT TOUCH
+        bool performMouseClick();
 
         /**
          * Sets the index of the label from a popup
@@ -584,15 +594,14 @@ class WebHTMLMarkupData{
          */
         void deleteSelection(int start, int end, int textGeneration);
 
-        // SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
         WTF::String getSelectedText();
-        
+//SAMSUNG ADVANCED TEXT SELECTION - END
         /**
          *  Set the selection of the currently focused textfield to (start, end).
          *  If start and end are out of order, swap them.
          */
         void setSelection(int start, int end);
-        
         //SAMSUNG_THAI_EDITOR_FIX >>
         void setSelectionWithoutValidation(int start, int end);
         //SAMSUNG_THAI_EDITOR_FIX <<
@@ -605,11 +614,11 @@ class WebHTMLMarkupData{
          * direction - The direction in which to alter the selection.
          * granularity - The granularity of the selection modification.
          *
-         * returns - The selected HTML as a string. This is not a well formed
+         * returns - The selected HTML as a WTF::String. This is not a well formed
          *           HTML, rather the selection annotated with the tags of all
          *           intermediary elements it crosses.
          */
-        String modifySelection(const int direction, const int granularity);
+        WTF::String modifySelection(const int direction, const int granularity);
 
         /**
          * Moves the selection to the given node in a given frame i.e. selects that node.
@@ -619,11 +628,11 @@ class WebHTMLMarkupData{
          * frame - The frame in which to select is the node to be selected.
          * node - The node to be selected.
          *
-         * returns - The selected HTML as a string. This is not a well formed
+         * returns - The selected HTML as a WTF::String. This is not a well formed
          *           HTML, rather the selection annotated with the tags of all
          *           intermediary elements it crosses.
          */
-        String moveSelection(WebCore::Frame* frame, WebCore::Node* node);
+        WTF::String moveSelection(WebCore::Frame* frame, WebCore::Node* node);
 
         /**
          *  In the currently focused textfield, replace the characters from oldStart to oldEnd
@@ -638,7 +647,7 @@ class WebHTMLMarkupData{
         /**
          * Scroll the focused textfield to (x, y) in document space
          */
-        void scrollFocusedTextInput(float x, int y);
+        WebCore::IntRect scrollFocusedTextInput(float x, int y);
         /**
          * Set the FocusController's active and focused states, so that
          * the caret will draw (true) or not.
@@ -658,11 +667,9 @@ class WebHTMLMarkupData{
         jobject getWebViewJavaObject();
 
         void setBackgroundColor(SkColor c);
-        void updateFrameCache();
-        void updateCacheOnNodeChange();
+
         void dumpDomTree(bool);
         void dumpRenderTree(bool);
-        void dumpNavTree();
 
         /*  We maintain a list of active plugins. The list is edited by the
             pluginview itself. The list is used to service invals to the plugin
@@ -682,7 +689,7 @@ class WebHTMLMarkupData{
         void sendPluginSurfaceReady();
 
         // send onLoad event to plugins who are descendents of the given frame
-        void notifyPluginsOnFrameLoad(const Frame*);
+        void notifyPluginsOnFrameLoad(const WebCore::Frame*);
 
         // gets a rect representing the current on-screen portion of the document
         void getVisibleScreen(ANPRectI&);
@@ -693,19 +700,17 @@ class WebHTMLMarkupData{
         // lookup the plugin widget struct given an NPP
         PluginWidgetAndroid* getPluginWidget(NPP npp);
 
-        // return the cursorNode if it is a plugin
-        Node* cursorNodeIsPlugin();
-
-        bool currentFocusNodeIsContentEditable(); //SISO change for hotmail cursor issue
         // Notify the Java side whether it needs to pass down the touch events
         void needTouchEvents(bool);
 
         void requestKeyboardWithSelection(const WebCore::Node*, int selStart, int selEnd);
         // Notify the Java side that webkit is requesting a keyboard
         void requestKeyboard(bool showKeyboard);
-		//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
-		void requestDateTimePickers(const WTF::String&,const WTF::String& );
-		//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+	void requestDateTimePickers(const WTF::String& type , const WTF::String& value);
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
+
         // Generates a class loader that contains classes from the plugin's apk
         jclass getPluginClass(const WTF::String& libName, const char* className);
 
@@ -733,8 +738,6 @@ class WebHTMLMarkupData{
         // Manages requests to keep the screen on while the WebView is visible
         void keepScreenOn(bool screenOn);
 
-        bool validNodeAndBounds(Frame* , Node* , const IntRect& );
-
         // Make the rect (left, top, width, height) visible. If it can be fully
         // fit, center it on the screen. Otherwise make sure the point specified
         // by (left + xPercentInDoc * width, top + yPercentInDoc * height)
@@ -746,22 +749,18 @@ class WebHTMLMarkupData{
         //SAMSUNG CHANGE +
         // Get the list of feed links in the webpage
         void getWebFeedLinks(Vector<WebFeedLink*>& out);
-        //SAMSUNG CHANGES+
-        
-        //SAMSUNG CHANGES- EMAIL APP CUSTOMIZATION >>	
-        bool getCountImages(int *out_Count)const;
-	bool requiresSmartFit();
-        //SAMSUGN CHNAGES <<		
-		
+	    //SAMSUNG CHANGES+
 
         // Scale the rect (x, y, width, height) to make it just fit and centered
         // in the current view.
         void centerFitRect(int x, int y, int width, int height);
 
         // return a list of rects matching the touch point (x, y) with the slop
-        Vector<IntRect> getTouchHighlightRects(int x, int y, int slop);
-
-        void setTouchHighlightRects(jobject rects); // samsung change
+        WTF::Vector<WebCore::IntRect> getTouchHighlightRects(int x, int y, int slop,
+                WebCore::Node** node, WebCore::HitTestResult* hitTestResult);
+        // This does a sloppy hit test
+        AndroidHitTestResult hitTestAtPoint(int x, int y, int slop, bool doMoveMouse = false);
+        static bool nodeIsClickableOrFocusable(WebCore::Node* node);
 
         // Open a file chooser for selecting a file to upload
         void openFileChooser(PassRefPtr<WebCore::FileChooser> );
@@ -775,34 +774,43 @@ class WebHTMLMarkupData{
 
         bool focusBoundsChanged();
 
-        // record the inval area, and the picture size
-        BaseLayerAndroid* recordContent(SkRegion* , SkIPoint* );
+        // record content in a new BaseLayerAndroid, copying the layer tree as well
+        WebCore::BaseLayerAndroid* recordContent(SkIPoint* );
 
         // This creates a new BaseLayerAndroid by copying the current m_content
         // and doing a copy of the layers. The layers' content may be updated
         // as we are calling layersSync().
-        BaseLayerAndroid* createBaseLayer(SkRegion*);
-        bool updateLayers(LayerAndroid*);
+        WebCore::BaseLayerAndroid* createBaseLayer(GraphicsLayerAndroid* root);
+        bool updateLayers(WebCore::LayerAndroid*);
         void notifyAnimationStarted();
 
         int textWrapWidth() const { return m_textWrapWidth; }
         float scale() const { return m_scale; }
         float textWrapScale() const { return m_screenWidth * m_scale / m_textWrapWidth; }
         WebCore::Frame* mainFrame() const { return m_mainFrame; }
-        void updateCursorBounds(const CachedRoot* root,
-                const CachedFrame* cachedFrame, const CachedNode* cachedNode);
-        void updateFrameCacheIfLoading();
-
-        // utility to split slow parts of the picture set
-        void splitContent(PictureSet*);
+        WebCore::Frame* focusedFrame() const;
 
         void notifyWebAppCanBeInstalled();
 
+        void deleteText(int startX, int startY, int endX, int endY);
+        WTF::String getText(int startX, int startY, int endX, int endY);
+        void insertText(const WTF::String &text);
+
+        // find on page
+        void resetFindOnPage();
+        int findTextOnPage(const WTF::String &text);
+        int findNextOnPage(bool forward);
+        void updateMatchCount() const;
+
 #if ENABLE(VIDEO)
         void enterFullscreenForVideoLayer(int layerId, const WTF::String& url);
+        void exitFullscreenVideo();
 #endif
 
         void setWebTextViewAutoFillable(int queryId, const string16& previewSummary);
+        // SAMSUNG_CHANGE [MPSG100006223] ++
+        void setWebTextViewAutoFillableDefault();
+        // SAMSUNG_CHANGE [MPSG100006223] --
 
         DeviceMotionAndOrientationManager* deviceMotionAndOrientationManager() { return &m_deviceMotionAndOrientationManager; }
 	// Samsung Change - HTML5 Web Notification	>>
@@ -810,34 +818,22 @@ class WebHTMLMarkupData{
        Notification* getNotification(){return m_notification;}
        #endif
 	// Samsung Change - HTML5 Web Notification	<<
-        Node* getCurrentCursor();
-        void listBoxRequest(WebCoreReply* reply, const uint16_t** labels, size_t count, const int enabled[], size_t enabledCount,
-                bool multiple, const int selected[], size_t selectedCountOrSelection, const WebCore::Element *select /*SAMSUNG CHANGE - Form Navigation*/);
-        bool shouldPaintCaret() { return m_shouldPaintCaret; }
-        void setShouldPaintCaret(bool should) { m_shouldPaintCaret = should; }
+
+        void listBoxRequest(WebCoreReply* reply, const uint16_t** labels,
+                size_t count, const int enabled[], size_t enabledCount,
+                bool multiple, const int selected[], size_t selectedCountOrSelection);
         bool isPaused() const { return m_isPaused; }
         void setIsPaused(bool isPaused) { m_isPaused = isPaused; }
         bool drawIsPaused() const;
         // The actual content (without title bar) size in doc coordinate
         int  screenWidth() const { return m_screenWidth; }
         int  screenHeight() const { return m_screenHeight; }
-#if USE(CHROME_NETWORK_STACK)
         void setWebRequestContextUserAgent();
         void setWebRequestContextCacheMode(int mode);
         WebRequestContext* webRequestContext();
-#endif
         // Attempts to scroll the layer to the x,y coordinates of rect. The
         // layer is the id of the LayerAndroid.
         void scrollRenderLayer(int layer, const SkRect& rect);
-
-        // SAMSUNG CHANGE +
-        void storeAnimationTimer(Image*);
-        // SAMSUNG CHANGE -
-
-        //SAMSUNG CHANGES >>
-        void setHeightCanMeasure(bool measure);
-        //SAMSUNG CHANGES <<
-
         // call only from webkit thread (like add/remove), return true if inst
         // is still alive
         static bool isInstance(WebViewCore*);
@@ -857,84 +853,94 @@ class WebHTMLMarkupData{
         #endif
 	// Samsung Change - HTML5 Web Notification	<<
 
+        /**
+         * Returns all text ranges consumed by the cursor points referred
+         * to by startX, startY, endX, and endY. The vector will be empty
+         * if no text is in the given area or if the positions are invalid.
+         */
+        Vector<WebCore::VisibleSelection> getTextRanges(
+                int startX, int startY, int endX, int endY);
+        static int platformLayerIdFromNode(WebCore::Node* node,
+                                           WebCore::LayerAndroid** outLayer = 0);
+        void selectText(int startX, int startY, int endX, int endY);
+        bool selectWordAt(int x, int y);
+
+        // Converts from the global content coordinates that WebView sends
+        // to frame-local content coordinates using the focused frame
+        WebCore::IntPoint convertGlobalContentToFrameContent(const WebCore::IntPoint& point, WebCore::Frame* frame = 0);
+        static void layerToAbsoluteOffset(const WebCore::LayerAndroid* layer,
+                                          WebCore::IntPoint& offset);
+
+        // Retrieves the current locale from system properties
+        void getLocale(String& language, WTF::String& region);
+
+        // Handles changes in system locale
+        void updateLocale();
+
         // these members are shared with webview.cpp
-        static Mutex gFrameCacheMutex;
-        CachedRoot* m_frameCacheKit; // nav data being built by webcore
-        SkPicture* m_navPictureKit;
-        int m_moveGeneration; // copy of state in WebViewNative triggered by move
         int m_touchGeneration; // copy of state in WebViewNative triggered by touch
         int m_lastGeneration; // last action using up to date cache
-        bool m_updatedFrameCache;
-        bool m_findIsUp;
-        bool m_hasCursorBounds;
-        WebCore::IntRect m_cursorBounds;
-        WebCore::IntRect m_cursorHitBounds;
-        void* m_cursorFrame;
-        IntPoint m_cursorLocation;
-        // SAMSUNG CHANGE +
-        WebCore::Image* animatedImage;
-        // SAMSUNG CHANGE -
-        void* m_cursorNode;
-        static Mutex gCursorBoundsMutex;
-// SAMSUNG CHANGE ++
-// Patch for MPSG100004567 - GA0100507167
-	bool mIsNodeInIFrame;
-	WebCore::Node* mCurrentNode;
-// SAMSUNG CHANGE --
-//SAMSUNG changes - Reader
-        //Readability functions
-	WTF::String applyreadability(WTF::String str);
-	WTF::String loadinitialJs(WTF::String str);
-
-        // SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION >>
-        void webImageSelection(int x, int y, int x2 , int y2);
+//SAMSUNG CHANGE Copy image begin >>
+        bool saveCachedImageToFile(WTF::String& imageUrl, WTF::String& filePath);
+//SAMSUNG CHANGE Copy image end <<
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
         void webTextSelectionAll(int x, int y, int x2 , int y2);
         void copyMoveSelection(int x, int y,  int controller, bool smartSelection, 
                 bool selectionMove, float zoomLeve, int granularity);
         void clearTextSelection(int contentX, int contentY);
+	void clearTextSelectionIframe();
         void copySetSelectionDirection(int controller);
         void webkitCopyMoveSelection(WebCore::IntPoint wndPoint, 
                 WebCore::IntPoint contentPoint, int controller);
-        const SkRegion& getSelectionRegion();
-        //arvind.maan RTL selection fix
         bool recordSelectionCopiedData(SkRegion* region,SkRegion* cregion, SkIRect* startRect, 
                 SkIRect* endRect, int granularity);
         int getSelectionGranularity();
-        // Adding for Multicolumn text selection - Begin
         bool getSelectionMultiColInfo();
-        // Adding for Multicolumn text selection - End
         bool selectClosestWord(int x, int y, float zoomLevel, bool smartSelection);
-        // SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION <<
-	bool  getClosestWord(IntPoint m_globalpos, IntPoint& m_mousePos);//ADVANCED TEXT SELECTION - SAMSUNG  
-        //SAMSUNG CHANGES >>
-        WebCore::IntRect getBlockBounds(const WebCore::IntPoint& pt);
-        WebCore::IntRect getBlockBounds(WebCore::Node* node);
-        //SAMSUNG CHANGES <<
+        bool tryEditFieldSelection(int x , int y );
+	bool  getClosestWord(IntPoint m_globalpos, IntPoint& m_mousePos);
+//SAMSUNG ADVANCED TEXT SELECTION - END
+//SAMSUNG : Reader >>
+        //Readability functions
+	WTF::String applyreadability(WTF::String str);
+	WTF::String loadinitialJs(WTF::String str);
+//SAMSUNG : Reader <<
         // end of shared members
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press >>
+
+        void setPrerenderingEnabled(bool enable);
+//SAMSUNG CHANGES: mobile page zoom scale change issue - merge from ICS >>
         void recalcWidthAndForceLayout();
-//SAMSUNG CHANGE: <MPSG100003899> xhtml page zoom scale change issue on orientation change and back key press <<
-     	//SAMSUNG CHANGE << LIGHT TOUCH   
-	void setNavType(int type) ;
-	//SAMSUNG CHANGE >> LIGHT TOUCH
-	//SAMSUNG CHANGES >>>
-	void setWebTextViewOnOffStatus(bool status);	
-	//SAMSUNG CHANGES <<<
+//SAMSUNG CHANGES <<
+//SAMSUNG CHANGE Form Navigation >>
+        bool moveFocusToNext();
+        bool moveFocusToPrevious();
+//SAMSUNG CHANGE Form Navigation <<
+
         // internal functions
     private:
-        CacheBuilder& cacheBuilder();
+        enum InputType {
+            NONE = -1,
+            NORMAL_TEXT_FIELD = 0,
+            TEXT_AREA = 1,
+            PASSWORD = 2,
+            SEARCH = 3,
+            EMAIL = 4,
+            NUMBER = 5,
+            TELEPHONE = 6,
+            URL = 7,
+        };
+
         WebCore::Node* currentFocus();
+        void layout();
         // Create a set of pictures to represent the drawn DOM, driven by
         // the invalidated region and the time required to draw (used to draw)
-        void recordPictureSet(PictureSet* master);
-//SAMSUNG CHANGE LIGHT TOUCH >>
-        WebCore::IntPoint m_mousePosFrame ;
-        WebCore::IntPoint m_mousePosLT ;
-//SAMSUNG CHANGE LIGHT TOUCH <<
+        void recordPicturePile();
 
-        void doMaxScroll(CacheBuilder::Direction dir);
-        SkPicture* rebuildPicture(const SkIRect& inval);
-        void rebuildPictureSet(PictureSet* );
+        virtual void paintContents(WebCore::GraphicsContext* gc, WebCore::IntRect& dirty);
+        virtual SkCanvas* createPrerenderCanvas(WebCore::PrerenderedInval* prerendered);
+#ifdef CONTEXT_RECORDING
+        WebCore::GraphicsOperationCollection* rebuildGraphicsOperationCollection(const SkIRect& inval);
+#endif
         void sendNotifyProgressFinished();
         /*
          * Handle a mouse click, either from a touch or trackball press.
@@ -943,47 +949,134 @@ class WebHTMLMarkupData{
          * @param fake This is a fake mouse click, used to put a textfield into focus. Do not
          *      open the IME.
          */
-        bool handleMouseClick(WebCore::Frame*, WebCore::Node*, bool fake);
         WebCore::HTMLAnchorElement* retrieveAnchorElement(int x, int y);
         WebCore::HTMLElement* retrieveElement(int x, int y,
             const WebCore::QualifiedName& );
         WebCore::HTMLImageElement* retrieveImageElement(int x, int y);
         // below are members responsible for accessibility support
-        String modifySelectionTextNavigationAxis(DOMSelection* selection, int direction, int granularity);
-        String modifySelectionDomNavigationAxis(DOMSelection* selection, int direction, int granularity);
-        Text* traverseNextContentTextNode(Node* fromNode, Node* toNode ,int direction);
-        bool isVisible(Node* node);
-        bool isHeading(Node* node);
-        String formatMarkup(DOMSelection* selection);
+        WTF::String modifySelectionTextNavigationAxis(WebCore::DOMSelection* selection,
+                                                 int direction, int granularity);
+        WTF::String modifySelectionDomNavigationAxis(WebCore::DOMSelection* selection,
+                                                int direction, int granularity);
+        WebCore::Text* traverseNextContentTextNode(WebCore::Node* fromNode,
+                                                   WebCore::Node* toNode,
+                                                   int direction);
+        bool isVisible(WebCore::Node* node);
+        bool isHeading(WebCore::Node* node);
+        WTF::String formatMarkup(WebCore::DOMSelection* selection);
         void selectAt(int x, int y);
 
-        void scrollNodeIntoView(Frame* frame, Node* node);
-        bool isContentTextNode(Node* node);
-        Node* getIntermediaryInputElement(Node* fromNode, Node* toNode, int direction);
-        bool isContentInputElement(Node* node);
-        bool isDescendantOf(Node* parent, Node* node);
-        void advanceAnchorNode(DOMSelection* selection, int direction, String& markup, bool ignoreFirstNode, ExceptionCode& ec);
-        Node* getNextAnchorNode(Node* anchorNode, bool skipFirstHack, int direction);
-        Node* getImplicitBoundaryNode(Node* node, unsigned offset, int direction);
+        void scrollNodeIntoView(WebCore::Frame* frame, WebCore::Node* node);
+        bool isContentTextNode(WebCore::Node* node);
+        WebCore::Node* getIntermediaryInputElement(WebCore::Node* fromNode,
+                                                   WebCore::Node* toNode,
+                                                   int direction);
+        bool isContentInputElement(WebCore::Node* node);
+        bool isDescendantOf(WebCore::Node* parent, WebCore::Node* node);
+        void advanceAnchorNode(WebCore::DOMSelection* selection, int direction,
+                               WTF::String& markup, bool ignoreFirstNode,
+                               WebCore::ExceptionCode& ec);
+        WebCore::Node* getNextAnchorNode(WebCore::Node* anchorNode,
+                                         bool skipFirstHack, int direction);
+        WebCore::Node* getImplicitBoundaryNode(WebCore::Node* node,
+                                               unsigned offset, int direction);
+        jobject createTextFieldInitData(WebCore::Node* node);
+        /**
+         * Calls into java to reset the text edit field with the
+         * current contents and selection.
+         */
+        void initEditField(WebCore::Node* node);
+//SAMSUNG CHANGE Form Navigation >>
+        jobject createSelectFieldInitData(WebCore::Node* node);
+        bool performClickOnNode(WebCore::Node* node);
+        void initSelectField(WebCore::Node* node);
+        WebCore::Node* nextTextOrSelectNode(WebCore::Node* node);
+        WebCore::Node* previousTextOrSelectNode(WebCore::Node* node);
+//SAMSUNG CHANGE Form Navigation <<
+
+        /**
+         * If node is not a text input field or if it explicitly requests
+         * not to have keyboard input, then the soft keyboard is closed. If
+         * it is a text input field then initEditField is called and
+         * auto-fill information is requested for HTML form input fields.
+         */
+        void initializeTextInput(WebCore::Node* node, bool fake);
+
+        /**
+         * Gets the input type a Node. NONE is returned if it isn't an
+         * input field.
+         */
+        InputType getInputType(WebCore::Node* node);
+
+        /**
+         * If node is an input field, the spellcheck value for the
+         * field is returned. Otherwise true is returned.
+         */
+        static bool isSpellCheckEnabled(WebCore::Node* node);
+
+        /**
+         * Returns the offsets of the selection area for both normal text
+         * fields and content editable fields. start and end are modified
+         * by this method.
+         */
+        static void getSelectionOffsets(WebCore::Node* node, int& start, int& end);
+        /**
+         * Gets the plain text of the specified editable text field. node
+         * may be content-editable or a plain text fields.
+         */
+        static WTF::String getInputText(WebCore::Node* node);
+        /**
+         * Gets the RenderTextControl for the given node if it has one.
+         * If its renderer isn't a RenderTextControl, then NULL is returned.
+         */
+        static WebCore::RenderTextControl* toRenderTextControl(WebCore::Node *node);
+        /**
+         * Sets the selection for node's editable field to the offsets
+         * between start (inclusive) and end (exclusive).
+         */
+        static void setSelection(WebCore::Node* node, int start, int end);
+        /**
+         * Returns the Position for the given offset for an editable
+         * field. The offset is relative to the node start.
+         */
+        static WebCore::Position getPositionForOffset(WebCore::Node* node, int offset);
+
+        WebCore::VisiblePosition visiblePositionForContentPoint(int x, int y);
+        WebCore::VisiblePosition visiblePositionForContentPoint(const WebCore::IntPoint& point);
+        bool selectWordAroundPosition(WebCore::Frame* frame,
+                                      WebCore::VisiblePosition pos);
+        SelectText* createSelectText(const WebCore::VisibleSelection&);
+        void setSelectionCaretInfo(SelectText* selectTextContainer,
+                const WebCore::Position& position,
+                const WebCore::IntPoint& frameOffset,
+                SelectText::HandleId handleId, int offset,
+                EAffinity affinity);
+        static int getMaxLength(WebCore::Node* node);
+        static WTF::String getFieldName(WebCore::Node* node);
+        static bool isAutoCompleteEnabled(WebCore::Node* node);
+        WebCore::IntRect absoluteContentRect(WebCore::Node* node,
+                WebCore::LayerAndroid* layer);
+        static WebCore::IntRect positionToTextRect(const WebCore::Position& position,
+                WebCore::EAffinity affinity, const WebCore::IntPoint& offset);
+        static bool isLtr(const WebCore::Position& position);
+        static WebCore::Position trimSelectionPosition(
+                const WebCore::Position& start, const WebCore::Position& stop);
 
         // called from constructor, to add this to a global list
         static void addInstance(WebViewCore*);
         // called from destructor, to remove this from a global list
         static void removeInstance(WebViewCore*);
 
+        bool prerenderingEnabled();
+
         friend class ListBoxReply;
         struct JavaGlue;
         struct JavaGlue*       m_javaGlue;
+        struct TextFieldInitDataGlue;
+        struct TextFieldInitDataGlue* m_textFieldInitDataGlue;
         WebCore::Frame*        m_mainFrame;
         WebCoreReply*          m_popupReply;
-        WebCore::Node* m_lastFocused;
-        WebCore::IntRect m_lastFocusedBounds;
-        int m_blurringNodePointer;
-        int m_lastFocusedSelStart;
-        int m_lastFocusedSelEnd;
-        PictureSet m_content; // the set of pictures to draw
-        SkRegion m_addInval; // the accumulated inval region (not yet drawn)
-        SkRegion m_rebuildInval; // the accumulated region for rebuilt pictures
+        WebCore::PicturePile m_content; // the set of pictures to draw
         // Used in passToJS to avoid updating the UI text field until after the
         // key event has been processed.
         bool m_blockTextfieldUpdates;
@@ -992,34 +1085,33 @@ class WebHTMLMarkupData{
         // Passed in with key events to know when they were generated.  Store it
         // with the cache so that we can ignore stale text changes.
         int m_textGeneration;
-        CachedRoot* m_temp;
-        SkPicture* m_tempPict;
         int m_maxXScroll;
         int m_maxYScroll;
         int m_scrollOffsetX; // webview.java's current scroll in X
         int m_scrollOffsetY; // webview.java's current scroll in Y
+        double m_scrollSetTime; // when the scroll was last set
         WebCore::IntPoint m_mousePos;
-        bool m_frameCacheOutOfDate;
-        bool m_progressDone;
-        CachedHistory m_history;
+        // This is the location at which we will click. This is tracked
+        // separately from m_mousePos, because m_mousePos may be updated
+        // in the interval between ACTION_UP and when the click fires since
+        // that occurs after a delay. This also works around potential hardware
+        // issues if we get onHoverEvents when using the touch screen, as that
+        // will nullify the slop checking we do in hitTest (aka, ACTION_DOWN)
+        WebCore::IntPoint m_mouseClickPos;
         int m_screenWidth; // width of the visible rect in document coordinates
         int m_screenHeight;// height of the visible rect in document coordinates
         int m_textWrapWidth;
         float m_scale;
-        unsigned m_domtree_version;
-        bool m_check_domtree_version;
-        PageGroup* m_groupForVisitedLinks;
+        WebCore::PageGroup* m_groupForVisitedLinks;
         bool m_isPaused;
         int m_cacheMode;
-        bool m_shouldPaintCaret;
-        //SAMSUNG CHANGES >>
-        // Corresponds to the same-named boolean on the java side.
-        bool m_heightCanMeasure;
-        //SAMSUNG CHANGES <<
+        bool m_fullscreenVideoMode;
 
-	// Samsung Change - HTML5 Web Notification	>>
-	Notification* m_notification;
-	// Samsung Change - HTML5 Web Notification	<<
+        // find on page data
+        WTF::String m_searchText;
+        int m_matchCount;
+        int m_activeMatchIndex;
+        RefPtr<WebCore::Range> m_activeMatch;
 
         SkTDArray<PluginWidgetAndroid*> m_plugins;
         WebCore::Timer<WebViewCore> m_pluginInvalTimer;
@@ -1028,21 +1120,23 @@ class WebHTMLMarkupData{
         }
 
         int m_screenOnCounter;
-        Node* m_currentNodeDomNavigationAxis;
+        WebCore::Node* m_currentNodeDomNavigationAxis;
         DeviceMotionAndOrientationManager m_deviceMotionAndOrientationManager;
 
 #if ENABLE(TOUCH_EVENTS)
         bool m_forwardingTouchEvents;
 #endif
 
-#if USE(CHROME_NETWORK_STACK)
         scoped_refptr<WebRequestContext> m_webRequestContext;
-#endif
+
+        WTF::Mutex m_prerenderLock;
+        bool m_prerenderEnabled;
 //SAMSUNG CHANGE HTML5 COLOR <<
 	WebCore::ColorChooserClientAndroid* m_colorChooser;
 //SAMSUNG CHANGE HTML5 COLOR >>
-    int m_focusRingDisabled;    // Samsung change set this flag if the focus ring is disabled from content
-
+	// Samsung Change - HTML5 Web Notification	>>
+	Notification* m_notification;
+	// Samsung Change - HTML5 Web Notification	<<
     };
 
 }   // namespace android

@@ -79,6 +79,7 @@ WebViewClientError ToWebViewClientError(net::Error error) {
         case ERR_CONNECTION_ABORTED:
         case ERR_CONNECTION_FAILED:
         case ERR_SOCKET_NOT_CONNECTED:
+        case ERR_CACHE_MISS:
             return ERROR_CONNECT;
 
         case ERR_ADDRESS_INVALID:
@@ -106,9 +107,14 @@ WebViewClientError ToWebViewClientError(net::Error error) {
 
         case ERR_PROXY_AUTH_UNSUPPORTED:
         case ERR_PROXY_AUTH_REQUESTED:
-        case ERR_PROXY_CONNECTION_FAILED:
+// samsung change         case ERR_PROXY_CONNECTION_FAILED:
         case ERR_UNEXPECTED_PROXY_AUTH:
             return ERROR_PROXY_AUTHENTICATION;
+
+// SAMSUNG CHANGE : not display proxy authentication failure popup by proxy connection failure.
+        case ERR_PROXY_CONNECTION_FAILED:
+            return ERROR_CONNECT;
+// SAMSUNG CHANGE
 
         /* The certificate errors are handled by their own dialog
          * and don't need to be reported to the framework again.

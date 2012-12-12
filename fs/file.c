@@ -32,8 +32,6 @@ int sysctl_nr_open __read_mostly = 1024*1024;
 int sysctl_nr_open_min = BITS_PER_LONG;
 int sysctl_nr_open_max = 1024 * 1024; /* raised later */
 
-extern int get_sec_debug_level(void);
-
 /*
  * We use this list to defer free fdtables that have vmalloced
  * sets/arrays. By keeping a per-cpu list, we avoid having to embed
@@ -217,11 +215,6 @@ static int expand_fdtable(struct files_struct *files, int nr)
 	 * caller and alloc_fdtable().  Cheaper to catch it here...
 	 */
 	if (unlikely(new_fdt->max_fds <= nr)) {
-		if (get_sec_debug_level())
-			panic("Too many open files");
-		else
-			printk(KERN_ERR "Too many open files(%d:%s)\n",
-				current->tgid, current->group_leader->comm);
 		__free_fdtable(new_fdt);
 		return -EMFILE;
 	}
@@ -261,28 +254,16 @@ int expand_files(struct files_struct *files, int nr)
 	 * N.B. For clone tasks sharing a files structure, this test
 	 * will limit the total number of files that can be opened.
 	 */
-	if (nr >= rlimit(RLIMIT_NOFILE)) {
-		if (get_sec_debug_level())
-			panic("Too many open files");
-		else
-			printk(KERN_ERR "Too many open files(%d:%s)\n",
-				current->tgid, current->group_leader->comm);
+	if (nr >= rlimit(RLIMIT_NOFILE))
 		return -EMFILE;
-	}
 
 	/* Do we need to expand? */
 	if (nr < fdt->max_fds)
 		return 0;
 
 	/* Can we expand? */
-	if (nr >= sysctl_nr_open) {
-		if (get_sec_debug_level())
-			panic("Too many open files");
-		else
-			printk(KERN_ERR "Too many open files(%d:%s)\n",
-				current->tgid, current->group_leader->comm);
+	if (nr >= sysctl_nr_open)
 		return -EMFILE;
-	}
 
 	/* All good, so we try */
 	return expand_fdtable(files, nr);
@@ -351,11 +332,6 @@ struct files_struct *dup_fd(struct files_struct *oldf, int *errorp)
 
 		/* beyond sysctl_nr_open; nothing to do */
 		if (unlikely(new_fdt->max_fds < open_files)) {
-			if (get_sec_debug_level())
-				panic("Too many open files");
-			else
-				printk(KERN_ERR "Too many open files(%d:%s)\n",
-					current->tgid, current->group_leader->comm);
 			__free_fdtable(new_fdt);
 			*errorp = -EMFILE;
 			goto out_release;

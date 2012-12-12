@@ -326,10 +326,6 @@ void SelectionController::textWillBeReplaced(CharacterData* node, unsigned offse
         }
         m_frame->document()->updateLayout();
         setSelection(newSelection, 0);
-    	//Notify Event Handler
-	if(selectionType() == VisibleSelection::RangeSelection) {
-	   m_frame->eventHandler()->setMouseDownMayStartSelect(true);
-    	}
         return;
     }
 
@@ -338,12 +334,13 @@ void SelectionController::textWillBeReplaced(CharacterData* node, unsigned offse
 
 void SelectionController::setIsDirectional(bool isDirectional)
 {
-	// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION +
-    // shouldConsiderSelectionAsDirectional() always returns TRUE, so the flag "isDirectional" has no affect. 
-    // So removed the first condition to make it work for text selection
-    //m_isDirectional = !m_frame || m_frame->editor()->behavior().shouldConsiderSelectionAsDirectional() || isDirectional;
-    m_isDirectional = isDirectional;
-	// SAMSUNG CHANGE -
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+	// shouldConsiderSelectionAsDirectional() always returns TRUE, so the flag "isDirectional" has no affect. 
+	// So removed the first condition to make it work for text selection
+	// WAS: m_isDirectional = !m_frame || m_frame->editor()->behavior().shouldConsiderSelectionAsDirectional() || isDirectional;
+	m_isDirectional = isDirectional;
+
+//SAMSUNG ADVANCED TEXT SELECTION - END
 }
 
 TextDirection SelectionController::directionOfEnclosingBlock()
@@ -378,7 +375,18 @@ void SelectionController::willBeModified(EAlteration alter, SelectionDirection d
                 baseIsStart = false;
             break;
         case DirectionForward:
-            baseIsStart = true;
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+            // WAS: baseIsStart = true;
+	if (directionOfEnclosingBlock() == LTR) {
+		baseIsStart = true;
+	}	else {
+		if (m_selection.base().anchorNode() == m_selection.extent().anchorNode()) {
+			baseIsStart = false;
+		} else {
+			baseIsStart = true;
+		}
+	}
+//SAMSUNG ADVANCED TEXT SELECTION - END
             break;
         case DirectionLeft:
             if (directionOfEnclosingBlock() == LTR)
@@ -387,7 +395,18 @@ void SelectionController::willBeModified(EAlteration alter, SelectionDirection d
                 baseIsStart = true;
             break;
         case DirectionBackward:
-            baseIsStart = false;
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+            // WAS: baseIsStart = false;
+	if (directionOfEnclosingBlock() == LTR) {
+		baseIsStart = false;
+	} else {
+		if (m_selection.base().anchorNode() == m_selection.extent().anchorNode()) {
+			baseIsStart = true;
+		} else {
+			baseIsStart = false;
+		}
+	}
+//SAMSUNG ADVANCED TEXT SELECTION - END
             break;
         }
     }
@@ -561,9 +580,22 @@ VisiblePosition SelectionController::modifyMovingForward(TextGranularity granula
     case LineGranularity: {
         // down-arrowing from a range selection that ends at the start of a line needs
         // to leave the selection at that line start (no need to call nextLinePosition!)
-        pos = endForPlatform();
-        if (!isRange() || !isStartOfLine(pos))
-            pos = nextLinePosition(pos, xPosForVerticalArrowNavigation(START));
+//+HTML_COMPOSER
+        if( m_frame && m_frame->document() && m_frame->document()->settings()
+            && m_frame->document()->settings()->editableSupportEnabled() && isRange() )
+        {
+            pos = VisiblePosition(m_selection.end(), m_selection.affinity());
+            if (!isRange() || !isStartOfLine(pos))
+                pos = nextLinePosition(pos, xPosForVerticalArrowNavigation(END));
+        }
+        else {
+//-HTML_COMPOSER
+            pos = endForPlatform();
+            if (!isRange() || !isStartOfLine(pos))
+                pos = nextLinePosition(pos, xPosForVerticalArrowNavigation(START));
+//+HTML_COMPOSER
+        }
+//-HTML_COMPOSER
         break;
     }
     case ParagraphGranularity:
@@ -729,7 +761,15 @@ VisiblePosition SelectionController::modifyMovingBackward(TextGranularity granul
         pos = previousSentencePosition(VisiblePosition(m_selection.extent(), m_selection.affinity()));
         break;
     case LineGranularity:
-        pos = previousLinePosition(startForPlatform(), xPosForVerticalArrowNavigation(START));
+//+HTML_COMPOSER
+        if( m_frame && m_frame->document() && m_frame->document()->settings()
+            && m_frame->document()->settings()->editableSupportEnabled() && isRange() )
+        {
+            pos = previousLinePosition(VisiblePosition(m_selection.start(), m_selection.affinity()), xPosForVerticalArrowNavigation(START));
+        }
+        else
+//-HTML_COMPOSER
+            pos = previousLinePosition(startForPlatform(), xPosForVerticalArrowNavigation(START));
         break;
     case ParagraphGranularity:
         pos = previousParagraphPosition(startForPlatform(), xPosForVerticalArrowNavigation(START));
@@ -1226,10 +1266,6 @@ void SelectionController::invalidateCaretRect()
 
 void SelectionController::paintCaret(GraphicsContext* context, int tx, int ty, const IntRect& clipRect)
 {
-#ifdef ANDROID_ALLOW_TURNING_OFF_CARET
-    if (m_frame && !android::WebViewCore::getWebViewCore(m_frame->view())->shouldPaintCaret())
-        return;
-#endif
 #if ENABLE(TEXT_CARET)
     if (!m_caretVisible)
         return;
@@ -1246,13 +1282,23 @@ void SelectionController::paintCaret(GraphicsContext* context, int tx, int ty, c
     if (caret.isEmpty())
         return;
 
-    Color caretColor = Color::black;
+// SAMSUNG CHANGE ++ Add new concept for blue cursor on input text
+    Color caretColor = 0xFF4fb5ff;
+//    Color caretColor = Color::black;
+// SAMSUNG CHANGE --
     ColorSpace colorSpace = ColorSpaceDeviceRGB;
     Element* element = rootEditableElement();
     if (element && element->renderer()) {
         caretColor = element->renderer()->style()->visitedDependentColor(CSSPropertyColor);
         colorSpace = element->renderer()->style()->colorSpace();
     }
+// SAMSUNG CHANGE ++ Add new concept for blue cursor on input text
+    caretColor = 0xFF4fb5ff;
+// SAMSUNG CHANGE --
+
+    //6026 issue. Cursor displaying thin and bold in the allshareplay test page.
+    int cwidth = caret.width()+1;
+    caret.setWidth(cwidth);
 
     context->fillRect(caret, caretColor, colorSpace);
 #else
@@ -1574,7 +1620,6 @@ void SelectionController::updateAppearance()
     ASSERT(!m_isDragCaretController);
 
 #if ENABLE(TEXT_CARET)
-
     bool caretRectChanged = recomputeCaretRect();
 
     bool caretBrowsing = m_frame->settings() && m_frame->settings()->caretBrowsingEnabled();
@@ -1601,6 +1646,13 @@ void SelectionController::updateAppearance()
 
     // We need to update style in case the node containing the selection is made display:none.
     m_frame->document()->updateStyleIfNeeded();
+
+#if PLATFORM(ANDROID)
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN - for samsung selection engine has to paint the selected area so we should not return here
+    if (!(m_frame->settings() && m_frame->settings()->advancedSelectionEnabled()))
+//SAMSUNG ADVANCED TEXT SELECTION - END
+    return;
+#endif
 
     RenderView* view = m_frame->contentRenderer();
     if (!view)
@@ -1640,7 +1692,6 @@ void SelectionController::setCaretVisible(bool flag)
     if (m_caretVisible == flag)
         return;
     clearCaretRectIfNeeded();
-
     m_caretVisible = flag;
     updateAppearance();
 }
@@ -1663,7 +1714,6 @@ void SelectionController::caretBlinkTimerFired(Timer<SelectionController>*)
     bool caretPaint = m_caretPaint;
     if (isCaretBlinkingSuspended() && caretPaint)
         return;
-
     m_caretPaint = !caretPaint;
     invalidateCaretRect();
 #endif
@@ -1857,10 +1907,8 @@ void SelectionController::setSelectionFromNone()
 
     Document* document = m_frame->document();
     bool caretBrowsing = m_frame->settings() && m_frame->settings()->caretBrowsingEnabled();
-//HTMLComposer start	
-    if (!isNone() || !(document->rendererIsEditable() || caretBrowsing || (document->body() && document->body()->rendererIsEditable())))
+    if (!isNone() || !(document->rendererIsEditable() || caretBrowsing))
         return;
-//HTMLComposer end	
 
     Node* node = document->documentElement();
     while (node && !node->hasTagName(bodyTag))
@@ -1868,7 +1916,17 @@ void SelectionController::setSelectionFromNone()
     if (node)
         setSelection(VisibleSelection(firstPositionInOrBeforeNode(node), DOWNSTREAM));
 }
-
+//SISO_HTMLComposer start
+//Sets selection to first node
+void SelectionController::setSelectionIfOrphan()
+{
+    Node* node = m_frame->document()->documentElement();
+    while (node && !node->hasTagName(bodyTag))
+        node = node->traverseNextNode();
+    if (node)
+        setSelection(VisibleSelection(firstPositionInOrBeforeNode(node), DOWNSTREAM));
+}
+//SISO_HTMLComposer end
 bool SelectionController::shouldChangeSelection(const VisibleSelection& newSelection) const
 {
     return m_frame->editor()->shouldChangeSelection(selection(), newSelection, newSelection.affinity(), false);

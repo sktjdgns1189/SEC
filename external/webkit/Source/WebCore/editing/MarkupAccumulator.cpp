@@ -38,7 +38,7 @@
 #include "ProcessingInstruction.h"
 #include "XMLNSNames.h"
 #include <wtf/unicode/CharacterNames.h>
-////////SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 #include "android/log.h" 
 //#include "DocLoader.h"
 #include "FileSystem.h"
@@ -70,9 +70,8 @@
 /*SAMSUNG_HTML_EDIT_EXTENSION END*/
 
 using namespace android;
-////////SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 using namespace std;
-
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -80,7 +79,7 @@ using namespace HTMLNames;
 static String getCIDData(const String& url, CachedResource* resource, WebHTMLMarkupData* markupData );
 static String getUniqueFileNameFromUrl(const String& url, String& urlAbsolutePath, String& actualFileName);
 static String getFileNameFromUrl(CachedResource* cachedResource , String url);
-////////SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 String getCIDData(const String& url, CachedResource* resource, WebHTMLMarkupData* markupData){
     //ANDROID_LOG_PRINT(ANDROID_LOG_DEBUG, "HTML_EDIT", "Markup.cpp,getCIDData  ");
 
@@ -367,7 +366,7 @@ String createLocalResource(CachedResource* resource, const String& basePath,WebH
     return String();    		
 }
 
-////////SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 
 // SAMSUNG CHANGE : CopyImage >>
 bool saveCachedImageToFile(CachedResource* resource, const String& imageUrl, const String& filePath)
@@ -720,7 +719,7 @@ void MarkupAccumulator::appendAttribute(Vector<UChar>& out, Element* element, co
     out.append('=');
 
     if (element->isURLAttribute(const_cast<Attribute*>(&attribute))) {
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
                     String urlValue;
                     if( (!basePath.isEmpty()) 
 			            && checkResourceAvailablity(element, const_cast<Attribute*>(&attribute)) 
@@ -734,12 +733,12 @@ void MarkupAccumulator::appendAttribute(Vector<UChar>& out, Element* element, co
                         ////ANDROID_LOG_PRINT(ANDROID_LOG_DEBUG, "HTML_EDIT", " entered CID Generation case appendQuotedURLAttributeValue: %s",urlValue.utf8().data());
                         appendQuotedURLAttributeValue(out, urlValue);
                     }
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
         // We don't want to complete file:/// URLs because it may contain sensitive information
         // about the user's system.
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
         else if (shouldResolveURLs() && !element->document()->url().isLocalFile())
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
             appendQuotedURLAttributeValue(out, element->document()->completeURL(attribute.value()).string());
         else
             appendQuotedURLAttributeValue(out, attribute.value()); 

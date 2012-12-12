@@ -39,8 +39,9 @@
 #include "Timer.h"
 #include "VisibleSelection.h"
 #include "WritingDirection.h"
+//SISO_HTMLComposer start
 #include "SkRect.h"
-
+//SISO_HTMLComposer end
 #if PLATFORM(MAC) && !defined(__OBJC__)
 class NSDictionary;
 typedef int NSWritingDirection;
@@ -76,12 +77,12 @@ struct CompositionUnderline {
     unsigned endOffset;
     Color color;
     bool thick;
-//SISO_HTMLCOMPOSER begin  	
+//SISO_HTMLComposer start
     Color highLightColor;
     bool isHighlightColor;
     Vector<SkRect> contentDrawRect;
     int thickness;
-//SISO_HTMLCOMPOSER end	
+//SISO_HTMLComposer end
 };
 
 enum EditorCommandSource { CommandFromMenuOrKeyBinding, CommandFromDOM, CommandFromDOMWithUserInterface };
@@ -99,12 +100,12 @@ public:
     EditCommand* lastEditCommand() { return m_lastEditCommand.get(); }
 
 
-//SISO_HTMLCOMPOSER begin  	
+//SISO_HTMLComposer start
     //Vector<SkRect> underlineRect;
     bool underlineUpdateFlag ;
     void setUnderLineUpdateFlag(bool flag = false){underlineUpdateFlag = flag; }
     bool getUnderLineUpdateFlag() const {return underlineUpdateFlag; }
-	//SISO_HTMLCOMPOSER end	
+//SISO_HTMLComposer end
 
     void handleKeyboardEvent(KeyboardEvent*);
     void handleInputMethodKeydown(KeyboardEvent*);
@@ -152,10 +153,10 @@ public:
     TriState selectionHasStyle(int propertyID, const String& value) const;
     String selectionStartCSSPropertyValue(int propertyID);
     const SimpleFontData* fontForSelection(bool&) const;
-	//SISO_HTMLCOMPOSER begin  	
+//SISO_HTMLComposer start
 	int getCurrentFontSize();
 	int getCurrentFontValue();
-	//SISO_HTMLCOMPOSER End
+//SISO_HTMLComposer end
     WritingDirection textDirectionForSelection(bool&) const;
     
     TriState selectionUnorderedListState() const;
@@ -217,9 +218,9 @@ public:
     Command command(const String& commandName); // Command source is CommandFromMenuOrKeyBinding.
     Command command(const String& commandName, EditorCommandSource);
     static bool commandIsSupportedFromMenuOrKeyBinding(const String& commandName); // Works without a frame.
-	//SISO_HTMLCOMPOSER begin	
+//SISO_HTMLComposer start
     static bool hasTransparentBackgroundColor(CSSStyleDeclaration*);
-	//SISO_HTMLCOMPOSER End 
+//SISO_HTMLComposer end
 
     bool insertText(const String&, Event* triggeringEvent);
     bool insertTextForConfirmedComposition(const String& text);
@@ -379,12 +380,11 @@ public:
     void applyEditingStyleToElement(Element*) const;
 
     IntRect firstRectForRange(Range*) const;
-    // SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION
-    IntRect lastRectForRange(Range*) const;
 
-    //Added for MulitColumn Selection Begin
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    IntRect lastRectForRange(Range*) const;
     bool getMultiColinfoOfSelection(Range* range) const;
-    //Added for MulitColumn Selection End
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
     void respondToChangedSelection(const VisibleSelection& oldSelection, SelectionController::SetSelectionOptions);
     bool shouldChangeSelection(const VisibleSelection& oldSelection, const VisibleSelection& newSelection, EAffinity, bool stillSelecting) const;
@@ -404,10 +404,12 @@ public:
     bool doTextFieldCommandFromEvent(Element*, KeyboardEvent*);
     void textWillBeDeletedInTextField(Element* input);
     void textDidChangeInTextArea(Element*);
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
 #if ENABLE(SPELLCHECK)
-    bool getIsWordChecking(){return m_isWordChecking;}//SAMSUNG+ SPELLCHECK CHANGES
-    void setIsWordChecking(bool isWordChecking){m_isWordChecking = isWordChecking;}//SAMSUNG+ SPELLCHECK CHANGES
+    bool getIsWordChecking(){return m_isWordChecking;}
+    void setIsWordChecking(bool isWordChecking){m_isWordChecking = isWordChecking;}
 #endif
+//SAMSUNG CHANGES <<<
 #if PLATFORM(MAC)
     NSDictionary* fontAttributesForSelectionStart() const;
     NSWritingDirection baseWritingDirectionForSelectionStart() const;
@@ -437,9 +439,11 @@ private:
     OwnPtr<SpellingCorrectionController> m_spellingCorrector;
     VisibleSelection m_mark;
     bool m_areMarkedTextMatchesHighlighted;
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-	bool m_isWordChecking;//SAMSUNG+ SPELLCHECK CHANGES
+	bool m_isWordChecking;
 #endif
+//SAMSUNG CHANGES <<<
 
     bool canDeleteRange(Range*) const;
     bool canSmartReplaceWithPasteboard(Pasteboard*);

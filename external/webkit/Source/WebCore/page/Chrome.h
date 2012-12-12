@@ -129,6 +129,11 @@ namespace WebCore {
 
         void closeWindowSoon();
 
+        // Samsung Change - Bing search >>
+        int isBingSearch();
+        bool setBingSearch();
+        // Samsung Change - Bing search <<
+
         void runJavaScriptAlert(Frame*, const String&);
         bool runJavaScriptConfirm(Frame*, const String&);
         bool runJavaScriptPrompt(Frame*, const String& message, const String& defaultValue, String& result);

@@ -365,12 +365,21 @@ static void device_avdtp_cb(struct audio_device *dev, struct avdtp *session,
 		return;
 
 	if (new_state == AVDTP_SESSION_STATE_CONNECTED) {
-//GA_BT BEGIN(+neo, 2010.11.18)		
-		//if (avdtp_stream_setup_active(session))
-			device_set_control_timer(dev);
-		//else
-		//	avrcp_connect(dev);
-//GA_BT END		
+                // js80.hong, 2012.09.14 for VW GTI Carkit
+                if (dev->dst.b[5]==0x00 && dev->dst.b[4]==0x26 && dev->dst.b[3]==0x7e) {
+                        DBG("device_avdtp_cb VW Carkit");
+                        if (avdtp_stream_setup_active(session))
+                                device_set_control_timer(dev);
+                        else
+                                avrcp_connect(dev);
+                } else {
+                        //GA_BT BEGIN(+neo, 2010.11.18)
+                        //if (avdtp_stream_setup_active(session))
+                        device_set_control_timer(dev);
+                        //else
+                        // avrcp_connect(dev);
+                        //GA_BT END
+                }
 	}
 }
 
@@ -409,13 +418,6 @@ static void device_sink_cb(struct audio_device *dev,
 				break;
 			}
 		}
-
-/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
-// P120208-3105 : a2dp chopping issue when scan for device
-#ifdef GLOBALCONFIG_BLUETOOTH_USE_CSR
-		android_set_low_priority(&dev->dst);
-#endif
-/* SS_BLUETOOTH(is80.hwang) End */
 		break;
 	case SINK_STATE_CONNECTING:
 		device_remove_avdtp_timer(dev);

@@ -54,7 +54,6 @@
 #include "WidthIterator.h"
 // SAMSUNG CHANGE <<
 
-
 #ifdef ANDROID_LAYOUT
 #include "Frame.h"
 #include "FrameTree.h"
@@ -759,9 +758,7 @@ void RenderBlock::layoutInlineChildren(bool relayoutChildren, int& repaintLogica
          deleteEllipsisLineBoxes();
 
     if (firstChild()) {
-		 //SISO: for RTL text alignment - start
 		 RenderObject* o = bidiFirst(this, 0, false);
-		//SISO: for RTL text alignment - end		
 #ifdef ANDROID_LAYOUT
         // if we are in fitColumnToScreen mode
         // and the current object is not float:right in LTR or not float:left in RTL,
@@ -790,8 +787,6 @@ void RenderBlock::layoutInlineChildren(bool relayoutChildren, int& repaintLogica
 					dir = style()->direction();
 				}	
 			}
-			//SISO_MEA_JP - end
-			
             bool autowrap = style()->autoWrap();
             // if the RenderBlock is positioned, don't wrap text around screen
             // width as it may cause text to overlap.
@@ -925,6 +920,10 @@ void RenderBlock::layoutInlineChildren(bool relayoutChildren, int& repaintLogica
                     setWidth(min(width(), maxWidth));
                     m_minPreferredLogicalWidth = min(m_minPreferredLogicalWidth, maxWidth);
                     m_maxPreferredLogicalWidth = min(m_maxPreferredLogicalWidth, maxWidth);
+
+                    // if overflow isn't visible, block elements may get clipped
+                    // due to the limited content width. disable overflow clipping.
+                    setHasOverflowClip(false);
 
                     IntRect overflow = layoutOverflowRect();
                     if (overflow.width() > maxWidth) {
@@ -2074,16 +2073,16 @@ InlineIterator RenderBlock::findNextLineBreak(InlineBidiResolver& resolver, bool
                 UChar c = str[pos];
                 currentCharacterIsSpace = c == ' ' || c == '\t' || (!preserveNewline && (c == '\n'));
 
-		  // SAMSUNG CHANGE >>
-		  bool isExtendedUnicode = false;
-		  int extendedCharCount = 0;
-		  if (c >= 0x3041 && len > 1) {
-		      TextRun run("", 0);
-		      WidthIterator it(NULL, run);
-		      if (isExtendedUnicode = it.isExtendedUnicodeChar(c, str[pos+1]))
-		          extendedCharCount = 1;
-		  }
-		  // SAMSUNG CHANGE <<
+                // SAMSUNG CHANGE >>
+                bool isExtendedUnicode = false;
+                int extendedCharCount = 0;
+                if (c >= 0x3041 && len > 1) {
+                    TextRun run("", 0);
+                     WidthIterator it(NULL, run);
+                    if (isExtendedUnicode = it.isExtendedUnicodeChar(c, str[pos+1]))
+                      extendedCharCount = 1;
+                }
+                // SAMSUNG CHANGE <<
                 if (!collapseWhiteSpace || !currentCharacterIsSpace)
                     isLineEmpty = false;
 
@@ -2099,7 +2098,7 @@ InlineIterator RenderBlock::findNextLineBreak(InlineBidiResolver& resolver, bool
 
                 if ((breakAll || breakWords) && !midWordBreak) {
                     wrapW += charWidth;
-		      // SAMSUNG CHANGE
+                    // SAMSUNG CHANGE
                     charWidth = textWidth(t, pos, 1+ extendedCharCount, f, width.committedWidth() + wrapW, isFixedPitch, collapseWhiteSpace);
                     midWordBreak = width.committedWidth() + wrapW + charWidth > width.availableWidth();
                 }
@@ -2110,25 +2109,6 @@ InlineIterator RenderBlock::findNextLineBreak(InlineBidiResolver& resolver, bool
                 }
 
                 bool betweenWords = c == '\n' || (currWS != PRE && !atStart && isBreakable(lineBreakIteratorInfo.second, pos, nextBreakable, breakNBSP) && (style->hyphens() != HyphensNone || (pos && str[pos - 1] != softHyphen)));
-
-				// MPSG100003245 Start 
-				if( !betweenWords && o && lBreak.m_obj && (o != lBreak.m_obj)) { //We are parsing inside a object which is not yet selected as a object to break.
-											// lBreak.obj is still containing the previous selected object to break.
-											// To make this object selectable and current position as breakbale position, we somehow have to set betweenWords for this character true.	
-					if(lBreak.m_obj->node() && lBreak.m_obj->node()->isTextNode()){
-						RenderText* prev = toRenderText(lBreak.m_obj->node()->renderer());
-						const UChar* prestr = prev->characters();
-						UChar nextchar = prestr[lBreak.m_pos];
-						bool nextCharacterIsSpace = nextchar == ' ' || nextchar == '\t' || nextchar == '\n';
-						bool hasPreviousObjectparsedFully = ( (lBreak.m_pos == prev->textLength() - 1 && width.uncommittedWidth() != 0) || nextCharacterIsSpace ) ; // Check if previous object string is parsed completely.
-																												  // That is lBreak.pos before the last character and we have some uncommitted width for the last character.
-						if(hasPreviousObjectparsedFully)
-							betweenWords = true;
-
-					}
-				}
-				// MPSG100003245 End 
-
 
                 if (betweenWords || midWordBreak) {
                     bool stoppedIgnoringSpaces = false;
@@ -2152,7 +2132,7 @@ InlineIterator RenderBlock::findNextLineBreak(InlineBidiResolver& resolver, bool
                     float additionalTmpW;
                     if (wordTrailingSpaceWidth && currentCharacterIsSpace)
                         additionalTmpW = textWidth(t, lastSpace, pos + 1 - lastSpace, f, width.currentWidth(), isFixedPitch, collapseWhiteSpace) - wordTrailingSpaceWidth + lastSpaceWordSpacing;
-                    else// SAMSUNG CHANGE
+                    else  // SAMSUNG CHANGE
                         additionalTmpW = textWidth(t, lastSpace, pos+ extendedCharCount  - lastSpace, f, width.currentWidth(), isFixedPitch, collapseWhiteSpace) + lastSpaceWordSpacing;
                     width.addUncommittedWidth(additionalTmpW);
                     if (!appliedStartWidth) {
@@ -2170,7 +2150,7 @@ InlineIterator RenderBlock::findNextLineBreak(InlineBidiResolver& resolver, bool
                         // as candidate width for this line.
                         bool lineWasTooWide = false;
                         if (width.fitsOnLine() && currentCharacterIsWS && o->style()->breakOnlyAfterWhiteSpace() && !midWordBreak) {
-				// SAMSUNG CHANGE
+                            // SAMSUNG CHANGE
                             int charWidth = textWidth(t, pos, 1+ extendedCharCount, f, width.currentWidth(), isFixedPitch, collapseWhiteSpace) + (applyWordSpacing ? wordSpacing : 0);
                             // Check if line is too big even without the extra space
                             // at the end of the line. If it is not, do nothing. 
@@ -2293,14 +2273,14 @@ InlineIterator RenderBlock::findNextLineBreak(InlineBidiResolver& resolver, bool
                     trailingSpaceObject = 0;
                     trailingPositionedBoxes.clear();
                 }
-		  // SAMSUNG CHANGE
-		  if (isExtendedUnicode) {
-		      pos += 2;
-		      len -= 2;
-		  } else {
-                pos++;
-                len--;
-		  }
+                // SAMSUNG CHANGE
+                if (isExtendedUnicode) {
+                     pos += 2;
+                    len -= 2;
+                } else {
+                     pos++;
+                      len--;
+                }
                 atStart = false;
             }
 

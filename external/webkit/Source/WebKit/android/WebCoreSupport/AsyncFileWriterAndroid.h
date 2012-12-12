@@ -30,33 +30,56 @@
 #if ENABLE(FILE_SYSTEM)
 
 #include "AsyncFileWriter.h"
+#include "AsyncFileSystemCallbacks.h"
 #include "WebFileError.h"
 #include "WebFileWriterClient.h"
 #include <wtf/PassOwnPtr.h>
+#include <wtf/HashMap.h>
 
-namespace WebKit {
-class WebFileWriter;
-}
+#include "SQLiteDatabase.h"
+#include "SQLiteFileSystem.h"
+#include "SQLiteStatement.h"
+#include "SQLiteTransaction.h"
 
 namespace WebCore {
-
-class Blob;
 class AsyncFileWriterClient;
+}
+
+using namespace WebCore;
+
+namespace android {
+
+//class Blob;
+//class AsyncFileWriterClient;
 
 class AsyncFileWriterAndroid : public AsyncFileWriter {
 public:
-    AsyncFileWriterAndroid(AsyncFileWriterClient* client, String path);
+    AsyncFileWriterAndroid(AsyncFileWriterClient* client, String path, unsigned quota, const String basepath, const String identifier);
     ~AsyncFileWriterAndroid();
     
     // FileWriter
     virtual void write(long long position, Blob* data);
     virtual void truncate(long long length);
     virtual void abort();
-    
+	
+
+    static bool OpenDatabase(SQLiteDatabase* database);
+    static void loadStorageQuotaInfo();
+    static void storeStorageQuotaInfo();
+    void removeSize(long long int, const String );
+    static void clearAll();
+    static bool isHashmapInitialized();
     
 private:
     AsyncFileWriterClient* m_client;
     String m_path;
+    unsigned m_quota;
+    static String s_basePath;
+    String m_identifier;
+    typedef WTF::HashMap<WTF::String,int> QuotaMap;
+    static QuotaMap s_fileSystemQuota;
+    static bool isFileNew;
+    	
 };
 
 } // namespace

@@ -105,12 +105,12 @@ private:
     virtual void insertedIntoTree(bool deep);
     virtual void removedFromTree(bool deep);
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     HTMLImageLoader m_imageLoader;
     String usemap;
     bool ismap;

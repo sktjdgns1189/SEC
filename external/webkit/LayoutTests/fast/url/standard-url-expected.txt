@@ -4,7 +4,9 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 
 PASS canonicalize('http://www.google.com/foo?bar=baz#') is 'http://www.google.com/foo?bar=baz#'
+FAIL canonicalize('http://www.google.com/foo?bar=baz# »') should be http://www.google.com/foo?bar=baz# ». Was http://www.google.com/foo?bar=baz# %BB.
 PASS canonicalize('http://[www.google.com]/') is 'http://[www.google.com]/'
+PASS canonicalize('http://www.google.com') is 'http://www.google.com/'
 FAIL canonicalize('http:////////user:@google.com:99?foo') should be http://user@google.com:99/?foo. Was http://////user:@google.com:99?foo.
 FAIL canonicalize('http://192.0x00A80001') should be http://192.168.0.1/. Was http://192.0x00A80001/.
 FAIL canonicalize('http://www/foo%2Ehtml') should be http://www/foo.html. Was http://www/foo%2Ehtml.
@@ -30,6 +32,31 @@ PASS canonicalize('wss://foo:80/') is 'wss://foo:80/'
 PASS canonicalize('wss://foo:81/') is 'wss://foo:81/'
 PASS canonicalize('wss://foo:443/') is 'wss://foo/'
 PASS canonicalize('wss://foo:815/') is 'wss://foo:815/'
+PASS canonicalize('http:/example.com/') is 'http://example.com/'
+PASS canonicalize('ftp:/example.com/') is 'ftp://example.com/'
+PASS canonicalize('https:/example.com/') is 'https://example.com/'
+PASS canonicalize('madeupscheme:/example.com/') is 'madeupscheme:/example.com/'
+FAIL canonicalize('file:/example.com/') should be file://localhost/example.com/. Was file:///example.com/.
+PASS canonicalize('ftps:/example.com/') is 'ftps:/example.com/'
+PASS canonicalize('gopher:/example.com/') is 'gopher://example.com/'
+PASS canonicalize('ws:/example.com/') is 'ws://example.com/'
+PASS canonicalize('wss:/example.com/') is 'wss://example.com/'
+PASS canonicalize('data:/example.com/') is 'data:/example.com/'
+PASS canonicalize('javascript:/example.com/') is 'javascript:/example.com/'
+PASS canonicalize('mailto:/example.com/') is 'mailto:/example.com/'
+PASS canonicalize('http:example.com/') is 'http://example.com/'
+PASS canonicalize('ftp:example.com/') is 'ftp://example.com/'
+PASS canonicalize('https:example.com/') is 'https://example.com/'
+PASS canonicalize('madeupscheme:example.com/') is 'madeupscheme:example.com/'
+PASS canonicalize('ftps:example.com/') is 'ftps:example.com/'
+PASS canonicalize('gopher:example.com/') is 'gopher://example.com/'
+PASS canonicalize('ws:example.com/') is 'ws://example.com/'
+PASS canonicalize('wss:example.com/') is 'wss://example.com/'
+PASS canonicalize('data:example.com/') is 'data:example.com/'
+PASS canonicalize('javascript:example.com/') is 'javascript:example.com/'
+PASS canonicalize('mailto:example.com/') is 'mailto:example.com/'
+PASS canonicalize('javascript:alert(\t 1 \n\r)') is 'javascript:alert( 1 )'
+PASS canonicalize('javascript:alert("  β ")') is 'javascript:alert(" %01 %CE%B2 ")'
 PASS successfullyParsed is true
 
 TEST COMPLETE

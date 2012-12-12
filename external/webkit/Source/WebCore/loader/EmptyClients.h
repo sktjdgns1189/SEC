@@ -137,6 +137,11 @@ public:
 
     virtual void closeWindowSoon() { }
 
+    // Samsung Change - Bing search >>
+    virtual int isBingSearch(){return false;}
+    virtual bool setBingSearch(){return false;}
+    // Samsung Change - Bing search <<
+
     virtual void runJavaScriptAlert(Frame*, const String&) { }
     virtual bool runJavaScriptConfirm(Frame*, const String&) { return false; }
     virtual bool runJavaScriptPrompt(Frame*, const String&, const String&, String&) { return false; }
@@ -168,7 +173,7 @@ public:
 #if ENABLE(TILED_BACKING_STORE)
     virtual void delegatedScrollRequested(const IntPoint&) { }
 #endif
-#if ENABLE(REQUEST_ANIMATION_FRAME) && !USE(REQUEST_ANIMATION_FRAME_TIMER) //SISO CHANGES ANIMATION
+#if ENABLE(REQUEST_ANIMATION_FRAME) && !USE(REQUEST_ANIMATION_FRAME_TIMER)
     virtual void scheduleAnimation() { }
 #endif
 
@@ -524,10 +529,14 @@ public:
     virtual bool isAutomaticSpellingCorrectionEnabled() { return false; }
     virtual void toggleAutomaticSpellingCorrection() { }
 #endif
-    // SAMSUNG CHANGES+
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
     virtual void checkSpellingOfString(const UChar*, int, int*, int*) { }
-	virtual bool isWordChecking() { return false;} //SAMSUNG+ SPELLCHECK CHANGES
-    // SAMSUNG CHANGES-
+	virtual bool isWordChecking() { return false;}
+#endif
+//SAMSUNG CHANGES <<<
+    
     TextCheckerClient* textChecker() { return &m_textCheckerClient; }
 
 #if SUPPORT_AUTOCORRECTION_PANEL

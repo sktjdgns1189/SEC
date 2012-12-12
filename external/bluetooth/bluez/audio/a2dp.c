@@ -75,9 +75,6 @@
 #define _3_SLOT_EDR_ACL_BYTE 0x04
 #define _5_SLOT_EDR_ACL_BYTE 0x05
 
-#define BDADDR_SPECIAL_NUM 2 //SSBT_BITPOOL
-static char bdaddr_special[BDADDR_SPECIAL_NUM][9] = {"00-1E-B2", "00-23-7F"}; //SSBT_BITPOOL
-
 struct a2dp_sep {
 	struct a2dp_server *server;
 	struct media_endpoint *endpoint;
@@ -137,6 +134,9 @@ static GSList *servers = NULL;
 static GSList *setups = NULL;
 static unsigned int cb_id = 0;
 
+#ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+extern     dbus_uint32_t scmstSupport;//souvick, scms-t 12_06_2012
+#endif
 static struct a2dp_setup *setup_ref(struct a2dp_setup *setup)
 {
 	setup->ref++;
@@ -2381,6 +2381,11 @@ static gboolean select_capabilities(struct avdtp *session,
     if (media_content_protection && (memcmp(media_content_protection->data, &content_protection_cap, sizeof(content_protection_cap)) == 0)) {
         media_content_protection = avdtp_service_cap_new(AVDTP_CONTENT_PROTECTION, &content_protection_cap, 2);
         *caps = g_slist_append(*caps, media_content_protection);
+            scmstSupport = 1;
+            DBG("set scmstSupport");
+        }else{
+            scmstSupport = 0;
+            DBG("reset scmstSupport");
 	 }
 #endif
 
@@ -3139,21 +3144,9 @@ gboolean a2dp_read_edrcapability(bdaddr_t *src, bdaddr_t *dst)
 	uint16_t version;
 	uint8_t remote_features[8];
 	struct a2dp_server *server;
-	int i;
-	char dst_oui[9];
 
 	if (!src || !dst)
 		return FALSE;
-
-	//SSBT_BITPOOL start
-	ba2oui(dst, dst_oui);
-	for (i=0; i < BDADDR_SPECIAL_NUM; i++) { 
-		if (strncmp(dst_oui, bdaddr_special[i], 8) == 0) { 
-			DBG("return special device as false");
-			return FALSE;
-		}
-	}
-	//SSBT_BITPOOL end
 
 	server = find_server(servers, src);
 

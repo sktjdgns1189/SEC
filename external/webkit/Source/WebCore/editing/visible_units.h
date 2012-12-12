@@ -60,7 +60,9 @@ bool inSameLine(const VisiblePosition &, const VisiblePosition &);
 bool inSameLogicalLine(const VisiblePosition &, const VisiblePosition &);
 bool isStartOfLine(const VisiblePosition &);
 bool isEndOfLine(const VisiblePosition &);
-bool isStartOfSpace(const VisiblePosition &); //SAMSUNG CHANGE
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+bool isStartOfSpace(const VisiblePosition &);
+//SAMSUNG ADVANCED TEXT SELECTION - END
 VisiblePosition logicalStartOfLine(const VisiblePosition &);
 VisiblePosition logicalEndOfLine(const VisiblePosition &);
 VisiblePosition leftBoundaryOfLine(const VisiblePosition&, TextDirection);

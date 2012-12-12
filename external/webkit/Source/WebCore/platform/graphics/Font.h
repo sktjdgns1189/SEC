@@ -102,9 +102,11 @@ public:
 
     int offsetForPosition(const TextRun&, float position, bool includePartialGlyphs) const;
     FloatRect selectionRectForText(const TextRun&, const FloatPoint&, int h, int from = 0, int to = -1) const;
-    //SISO: Added for Bidi cursor issue
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     FloatRect selectionRectForText(const TextRun& run, const FloatPoint& point, int h, int from, int to, bool rtl) const;	
 
+//SAMSUNG ADVANCED TEXT SELECTION - END
     bool isSmallCaps() const { return m_fontDescription.smallCaps(); }
 
     short wordSpacing() const { return m_wordSpacing; }
@@ -173,7 +175,13 @@ private:
     float getGlyphsAndAdvancesForSimpleText(const TextRun&, int from, int to, GlyphBuffer&, ForTextEmphasisOrNot = NotForTextEmphasis) const;
     void drawSimpleText(GraphicsContext*, const TextRun&, const FloatPoint&, int from, int to) const;
     void drawEmphasisMarksForSimpleText(GraphicsContext*, const TextRun&, const AtomicString& mark, const FloatPoint&, int from, int to) const;
+#if PLATFORM(ANDROID)
+public:
+#endif
     void drawGlyphs(GraphicsContext*, const SimpleFontData*, const GlyphBuffer&, int from, int to, const FloatPoint&) const;
+#if PLATFORM(ANDROID)
+private:
+#endif
     void drawGlyphBuffer(GraphicsContext*, const GlyphBuffer&, const FloatPoint&) const;
     void drawEmphasisMarks(GraphicsContext* context, const GlyphBuffer&, const AtomicString&, const FloatPoint&) const;
     float floatWidthForSimpleText(const TextRun&, GlyphBuffer*, HashSet<const SimpleFontData*>* fallbackFonts = 0, GlyphOverflow* = 0) const;
@@ -198,15 +206,6 @@ private:
     friend struct WidthIterator;
 
 public:
-	#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    bool equalForTextAutoSizing (const Font &other) const {
-        return (m_fontDescription.equalForTextAutoSizing(other.m_fontDescription) &&
-                m_letterSpacing == other.m_letterSpacing &&
-                m_wordSpacing == other.m_wordSpacing);
-    }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-	#endif
     // Useful for debugging the different font rendering code paths.
     static void setCodePath(CodePath);
     static CodePath codePath();

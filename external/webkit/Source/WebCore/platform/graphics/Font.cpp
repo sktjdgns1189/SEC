@@ -201,32 +201,6 @@ float Font::width(const TextRun& run, int extraCharsAvailable, int& charsConsume
     return floatWidthForComplexText(run);
 }
 
-//SISO: Added for Bidi cursor issue - Start
-FloatRect Font::selectionRectForText(const TextRun& run, const FloatPoint& point, int h, int from, int to, bool rtl) const
-{
-	//__android_log_print(ANDROID_LOG_DEBUG, "Font", "Font::selectionRectForText ltr = true, calling selectionRectForComplexText rtl spec");
-
-	#if ENABLE(SVG_FONTS)
-	    if (primaryFont()->isSVGFont())
-	        return selectionRectForTextUsingSVGFont(run, point, h, from, to);
-	#endif
-
-	    to = (to == -1 ? run.length() : to);
-
-	if ( (codePath(run) != Complex) || rtl) 
-		{
-		 //__android_log_print(ANDROID_LOG_DEBUG, "Font", "Font::selectionRectForText ltr = false, calling selectionRectForSimpleText");
-		 return selectionRectForSimpleText(run, point, h, from, to);
-		}
-	else 
-		{
-		 //__android_log_print(ANDROID_LOG_DEBUG, "Font", "Font::selectionRectForText ltr = true, calling selectionRectForComplexText");
-		 return selectionRectForComplexText(run, point, h, from, to);
-		}
-
-}
-//SISO: Added for Bidi cursor issue - End
-
 FloatRect Font::selectionRectForText(const TextRun& run, const FloatPoint& point, int h, int from, int to) const
 {
 #if ENABLE(SVG_FONTS)
@@ -467,7 +441,7 @@ bool Font::isCJKIdeographOrSymbol(UChar32 c)
         return true;
 
     // Emoji.
-    if (c >= 0x1F20 && c <= 0x1F6F)
+    if (c >= 0x1F200 && c <= 0x1F6F)
         return true;
 
     return isCJKIdeograph(c);

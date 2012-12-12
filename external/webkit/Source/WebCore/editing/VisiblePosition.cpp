@@ -486,15 +486,6 @@ Position VisiblePosition::canonicalPosition(const Position& passedPosition)
     Node* node = position.containerNode();
 
     ASSERT(position.document());
-
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-	Node * currentFANode = NULL;
-	if(node)
-		currentFANode = node->shadowAncestorNode();
-	if(currentFANode && currentFANode->hasTagName(textareaTag))
-		position.document()->setCheckNode(currentFANode);
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
-
     position.document()->updateLayoutIgnorePendingStylesheets();
 
     Position candidate = position.upstream();

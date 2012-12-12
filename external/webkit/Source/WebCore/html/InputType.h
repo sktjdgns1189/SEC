@@ -37,7 +37,6 @@
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
 #include <wtf/Vector.h>
-#include "HTMLFormControlElement.h"
 
 namespace WebCore {
 

@@ -65,11 +65,7 @@ typedef HashMap<NativeImagePtr, RefPtr<Texture> > TextureHashMap;
 
 class SharedGraphicsContext3D : public RefCounted<SharedGraphicsContext3D> {
 public:
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-    static PassRefPtr<SharedGraphicsContext3D>create(HTMLCanvasElement* ,HostWindow*);
-#else	
     static PassRefPtr<SharedGraphicsContext3D> create(HostWindow*);
-#endif
     ~SharedGraphicsContext3D();
 
     // Functions that delegate directly to GraphicsContext3D, with caching
@@ -135,6 +131,7 @@ public:
     // the texture.
     PassRefPtr<Texture> createTexture(Texture::Format, int width, int height);
 
+    GraphicsContext3D* graphicsContext3D() const { return m_context.get(); }
 
     // Members for GPU-accelerated path rendering.
     static bool useLoopBlinnForPathRendering();
@@ -145,25 +142,7 @@ public:
 #if ENABLE(SKIA_GPU)
     GrContext* grContext();
 #endif
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-  void deleteBuffer(Platform3DObject);
-  void drawElements(GC3Denum mode, GC3Dsizei count, GC3Denum type, GC3Dintptr offset);
-   void stencilFunc(GC3Denum func, GC3Dint ref, GC3Duint mask);
-   void stencilOp(GC3Denum fail, GC3Denum zfail, GC3Denum zpass);
 
-   void reshape(int width, int height);
-	  
-   PassRefPtr<DrawingBuffer> createDrawingBuffer(const IntSize& = IntSize());
-
-   void markContextChanged();
-    void setDrawingBuffer(DrawingBuffer* drawingBuffer);
-     void dumpBuffer(char* name);	
-     void finish();
-private:
-   GraphicsContext3D* graphicsContext3D() const { return m_context.get(); }
-#else
-   GraphicsContext3D* graphicsContext3D() const { return m_context.get(); }
-#endif
 private:
     SharedGraphicsContext3D(PassRefPtr<GraphicsContext3D>, PassOwnPtr<SolidFillShader>, PassOwnPtr<TexShader>, PassOwnPtr<BicubicShader>, PassOwnArrayPtr<OwnPtr<ConvolutionShader> >);
 

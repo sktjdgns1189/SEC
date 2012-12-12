@@ -40,6 +40,11 @@
 
 #include "liba2dp.h"
 
+/* for backward compatibility with older audio framework */
+#ifndef AUDIO_PARAMETER_A2DP_SINK_ADDRESS
+    #define AUDIO_PARAMETER_A2DP_SINK_ADDRESS "a2dp_sink_address"
+#endif
+
 bool isToMono = false;
 
 #define A2DP_WAKE_LOCK_NAME            "A2dpOutputStream"
@@ -48,15 +53,13 @@ bool isToMono = false;
 #define A2DP_SUSPENDED_PARM            "A2dpSuspended"
 #define BLUETOOOTH_ENABLED_PARM        "bluetooth_enabled"
 
-#define OUT_SINK_ADDR_PARM             "a2dp_sink_address"
-
 /* number of periods in pcm buffer (one period corresponds to buffer size reported to audio flinger
  * by out_get_buffer_size() */
-#define BUF_NUM_PERIODS 6
+#define BUF_NUM_PERIODS 2
 /* maximum time allowed by out_standby_stream_locked() for 2dp_write() to complete */
 #define BUF_WRITE_COMPLETION_TIMEOUT_MS 5000
 /* maximum time allowed by out_write() for frames to be available in in write thread buffer */
-#define BUF_WRITE_AVAILABILITY_TIMEOUT_MS 5000
+#define BUF_WRITE_AVAILABILITY_TIMEOUT_MS 10000
 /* maximum number of attempts to wait for a write completion in out_standby_stream_locked() */
 #define MAX_WRITE_COMPLETION_ATTEMPTS 5
 
@@ -94,7 +97,7 @@ struct astream_out {
     uint32_t                sample_rate;
     size_t                  buffer_size;
     uint32_t                channels;
-    int                     format;
+    audio_format_t          format;
 
     int                     fd;
     bool                    standby;
@@ -148,7 +151,7 @@ static int out_set_sample_rate(struct audio_stream *stream, uint32_t rate)
 {
     struct astream_out *out = (struct astream_out *)stream;
 
-    LOGE("(%s:%d) %s: Implement me!", __FILE__, __LINE__, __func__);
+    ALOGE("(%s:%d) %s: Implement me!", __FILE__, __LINE__, __func__);
     return 0;
 }
 
@@ -164,16 +167,16 @@ static uint32_t out_get_channels(const struct audio_stream *stream)
     return out->channels;
 }
 
-static int out_get_format(const struct audio_stream *stream)
+static audio_format_t out_get_format(const struct audio_stream *stream)
 {
     const struct astream_out *out = (const struct astream_out *)stream;
     return out->format;
 }
 
-static int out_set_format(struct audio_stream *stream, int format)
+static audio_format_t out_set_format(struct audio_stream *stream, audio_format_t format)
 {
     struct astream_out *out = (struct astream_out *)stream;
-    LOGE("(%s:%d) %s: Implement me!", __FILE__, __LINE__, __func__);
+    ALOGE("(%s:%d) %s: Implement me!", __FILE__, __LINE__, __func__);
     return 0;
 }
 
@@ -211,7 +214,7 @@ static int _out_init_locked(struct astream_out *out, const char *addr)
     /* XXX: shouldn't this use the sample_rate/channel_count from 'out'? */
     ret = a2dp_init(44100, 2, &out->data);
     if (ret < 0) {
-        LOGE("a2dp_init failed err: %d\n", ret);
+        ALOGE("a2dp_init failed err: %d\n", ret);
         out->data = NULL;
         return ret;
     }
@@ -224,7 +227,7 @@ static int _out_init_locked(struct astream_out *out, const char *addr)
     return 0;
 }
 
-static bool _out_validate_parms(struct astream_out *out, int format,
+static bool _out_validate_parms(struct astream_out *out, audio_format_t format,
                                 uint32_t chans, uint32_t rate)
 {
     if ((format && (format != out->format)) ||
@@ -248,11 +251,11 @@ static int out_standby_stream_locked(struct astream_out *out)
         ret = pthread_cond_timeout_np(&out->write_cond,
                                 &out->lock,
                                 BUF_WRITE_COMPLETION_TIMEOUT_MS);
-        LOGE_IF(ret != 0, "out_standby_stream_locked() wait cond error %d", ret);
+        ALOGE_IF(ret != 0, "out_standby_stream_locked() wait cond error %d", ret);
     }
-    LOGE_IF(attempts == 0, "out_standby_stream_locked() a2dp_write() would not stop!!!");
+    ALOGE_IF(attempts == 0, "out_standby_stream_locked() a2dp_write() would not stop!!!");
 
-    LOGV_IF(!out->bt_enabled, "Standby skip stop: enabled %d", out->bt_enabled);
+    ALOGV_IF(!out->bt_enabled, "Standby skip stop: enabled %d", out->bt_enabled);
     if (out->bt_enabled) {
         ret = a2dp_stop(out->data);
     }
@@ -266,7 +269,7 @@ static int out_close_stream_locked(struct astream_out *out)
     out_standby_stream_locked(out);
 
     if (out->data) {
-        LOGV("%s: calling a2dp_cleanup()", __func__);
+        ALOGV("%s: calling a2dp_cleanup()", __func__);
         a2dp_cleanup(out->data);
         out->data = NULL;
     }
@@ -284,9 +287,9 @@ static int out_standby(struct audio_stream *stream)
     char checkTmap[PROPERTY_VALUE_MAX];
     property_get("sys.sktgps", checkTmap, "0");
     if (atoi(checkTmap) == 1) {
-        LOGV("======================================================");
-        LOGV("T-Map is operating, a2dp doesn't enter standby state");
-        LOGV("======================================================");
+        ALOGV("======================================================");
+        ALOGV("T-Map is operating, a2dp doesn't enter standby state");
+        ALOGV("======================================================");
         pthread_mutex_unlock(&out->lock);
         return 0;
     }
@@ -310,7 +313,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
     pthread_mutex_lock(&out->lock);
 
-    ret = str_parms_get_str(parms, OUT_SINK_ADDR_PARM, value, sizeof(value));
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_A2DP_SINK_ADDRESS, value, sizeof(value));
     if (ret >= 0) {
         /* strlen(00:00:00:00:00:00) == 17 */
         if (strlen(value) == 17) {
@@ -361,9 +364,9 @@ static char * out_get_parameters(const struct audio_stream *stream,
 
     pthread_mutex_lock(&out->lock);
 
-    ret = str_parms_get_str(parms, OUT_SINK_ADDR_PARM, value, sizeof(value));
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_A2DP_SINK_ADDRESS, value, sizeof(value));
     if (ret >= 0)
-        str_parms_add_str(out_parms, OUT_SINK_ADDR_PARM, out->a2dp_addr);
+        str_parms_add_str(out_parms, AUDIO_PARAMETER_A2DP_SINK_ADDRESS, out->a2dp_addr);
 
     pthread_mutex_unlock(&out->lock);
 
@@ -426,7 +429,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
     pthread_mutex_lock(&out->buf_lock);
     pthread_mutex_lock(&out->lock);
     if (!out->bt_enabled || out->suspended) {
-        LOGV("a2dp write: bluetooth disabled bt_en %d, suspended %d",
+        ALOGV("a2dp %s: bluetooth disabled bt_en %d, suspended %d",
              out->bt_enabled, out->suspended);
         ret = -1;
         goto err_bt_disabled;
@@ -448,6 +451,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
 
     pthread_mutex_unlock(&out->lock);
 
+#if 0    // Delete useless codes.-dongyul.lee
     if(isToMono){
         int16_t mono;
         int16_t *stereoData = (int16_t *)buffer;
@@ -459,6 +463,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void* buffer,
             *(stereoData+2*i) = *(stereoData+2*i+1) = mono;
         }
     }
+#endif
 
     while (frames_written < frames_total) {
         size_t frames = _out_frames_available_locked(out);
@@ -493,7 +498,7 @@ err_write:
 err_init:
 err_bt_disabled:
     pthread_mutex_unlock(&out->buf_lock);
-    LOGV("!!!! write error");
+    ALOGV("!!!! write error");
     out_standby_stream_locked(out);
     pthread_mutex_unlock(&out->lock);
 
@@ -550,7 +555,7 @@ static void *_out_buf_thread_func(void *context)
                 pthread_mutex_unlock(&out->lock);
 
                 if (ret < 0) {
-                    LOGE("%s: a2dp_write failed (%d)\n", __func__, ret);
+                    ALOGE("%s: a2dp_write failed (%d)\n", __func__, ret);
                     /* skip pending frames in case of write error */
                     _out_inc_rd_idx_locked(out, frames);
                     break;
@@ -576,7 +581,7 @@ static void *_out_buf_thread_func(void *context)
                 buffer_duration_us = ((ret * 1000) / out->sample_rate) * 1000;
 
                 if (elapsed_us < (buffer_duration_us / 4)) {
-                    LOGV("A2DP sink runs too fast");
+                    ALOGV("A2DP sink runs too fast");
                     usleep(buffer_duration_us - elapsed_us);
                 }
                 out->last_write_time = now;
@@ -628,10 +633,19 @@ static int _out_a2dp_suspend(struct astream_out *out, bool suspend)
     return 0;
 }
 
+#ifdef AUDIO_DEVICE_API_VERSION_1_0
 static int adev_open_output_stream(struct audio_hw_device *dev,
-                                   uint32_t devices, int *format,
+                                   audio_io_handle_t handle,
+                                   audio_devices_t devices,
+                                   audio_output_flags_t flags,
+                                   struct audio_config *config,
+                                   struct audio_stream_out **stream_out)
+#else
+static int adev_open_output_stream(struct audio_hw_device *dev,
+                                   uint32_t devices, audio_format_t *format,
                                    uint32_t *channels, uint32_t *sample_rate,
                                    struct audio_stream_out **stream_out)
+#endif
 {
     struct adev_a2dp *adev = (struct adev_a2dp *)dev;
     struct astream_out *out;
@@ -641,7 +655,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 
     /* one output stream at a time */
     if (adev->output) {
-        LOGV("output exists");
+        ALOGV("output exists");
         ret = -EBUSY;
         goto err_output_exists;
     }
@@ -689,10 +703,17 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out->buffer_duration_us = ((out->buffer_size * 1000 ) /
                                audio_stream_frame_size(&out->stream.common) /
                                out->sample_rate) * 1000;
+#ifdef AUDIO_DEVICE_API_VERSION_1_0
+    if (!_out_validate_parms(out, config->format,
+                             config->channel_mask,
+                             config->sample_rate))
+#else
     if (!_out_validate_parms(out, format ? *format : 0,
                              channels ? *channels : 0,
-                             sample_rate ? *sample_rate : 0)) {
-        LOGV("invalid parameters");
+                             sample_rate ? *sample_rate : 0))
+#endif
+    {
+        ALOGV("invalid parameters");
         ret = -EINVAL;
         goto err_validate_parms;
     }
@@ -715,13 +736,18 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 
     adev->output = out;
 
+#ifdef AUDIO_DEVICE_API_VERSION_1_0
+    config->format = out->format;
+    config->channel_mask = out->channels;
+    config->sample_rate = out->sample_rate;
+#else
     if (format)
         *format = out->format;
     if (channels)
         *channels = out->channels;
     if (sample_rate)
         *sample_rate = out->sample_rate;
-
+#endif
     pthread_mutex_unlock(&adev->lock);
 
     *stream_out = &out->stream;
@@ -746,7 +772,7 @@ static void adev_close_output_stream_locked(struct adev_a2dp *dev,
 
     /* invalid stream? */
     if (!adev->output || adev->output != out) {
-        LOGE("%s: unknown stream %p (ours is %p)", __func__, out, adev->output);
+        ALOGE("%s: unknown stream %p (ours is %p)", __func__, out, adev->output);
         return;
     }
 
@@ -791,7 +817,7 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     char value[8];
     int ret;
 
-    LOGV("adev_set_parameters() %s", kvpairs);
+    ALOGV("adev_set_parameters() %s", kvpairs);
 
     const char *keyMono = "toMono=";
     if (strstr(kvpairs, keyMono) != NULL) {
@@ -801,7 +827,7 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
             else
                 isToMono = false;
 
-            LOGV("IsToMono %d", isToMono);
+            ALOGV("IsToMono %d", isToMono);
         }
         return 0;
     }
@@ -882,7 +908,7 @@ static int adev_set_master_volume(struct audio_hw_device *dev, float volume)
     return -ENOSYS;
 }
 
-static int adev_set_mode(struct audio_hw_device *dev, int mode)
+static int adev_set_mode(struct audio_hw_device *dev, audio_mode_t mode)
 {
     /* TODO: do we care for the mode? */
     return 0;
@@ -898,19 +924,32 @@ static int adev_get_mic_mute(const struct audio_hw_device *dev, bool *state)
     return -ENOSYS;
 }
 
+#ifdef AUDIO_DEVICE_API_VERSION_1_0
 static size_t adev_get_input_buffer_size(const struct audio_hw_device *dev,
-                                         uint32_t sample_rate, int format,
+                                         const struct audio_config *config)
+#else
+static size_t adev_get_input_buffer_size(const struct audio_hw_device *dev,
+                                         uint32_t sample_rate, audio_format_t format,
                                          int channel_count)
+#endif
 {
     /* no input */
     return 0;
 }
 
+#ifdef AUDIO_DEVICE_API_VERSION_1_0
+static int adev_open_input_stream(struct audio_hw_device *dev,
+                                  audio_io_handle_t handle,
+                                  audio_devices_t devices,
+                                  struct audio_config *config,
+                                  struct audio_stream_in **stream_in)
+#else
 static int adev_open_input_stream(struct audio_hw_device *dev, uint32_t devices,
-                                  int *format, uint32_t *channels,
+                                  audio_format_t *format, uint32_t *channels,
                                   uint32_t *sample_rate,
                                   audio_in_acoustics_t acoustics,
                                   struct audio_stream_in **stream_in)
+#endif
 {
     return -ENOSYS;
 }
@@ -963,7 +1002,11 @@ static int adev_open(const hw_module_t* module, const char* name,
     adev->output = NULL;
 
     adev->device.common.tag = HARDWARE_DEVICE_TAG;
+#ifdef AUDIO_DEVICE_API_VERSION_1_0
+    adev->device.common.version = AUDIO_DEVICE_API_VERSION_1_0;
+#else
     adev->device.common.version = 0;
+#endif
     adev->device.common.module = (struct hw_module_t *) module;
     adev->device.common.close = adev_close;
 
@@ -999,8 +1042,13 @@ static struct hw_module_methods_t hal_module_methods = {
 struct audio_module HAL_MODULE_INFO_SYM = {
     .common = {
         .tag = HARDWARE_MODULE_TAG,
+#ifdef AUDIO_MODULE_API_VERSION_0_1
+        .module_api_version = AUDIO_MODULE_API_VERSION_0_1,
+        .hal_api_version = HARDWARE_HAL_API_VERSION,
+#else
         .version_major = 1,
         .version_minor = 0,
+#endif
         .id = AUDIO_HARDWARE_MODULE_ID,
         .name = "A2DP Audio HW HAL",
         .author = "The Android Open Source Project",

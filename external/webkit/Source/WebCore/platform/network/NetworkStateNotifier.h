@@ -74,6 +74,19 @@ public:
     void setNetworkAccessAllowed(bool);
 #elif PLATFORM(ANDROID) || PLATFORM(CHROMIUM)
     void setOnLine(bool);
+
+//SAMSUNG CHANGE - MPSG5821 >>
+    bool getdidOnlineOfflineToggleHappen();
+    void resetdidOnlineOfflineToggleHappen();
+//SAMSUNG CHANGE - MPSG5821 <<
+
+//SAMSUNG CHANGE - MPSG6020 >>
+    bool getdidNetworkTypeChangeHappen();
+    void resetdidNetworkTypeChangeHappen();
+//SAMSUNG CHANGE - MPSG6020 <<
+
+
+
 #endif
 
 #if PLATFORM(ANDROID)
@@ -86,6 +99,16 @@ public:
 
 private:
     bool m_isOnLine;
+
+
+//SAMSUNG CHANGE - MPSG5821 >>	
+    bool didOnlineOfflineToggleHappen;
+//SAMSUNG CHANGE - MPSG5821 <<
+
+//SAMSUNG CHANGE - MPSG6020 >>
+    bool didNetworkTypeChangeHappen;
+//SAMSUNG CHANGE - MPSG6020 <<
+
 #if PLATFORM(ANDROID)
     // TODO: Upstream to webkit.org
     Connection::ConnectionType m_type;
@@ -121,6 +144,8 @@ private:
 
 inline NetworkStateNotifier::NetworkStateNotifier()
     : m_isOnLine(true)
+    , didOnlineOfflineToggleHappen(false)   //SAMSUNG CHANGE - MPSG5821
+    , didNetworkTypeChangeHappen(false)     //SAMSUNG CHANGE - MPSG6020
 #if PLATFORM(ANDROID)
     // TODO: Upstream to webkit.org
     , m_type(Connection::UNKNOWN)

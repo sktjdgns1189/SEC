@@ -77,6 +77,18 @@
 /* When all services should trust a remote device */
 #define GLOBAL_TRUST "[all]"
 
+#define GENERIC_AUDIO_UUID     "00001203-0000-1000-8000-00805f9b34fb"
+#define HSP_HS_UUID            "00001108-0000-1000-8000-00805f9b34fb"
+#define HSP_AG_UUID            "00001112-0000-1000-8000-00805f9b34fb"
+#define HFP_HS_UUID            "0000111e-0000-1000-8000-00805f9b34fb"
+#define HFP_AG_UUID            "0000111f-0000-1000-8000-00805f9b34fb"
+#define ADVANCED_AUDIO_UUID    "0000110d-0000-1000-8000-00805f9b34fb"
+#define A2DP_SOURCE_UUID       "0000110a-0000-1000-8000-00805f9b34fb"
+#define A2DP_SINK_UUID         "0000110b-0000-1000-8000-00805f9b34fb"
+#define AVRCP_REMOTE_UUID      "0000110e-0000-1000-8000-00805f9b34fb"
+#define AVRCP_TARGET_UUID      "0000110c-0000-1000-8000-00805f9b34fb"
+
+
 //SSBT :: SISO LE(02/22/2012)
 guint connection_io_id = 0;
 
@@ -200,6 +212,42 @@ static uint16_t uuid_list[] = {
 };
 
 static GSList *device_drivers = NULL;
+
+static gboolean is_audio_driver(char *dest_uuid){
+ char  **uuids =  BTD_UUIDS(HSP_HS_UUID, HFP_HS_UUID, HSP_AG_UUID, HFP_AG_UUID,
+                              ADVANCED_AUDIO_UUID, A2DP_SOURCE_UUID, A2DP_SINK_UUID,
+                              AVRCP_TARGET_UUID, AVRCP_REMOTE_UUID);
+ char **uuid;
+ for (uuid = uuids; *uuid; uuid++) {
+  if (strcasecmp(*uuid,dest_uuid) == 0)
+   return TRUE;
+  }
+ return FALSE;
+ }
+
+static gboolean all_audio_drivers_removed(GSList *device_uuids,GSList *removed_uuids){
+ GSList *audio_device_uuids = NULL , *l;
+ char *uuid =NULL;
+ int len = g_slist_length(device_uuids);
+ int removed_audio_uuids = 0, i;
+ for (i = 0, l = device_uuids; l; l = l->next, i++) {
+  uuid = l->data;
+  if (is_audio_driver(uuid)) {
+   audio_device_uuids = g_slist_append(audio_device_uuids, uuid);
+   }
+  }
+ len = g_slist_length(audio_device_uuids);
+ for (i = 0, l = audio_device_uuids; l; l = l->next, i++) {
+  uuid = l->data;
+  if (g_slist_find_custom(removed_uuids, uuid,
+                                  (GCompareFunc) strcasecmp)){
+     removed_audio_uuids++;
+  }
+ }
+ if (len == removed_audio_uuids)
+  return TRUE;
+ return FALSE;
+ }
 
 static void browse_request_free(struct browse_req *req)
 {
@@ -399,6 +447,13 @@ static DBusMessage *get_properties(DBusConnection *conn,
 	ptr = device->name;
 	dict_append_entry(&dict, "Name", DBUS_TYPE_STRING, &ptr);
 
+#ifdef ANDROID
+	/* Alias (Android doesn't fallback to name or address) */
+	if (device->alias != NULL) {
+		ptr = device->alias;
+		dict_append_entry(&dict, "Alias", DBUS_TYPE_STRING, &ptr);
+	}
+#else
 	/* Alias (fallback to name or address) */
 	if (device->alias != NULL)
 		ptr = device->alias;
@@ -408,6 +463,7 @@ static DBusMessage *get_properties(DBusConnection *conn,
 	}
 
 	dict_append_entry(&dict, "Alias", DBUS_TYPE_STRING, &ptr);
+#endif
 
 	/* Class */
 	if (read_remote_class(&src, &device->bdaddr, &class) == 0) {
@@ -1044,9 +1100,18 @@ static DBusMessage *connect_le(DBusConnection *conn, DBusMessage *msg,
 	device->auto_connect_count = 0;
 	device->auto_connect = FALSE;
 
-    if(device->att_io == NULL)
-        connection_io_id = btd_device_add_attio_callback(device, gatt_connected,
-        					gatt_disconnected, device);
+	if(device->att_io == NULL){
+		if(device->attios!=NULL){
+			DBG("device->attios are not NULL so att_cleanup didnt happen last time");
+			g_slist_free_full(device->attios, g_free);
+			device->attios = NULL;
+		}
+		connection_io_id = btd_device_add_attio_callback(device, gatt_connected,
+		gatt_disconnected, device);
+	}else{
+		DBG("device->att_io is not NULL ==> connection is already in progress");
+		DBG("Should this reconnect happen?");
+	}
 
     return dbus_message_new_method_return(msg);
 }
@@ -1530,15 +1595,17 @@ void device_set_name(struct btd_device *device, const char *name)
 
 	strncpy(device->name, name, MAX_NAME_LENGTH);
 
-	emit_property_changed(conn, device->path,
-				DEVICE_INTERFACE, "Name",
-				DBUS_TYPE_STRING, &name);
-
+	//[GGSM/sc47.yun][P120818-3075] Fixed refresh issue of bluetooth device name.
 	if (device->alias != NULL)
-		return;
+		goto set_name;
 
 	emit_property_changed(conn, device->path,
 				DEVICE_INTERFACE, "Alias",
+				DBUS_TYPE_STRING, &name);
+
+set_name:
+	emit_property_changed(conn, device->path,
+				DEVICE_INTERFACE, "Name",
 				DBUS_TYPE_STRING, &name);
 }
 
@@ -1803,9 +1870,22 @@ static void device_remove_drivers(struct btd_device *device, GSList *uuids)
 			DBG("UUID %s was removed from device %s",
 							*uuid, dstaddr);
 
+			//driver->remove(device);
+			//device->drivers = g_slist_remove(device->drivers,driver);
+/*
+Found with some IOT devices during playback if SDP happens, found some
+audio profiles previously listed not available. In that case removing
+audio drivers cause existing playback to halt. The current change will
+track available audio profiles before removing the audio drivers.
+*/
+			if (!is_audio_driver(*uuid) ||
+				(is_audio_driver(*uuid) &&
+				 all_audio_drivers_removed(device->uuids,uuids))) {
 			driver->remove(device);
 			device->drivers = g_slist_remove(device->drivers,
 								driver);
+			}
+
 			break;
 		}
 	}
@@ -2238,7 +2318,7 @@ static gboolean attrib_disconnected_cb(GIOChannel *io, GIOCondition cond,
 	g_dbus_emit_signal(conn, device->path,
 			DEVICE_INTERFACE, "GattLinkLoss",
 			DBUS_TYPE_INVALID);
-	device->auto_connect = TRUE;
+	device->auto_connect = FALSE;//change the value to TRUE to support linkloss reconnection from bluez side
 
 	if (device->browse)
 		goto done;
@@ -2380,7 +2460,8 @@ static void att_connect_cb(GIOChannel *io, GError *gerr, gpointer user_data)
 		error("Attribute server attach failure!");
 	}
 
-	device->attrib = attrib;
+	//device->attrib = attrib;
+	device->attrib  = g_attrib_ref(attrib);//increment the attrib reference count to avoid attrib_destroy
 	device->cleanup_id = g_io_add_watch(io, G_IO_HUP,
 					attrib_disconnected_cb, device);
 
@@ -2409,7 +2490,7 @@ static void att_error_cb(const GError *gerr, gpointer user_data)
 
 	DBG("");
 	/* SSBT :: KJH + (0314) */
-	device->auto_connect = TRUE;
+	device->auto_connect = FALSE;//change the value to TRUE to support linkloss reconnection from bluez
 
 
 // SSBT :: KJH + (0227), check callback
@@ -2701,6 +2782,15 @@ const gchar *device_get_path(struct btd_device *device)
 		return NULL;
 
 	return device->path;
+}
+
+gboolean device_is_gatt_connected(struct btd_device *device)
+{
+	if (!device)
+		return FALSE;
+
+	DBG("%d", device->gatt_connected);
+	return device->gatt_connected;
 }
 
 struct agent *device_get_agent(struct btd_device *device)
@@ -3117,6 +3207,12 @@ void device_bonding_complete(struct btd_device *device, uint8_t status)
 	if (status) {
 		device_cancel_authentication(device, TRUE);
 		device_cancel_bonding(device, status);
+		if(device_is_le(device) && (status == 0x05)) {
+			DBG("Status is 0x05 and dev is le");
+			/*Explicitly set the temporary to true so that we are sure that device is removed after disconnection.
+			Needed incase of Wahoo HRP Low security case since after bt turn off and on, bluez doesnt store device as paired */
+			device_set_temporary(device, TRUE);//so that it would cause removal of device after disconnection
+		}
 		return;
 	}
 

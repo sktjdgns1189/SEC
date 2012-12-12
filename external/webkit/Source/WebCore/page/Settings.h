@@ -31,7 +31,7 @@
 #include "FontRenderingMode.h"
 #include "KURL.h"
 #include <wtf/text/AtomicString.h>
-#include "Color.h" // SAMSUNG CHANGE : ADVANCED COPY & PASTE
+#include "Color.h" //SAMSUNG ADVANCED TEXT SELECTION 
 
 namespace WebCore {
 
@@ -60,19 +60,20 @@ namespace WebCore {
         // FIXME: How do we determine the margins other than guessing?
         #define ANDROID_SSR_MARGIN_PADDING  3
         #define ANDROID_FCTS_MARGIN_PADDING  10
-#endif
+
         enum LayoutAlgorithm {
             kLayoutNormal,
             kLayoutSSR,
             kLayoutFitColumnToScreen
         };
+#endif
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-	// SAMSUNG CHANGES +
-	//Written this functions for spellcheck feature 
 	void setIsContinousSpellCheck(bool bisspellcheckenabled);
 	bool getIsContinousSpellCheck(){return m_isspellcheckenabled;}
-	// SAMSUNG CHANGES -
 #endif
+//SAMSUNG CHANGES <<<	
         void setStandardFontFamily(const AtomicString&);
         const AtomicString& standardFontFamily() const { return m_standardFontFamily; }
 
@@ -359,6 +360,11 @@ namespace WebCore {
         void setXSSAuditorEnabled(bool);
         bool xssAuditorEnabled() const { return m_xssAuditorEnabled; }
 
+#if ENABLE(LINK_PREFETCH)
+        void setLinkPrefetchEnabled(bool);
+        bool linkPrefetchEnabled() const { return m_linkPrefetchEnabled; }
+#endif
+
         void setCanvasUsesAcceleratedDrawing(bool);
         bool canvasUsesAcceleratedDrawing() const { return m_canvasUsesAcceleratedDrawing; }
 
@@ -418,20 +424,21 @@ namespace WebCore {
 		//SAMSUNG_CHANGES >>		
 		void setRssSniffingEnabled(bool enabled);        
 		bool rssSniffingEnabled() const { return m_rssSniffingnEnabled; }
-
+		
 		void setIsBrowserApp(bool enabled);
-		bool isBrowserApp() const { return m_isBrowserApp;}
+		bool isBrowserApp() const { return m_isBrowserApp;}		
 		//SAMSUNG_CHANGES <<
+		
         void setTiledBackingStoreEnabled(bool);
         bool tiledBackingStoreEnabled() const { return m_tiledBackingStoreEnabled; }
 
-        //SAMSUNG CHANGE ADVANCED TEXT SELECTION +
-        void setAdvancedSelectionEnabled(bool);
-        bool advancedSelectionEnabled() const { return m_advancedSelectionEnabled; }
-        void setAdvancedSelectionBgColor(int, int, int);
-        Color advancedSelectionBgColor() const { return m_advancedSelectionBgColor; }
-        //SAMSUNG CHANGE ADVANCED TEXT SELECTION -
-        
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+	void setAdvancedSelectionEnabled(bool);
+	bool advancedSelectionEnabled() const { return m_advancedSelectionEnabled; }
+	void setAdvancedSelectionBgColor(int, int, int);
+	Color advancedSelectionBgColor() const { return m_advancedSelectionBgColor; }
+	//SAMSUNG ADVANCED TEXT SELECTION - END
+
         void setPaginateDuringLayoutEnabled(bool flag) { m_paginateDuringLayoutEnabled = flag; }
         bool paginateDuringLayoutEnabled() const { return m_paginateDuringLayoutEnabled; }
 
@@ -479,31 +486,24 @@ namespace WebCore {
         void setShouldInjectUserScriptsInInitialEmptyDocument(bool flag) { m_shouldInjectUserScriptsInInitialEmptyDocument = flag; }
         bool shouldInjectUserScriptsInInitialEmptyDocument() { return m_shouldInjectUserScriptsInInitialEmptyDocument; }
 
+        void setPasswordEchoEnabled(bool flag) { m_passwordEchoEnabled = flag; }
+        bool passwordEchoEnabled() const { return m_passwordEchoEnabled; }
+
+        void setPasswordEchoDurationInSeconds(double durationInSeconds) { m_passwordEchoDurationInSeconds = durationInSeconds; }
+        double passwordEchoDurationInSeconds() const { return m_passwordEchoDurationInSeconds; }
+
 #if ENABLE(WEB_AUTOFILL)
         void setAutoFillEnabled(bool flag) { m_autoFillEnabled = flag; }
         bool autoFillEnabled() { return m_autoFillEnabled; }
 #endif
-	//SISO_HTMLCOMPOSER begin 
+//SISO_HTMLComposer start
 	void setEditableSupportEnabled(bool);
 	bool editableSupportEnabled() const { return m_editableSupportEnabled; }
-	//SISO_HTMLCOMPOSER end
-	//SAMSUNG CHANGE>>>
-	void setWebTextViewOnOffStatus(bool update){m_webtextviewOnOrOff = update;}
-	bool getWebTextViewOnOffStatus() const { return m_webtextviewOnOrOff; }
-	//SAMSUNG CHANGE<<<
+//SISO_HTMLComposer end
 
 #ifdef ANDROID_BLOCK_NETWORK_IMAGE
         void setBlockNetworkImage(bool);
         bool blockNetworkImage() const { return m_blockNetworkImage; }
-#endif
-
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE :TEXT READABILITY >>
-        void EnableTextReadability(bool);
-        bool TextReadability() const { return m_TextReadability; }
- 	    void setTextReadabilityRatio(float);
-        float TextReadabilityRatio() const { return m_TextReadabilityRatio; }
- 	//SAMSUNG CHANGE :TEXT READABILITY <<
 #endif
 
 //SISO WOFF CHANGES <<
@@ -553,6 +553,8 @@ namespace WebCore {
 #ifdef ANDROID_LAYOUT
         LayoutAlgorithm m_layoutAlgorithm;
 #endif
+        double m_passwordEchoDurationInSeconds;
+
         bool m_isSpatialNavigationEnabled : 1;
         bool m_isJavaEnabled : 1;
         bool m_loadsImagesAutomatically : 1;
@@ -601,6 +603,9 @@ namespace WebCore {
         bool m_acceleratedDrawingEnabled : 1;
         bool m_downloadableBinaryFontsEnabled : 1;
         bool m_xssAuditorEnabled : 1;
+#if ENABLE(LINK_PREFETCH)
+        bool m_linkPrefetchEnabled : 1;
+#endif
         bool m_acceleratedCompositingEnabled : 1;
         bool m_acceleratedCompositingFor3DTransformsEnabled : 1;
         bool m_acceleratedCompositingForVideoEnabled : 1;
@@ -659,18 +664,22 @@ namespace WebCore {
 #ifdef ANDROID_PLUGINS
         bool m_pluginsOnDemand : 1;
 #endif
-	//SISO_HTMLCOMPOSER begin  
-	bool m_editableSupportEnabled : 1;
-	//SISO_HTMLCOMPOSER end 
+        bool m_passwordEchoEnabled : 1;
 
-		//SAMSUNG_CHANGES >>
-		bool m_rssSniffingnEnabled : 1;
-		bool m_webtextviewOnOrOff : 1;
-		bool m_isBrowserApp	: 1;
+        //SISO_HTMLComposer start
+	    bool m_editableSupportEnabled : 1;
+        //SISO_HTMLComposer end
+
+	    //SAMSUNG_CHANGES >>
+	    bool m_rssSniffingnEnabled : 1;
+	    bool m_isBrowserApp	: 1;
+	    //SAMSUNG_CHANGES <<
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-		bool m_isspellcheckenabled : 1;// SAMSUNG CHANGES
+		bool m_isspellcheckenabled : 1;
 #endif
-		//SAMSUNG_CHANGES <<
+//SAMSUNG CHANGES <<<	
 #if USE(SAFARI_THEME)
         static bool gShouldPaintNativeControls;
 #endif
@@ -678,16 +687,10 @@ namespace WebCore {
         static bool gShouldUseHighResolutionTimers;
 #endif
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-	//SAMSUNG CHANGE :TEXT READABILITY <<
-        bool m_TextReadability :1;
- 	    float m_TextReadabilityRatio;
-        //SAMSUNG CHANGE :TEXT READABILITY >>
-#endif
-
-        //SAMSUNG CHANGE ADVANCED TEXT SELECTION
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
         bool m_advancedSelectionEnabled : 1;
         Color m_advancedSelectionBgColor;
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
 	bool m_woffEnabled : 1; //SISO WOFF CHANGES 
     };

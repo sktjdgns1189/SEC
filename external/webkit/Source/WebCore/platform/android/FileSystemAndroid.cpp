@@ -96,7 +96,7 @@ String pathGetFileName(const String& path)
     String fsPath = String::fromUTF8(fsRep.data()); //for chinese/korean file name support
     return fsPath.substring(fsPath.reverseFind('/') + 1);
 }
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 CString openLocalFile(const String& basePath, const String& extension , PlatformFileHandle& handle)
 {
     int number = rand() % 10000 + 1;
@@ -117,6 +117,6 @@ CString openLocalFile(const String& basePath, const String& extension , Platform
 
     return CString();
 }
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 
 } // namespace WebCore

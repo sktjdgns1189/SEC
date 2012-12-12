@@ -37,6 +37,7 @@
 #include "WebRequest.h"
 #include "WebResourceRequest.h"
 
+#include <utils/Log.h>
 #include <wtf/text/CString.h>
 
 using base::Lock;
@@ -159,11 +160,11 @@ WebUrlLoaderClient::WebUrlLoaderClient(WebFrame* webFrame, WebCore::ResourceHand
                 break;
 #if ENABLE(BLOB)
             case FormDataElement::encodedBlob:
-                LOG_ASSERT(false, "Unexpected use of FormDataElement::encodedBlob");
+                ALOG_ASSERT(false, "Unexpected use of FormDataElement::encodedBlob");
                 break;
 #endif // ENABLE(BLOB)
             default:
-                LOG_ASSERT(false, "Unexpected default case in WebUrlLoaderClient.cpp");
+                ALOG_ASSERT(false, "Unexpected default case in WebUrlLoaderClient.cpp");
                 break;
             }
         }
@@ -203,8 +204,11 @@ bool WebUrlLoaderClient::start(bool isMainResource, bool isMainFrame, bool sync,
 
             syncCondition()->TimedWait(base::TimeDelta::FromSeconds(kCallbackWaitingTime));
             if (m_queue.empty()) {
-                LOGE("Synchronous request timed out after %d seconds for the %dth try, URL: %s",
-                     kCallbackWaitingTime, num_timeout, m_request->getUrl().c_str());
+                // SAMSUNG CHANGE : Security Device Logging Requirements - URL exposure
+                //ALOGE("Synchronous request timed out after %d seconds for the %dth try, URL: %s",
+                //     kCallbackWaitingTime, num_timeout, m_request->getUrl().c_str());
+                ALOGE("Synchronous request timed out after %d seconds for the %dth try, URL: ",
+                     kCallbackWaitingTime, num_timeout);
                 num_timeout++;
                 if (num_timeout >= kMaxNumTimeout) {
                     cancel();
@@ -248,7 +252,7 @@ bool isMimeTypeForCert(const std::string& mimeType)
 
 bool isDownLoadableContent(const std::string& mimeType)
 {
-    LOGV("isDownLoadableContent: before mimetype =  %s", mimeType.c_str());
+    ALOGV("isDownLoadableContent: before mimetype =  %s", mimeType.c_str());
     static std::hash_set<std::string> sOmaorDrmTypeSet, sMultiPartTypeSet;
     if (sOmaorDrmTypeSet.empty()) {
         sOmaorDrmTypeSet.insert("application/vnd.oma.dd+xml");
@@ -279,7 +283,7 @@ bool isDownLoadableContent(const std::string& mimeType)
 			&& subType[bValEndPos] != '\r'
 			&& subType[bValEndPos] != '\n'
 			&& subType[bValEndPos] != ' ') {
-			LOGV("isDownLoadableContent:char at subtype[bvalEndPos] =	%c", subType[bValEndPos]);
+			ALOGV("isDownLoadableContent:char at subtype[bvalEndPos] =	%c", subType[bValEndPos]);
 			bValEndPos++;
 			len++;
 			if (bValEndPos == (subType.length() - 1))
@@ -300,7 +304,7 @@ bool isDownLoadableContent(const std::string& mimeType)
 		}
 		std::string bValue = subType.substr(bValpos, len + 1);// as substring takes endIndex-1
 
-		LOGV("isDownLoadableContent: bvalue =	%s and len = %d", bValue.c_str(), len);
+		ALOGV("isDownLoadableContent: bvalue =	%s and len = %d", bValue.c_str(), len);
 
 		return sMultiPartTypeSet.find(bValue) != sMultiPartTypeSet.end();
 
@@ -310,40 +314,108 @@ bool isDownLoadableContent(const std::string& mimeType)
 	}
     }
 
-LOGV("isDownLoadableContent: after mimetype =	%s", mimeType.c_str());
+ALOGV("isDownLoadableContent: after mimetype =	%s", mimeType.c_str());
 
  
 }
 
 }
+
+// SAMSUNG CHANGE ++ : blog.naver.com attachment file crash
+bool WebUrlLoaderClient::checkUtfBytes(const char* bytes /*, const char** errorKind */) {
+	while (*bytes != '\0') {
+		char utf8 = *(bytes++);
+		// Switch on the high four bits.
+		switch (utf8 >> 4) {
+		case 0x00:
+		case 0x01:
+		case 0x02:
+		case 0x03:
+		case 0x04:
+		case 0x05:
+		case 0x06:
+		case 0x07:
+			// Bit pattern 0xxx. No need for any extra bytes.
+			break;
+		case 0x08:
+		case 0x09:
+		case 0x0a:
+		case 0x0b:
+		case 0x0f:
+			/*
+			 * Bit pattern 10xx or 1111, which are illegal start bytes.
+			 * Note: 1111 is valid for normal UTF-8, but not the
+			 * modified UTF-8 used here.
+			 */
+			//*errorKind = "start";
+			return false;
+		case 0x0e:
+			// Bit pattern 1110, so there are two additional bytes.
+			utf8 = *(bytes++);
+			if ((utf8 & 0xc0) != 0x80) {
+				//*errorKind = "continuation";
+				return false;
+			}
+			// Fall through to take care of the final byte.
+		case 0x0c:
+		case 0x0d:
+			// Bit pattern 110x, so there is one additional byte.
+			utf8 = *(bytes++);
+			if ((utf8 & 0xc0) != 0x80) {
+				//*errorKind = "continuation";
+				return false;
+			}
+			break;
+		}
+	}
+	return true;
+}
+// SAMSUNG CHANGE -- : blog.naver.com attachment file crash
+	
 void WebUrlLoaderClient::downloadFile()
 {
     if (m_response) {
         std::string contentDisposition;
-	std::string contentType;
+		string16 contentDisposition16;
+		std::string contentDispositionUTF8;
+		std::string contentType;
         m_response->getHeader("content-disposition", &contentDisposition);
-	string16 contentDisposition16 = ASCIIToUTF16(contentDisposition);
-	std::string contentDispositionUTF8 = UTF16ToUTF8(contentDisposition16);
+	
+		//const char* errorKind = NULL;	 // use this variable if you want later.
+	
         m_response->getHeader("content-type", &contentType);
-     //   m_webFrame->downloadStart(m_response->getUrl(), m_request->getUserAgent(), contentDisposition, m_response->getMimeType(), m_response->getExpectedSize());
-	if(m_response->getMimeType() == "multipart/related")
-	    m_webFrame->downloadStart(m_response->getUrl(), m_request->getUserAgent(), contentDispositionUTF8, contentType, m_response->getExpectedSize());
-	else
-        m_webFrame->downloadStart(m_response->getUrl(), m_request->getUserAgent(), contentDispositionUTF8, m_response->getMimeType(), m_response->getExpectedSize());
+
+// SAMSUNG CHANGE ++ : blog.naver.com attachment file crash, filename is euc-kr, so it cannot be used as UTF8 type. We change it using ASCIIToUTF16 and UTF16ToUTF8 in this case.
+// But it cannot be decoded properly, because Android doesn't support eur-kr. This behavior is the same with Proxima.
+// And more, wap2.samsungmobile.com/test/android/download.jsp > UTF8 name files are UTF8. We don't use the encodings in this case.
+// WAS : m_webFrame->downloadStart(m_response->getUrl(), m_request->getUserAgent(), contentDisposition, m_response->getMimeType(), m_response->getExpectedSize());
+		bool isUTF8 = checkUtfBytes(contentDisposition.c_str());
+		
+		if(!isUTF8) {			
+			contentDisposition16 = ASCIIToUTF16(contentDisposition);
+			contentDispositionUTF8 = UTF16ToUTF8(contentDisposition16);
+			contentDisposition = contentDispositionUTF8;
+		}
+		
+		if(m_response->getMimeType() == "multipart/related")
+			m_webFrame->downloadStart(m_response->getUrl(), m_request->getUserAgent(), contentDisposition, contentType, m_response->getExpectedSize());
+		else
+			m_webFrame->downloadStart(m_response->getUrl(), m_request->getUserAgent(), contentDisposition, m_response->getMimeType(), m_response->getExpectedSize());	
+// SAMSUNG CHANGE -- : blog.naver.com attachment file crash
 
         m_isCertMimeType = isMimeTypeForCert(m_response->getMimeType());
 	if(m_response->getMimeType() == "multipart/related")
 	    m_isDownLoadableContent = isDownLoadableContent(contentType);
 	else
 	    m_isDownLoadableContent = isDownLoadableContent(m_response->getMimeType());
-	LOGV(" WebUrlLoaderClient::downloadFile(): m_isDownLoadableContent =	%d", m_isDownLoadableContent);
+	ALOGV(" WebUrlLoaderClient::downloadFile(): m_isDownLoadableContent =	%d", m_isDownLoadableContent);
         // Currently, only certificate mime type needs to receive the data.
         // Other mime type, e.g. wav, will send the url to other application
         // which will load the data by url.
         if (!m_isCertMimeType &&  !m_isDownLoadableContent)
             cancel();
     } else {
-        LOGE("Unexpected call to downloadFile() before didReceiveResponse(). URL: %s", m_request->getUrl().c_str());
+        ALOGE("Unexpected call to downloadFile() before didReceiveResponse(). URL: %s", m_request->getUrl().c_str());
         // TODO: Turn off asserts crashing before release
         // http://b/issue?id=2951985
         CRASH();
@@ -485,11 +557,8 @@ void WebUrlLoaderClient::didReceiveData(scoped_refptr<net::IOBuffer> buf, int si
         return;
 
     // didReceiveData will take a copy of the data
-    const char* copyData = buf->data();
-    if (m_resourceHandle && m_resourceHandle->client() && copyData)
-    {
+    if (m_resourceHandle && m_resourceHandle->client())
         m_resourceHandle->client()->didReceiveData(m_resourceHandle.get(), buf->data(), size, size);
-    }
 }
 
 // For data url's
@@ -528,10 +597,6 @@ void WebUrlLoaderClient::willSendRequest(PassOwnPtr<WebResponse> webResponse)
 
     KURL url = webResponse->createKurl();
     OwnPtr<WebCore::ResourceRequest> resourceRequest(new WebCore::ResourceRequest(url));
-	//SAMSUNG_CHANGES MPSG100002728 >>
-	std::string ref = webResponse->getReferrer();
-	resourceRequest->setHTTPHeaderField("Referer", ref.c_str());
-	//SAMSUNG_CHANGES MPSG100002728 <<
     m_resourceHandle->client()->willSendRequest(m_resourceHandle.get(), *resourceRequest, webResponse->createResourceResponse());
 
     // WebKit may have killed the request.

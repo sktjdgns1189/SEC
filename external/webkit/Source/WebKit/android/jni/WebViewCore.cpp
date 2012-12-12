@@ -29,10 +29,9 @@
 #include "WebViewCore.h"
 
 #include "AccessibilityObject.h"
+#include "AndroidHitTestResult.h"
 #include "Attribute.h"
-#include "BaseLayerAndroid.h"
-#include "CachedNode.h"
-#include "CachedRoot.h"
+#include "content/address_detector.h"
 #include "Chrome.h"
 #include "ChromeClientAndroid.h"
 #include "ChromiumIncludes.h"
@@ -43,6 +42,7 @@
 #include "CSSValueKeywords.h"
 #include "DatabaseTracker.h"
 #include "Document.h"
+#include "DocumentMarkerController.h"
 #include "DOMWindow.h"
 #include "DOMSelection.h"
 #include "Element.h"
@@ -53,6 +53,7 @@
 #include "ExceptionCode.h"
 #include "FocusController.h"
 #include "Font.h"
+#include "FontCache.h"
 #include "Frame.h"
 #include "FrameLoader.h"
 #include "FrameLoaderClientAndroid.h"
@@ -61,6 +62,7 @@
 #include "Geolocation.h"
 #include "GraphicsContext.h"
 #include "GraphicsJNI.h"
+#include "GraphicsOperationCollection.h"
 #include "HTMLAnchorElement.h"
 #include "HTMLAreaElement.h"
 #include "HTMLElement.h"
@@ -68,12 +70,12 @@
 #include "HTMLImageElement.h"
 #include "HTMLInputElement.h"
 #include "HTMLLabelElement.h"
-#include "HTMLLinkElement.h"	//SAMSUNG CHANGE +
-//SAMSUNG CHANGES- EMAIL APP CUSTOMIZATION >>
-#include "HTMLCollection.h" 
-//SAMSUNG CHANGES <<
+//SAMSUNG CHANGE +
+#include "HTMLLinkElement.h"
+//SAMSUNG CHANGE -
 #include "HTMLMapElement.h"
 #include "HTMLNames.h"
+#include "WMLNames.h"
 #include "HTMLOptGroupElement.h"
 #include "HTMLOptionElement.h"
 #include "HTMLSelectElement.h"
@@ -81,6 +83,13 @@
 #include "HistoryItem.h"
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
+#include "InlineTextBox.h"
+#include "KeyboardEvent.h"
+#include "MemoryUsage.h"
+#include "NamedNodeMap.h"
+#include "Navigator.h"
+#include "Node.h"
+#include "NodeList.h"
 #if ENABLE(WML)
 #include "WMLOptGroupElement.h"
 #include "WMLOptionElement.h"
@@ -88,12 +97,7 @@
 #include "WMLInputElement.h"
 #include "WMLNames.h"
 #endif
-#include "InlineTextBox.h"
-#include "MemoryUsage.h"
-#include "NamedNodeMap.h"
-#include "Navigator.h"
-#include "Node.h"
-#include "NodeList.h"
+
 // Samsung Change - HTML5 Web Notification	>>
 #if ENABLE(NOTIFICATIONS)
 #include "Notification.h"
@@ -102,6 +106,8 @@
 // Samsung Change - HTML5 Web Notification	<<
 #include "Page.h"
 #include "PageGroup.h"
+#include "PictureLayerContent.h"
+#include "PicturePileLayerContent.h"
 #include "PlatformKeyboardEvent.h"
 #include "PlatformString.h"
 #include "PluginWidgetAndroid.h"
@@ -110,6 +116,7 @@
 #include "ProgressTracker.h"
 #include "Range.h"
 #include "RenderBox.h"
+#include "RenderImage.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
 #include "RenderPart.h"
@@ -117,54 +124,56 @@
 #include "RenderTextControl.h"
 #include "RenderThemeAndroid.h"
 #include "RenderView.h"
+//SAMSUNG_SHANGE [MPSG100005849] [P120801-5124] ++
+#include "RenderMenuList.h" 
+//SAMSUNG_SHANGE [MPSG100005849] [P120801-5124] --
 #include "ResourceRequest.h"
 #include "RuntimeEnabledFeatures.h"
-//SAMSUNG CHANGE >> LIGHT TOUCH
-#include "RenderImage.h"
-//SAMSUNG CHANGE << LIGHT TOUCH
 #include "SchemeRegistry.h"
+#include "ScopedLocalRef.h"
+#include "ScriptController.h"
 #include "SelectionController.h"
+#include "SelectText.h"
 #include "Settings.h"
-//SAMSUNG CHANGES- EMAIL APP CUSTOMIZATION >>
-#include "SharedBuffer.h"
-//SAMSUNG CHANGES <<
 #include "SkANP.h"
 #include "SkTemplates.h"
 #include "SkTDArray.h"
 #include "SkTypes.h"
 #include "SkCanvas.h"
+#include "SkGraphics.h"
 #include "SkPicture.h"
 #include "SkUtils.h"
 #include "Text.h"
+#include "TextIterator.h"
+#include "TilesManager.h"
 #include "TypingCommand.h"
 #include "WebCache.h"
 #include "WebCoreFrameBridge.h"
+#include "WebCoreJni.h"
 #include "WebFrameView.h"
 #include "WindowsKeyboardCodes.h"
 #include "android_graphics.h"
 #include "autofill/WebAutofill.h"
 #include "htmlediting.h"
 #include "markup.h"
-//+HTML_COMPOSER
+//SISO_HTMLComposer start
 #include "RemoveNodeCommand.h"
-//-HTML_COMPOSER
+//SISO_HTMLComposer end
+
+#include "visible_units.h"
 
 #include <JNIHelp.h>
 #include <JNIUtility.h>
-#include <ui/KeycodeLabels.h>
+#include <androidfw/KeycodeLabels.h>
+#include <cutils/properties.h>
+#include <v8.h>
 #include <wtf/CurrentTime.h>
 #include <wtf/text/AtomicString.h>
-#include <wtf/text/StringImpl.h>
-
-
-#if USE(V8)
-#include "ScriptController.h"
-#include "V8Counters.h"
 //SAMSUNG_WEB_WORKER_CHANGES >>
 #include "V8Binding.h"
 //SAMSUNG_WEB_WORKER_CHANGES <<
 #include <wtf/text/CString.h>
-#endif
+#include <wtf/text/StringImpl.h>
 
 #if DEBUG_NAV_UI
 #include "SkTime.h"
@@ -183,35 +192,30 @@ FILE* gDomTreeFile = 0;
 FILE* gRenderTreeFile = 0;
 #endif
 
-#ifdef ANDROID_INSTRUMENT
-#include "TimeCounter.h"
-#endif
+#include "BaseLayerAndroid.h"
 
 #if USE(ACCELERATED_COMPOSITING)
 #include "GraphicsLayerAndroid.h"
 #include "RenderLayerCompositor.h"
 #endif
 
-#if USE(V8)
-#include <v8.h>
-#endif
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION
+#define FOREGROUND_TIMER_INTERVAL 0.004 // 4ms
+#define BACKGROUND_TIMER_INTERVAL 1.0 // 1s
+#define MAX_HEIGHT 503395  //Form The MAX Email Size.
+
+// How many ms to wait for the scroll to "settle" before we will consider doing
+// prerenders
+#define PRERENDER_AFTER_SCROLL_DELAY 750
+
+#define TOUCH_FLAG_HIT_HANDLER 0x1
+#define TOUCH_FLAG_PREVENT_DEFAULT 0x2
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 #include <visible_units.h>
-
-// In some cases, too many invalidations passed to the UI will slow us down.
-// Limit ourselves to 32 rectangles, past this just send the area bounds to the UI.
-// see WebViewCore::recordPictureSet().
-#define MAX_INVALIDATIONS 32
-
-/*  We pass this flag when recording the actual content, so that we don't spend
-    time actually regionizing complex path clips, when all we really want to do
-    is record them.
- */
-#define PICT_RECORD_FLAGS   SkPicture::kUsePathBoundsForClip_RecordingFlag
-
+#include "TextIterator.h"
+//SAMSUNG ADVANCED TEXT SELECTION - END
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 namespace WebCore {
     extern WTF::String createLocalResource(WebCore::Frame* frame , WTF::String url);
     extern bool saveCachedImageToFile(WebCore::Frame* frame, WTF::String imageUrl, WTF::String filePath);;
@@ -220,8 +224,68 @@ namespace WebCore {
 }
 static const UChar NonBreakingSpaceCharacter = 0xA0;
 static const UChar SpaceCharacter = ' ';
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
+
+
 namespace android {
+
+// Copied from CacheBuilder, not sure if this is needed/correct
+IntRect getAreaRect(const HTMLAreaElement* area)
+{
+    Node* node = area->document();
+    while ((node = node->traverseNextNode()) != NULL) {
+        RenderObject* renderer = node->renderer();
+        if (renderer && renderer->isRenderImage()) {
+            RenderImage* image = static_cast<RenderImage*>(renderer);
+            HTMLMapElement* map = image->imageMap();
+            if (map) {
+                Node* n;
+                for (n = map->firstChild(); n;
+                        n = n->traverseNextNode(map)) {
+                    if (n == area) {
+                        if (area->isDefault())
+                            return image->absoluteBoundingBoxRect();
+                        return area->computeRect(image);
+                    }
+                }
+            }
+        }
+    }
+    return IntRect();
+}
+
+// Copied from CacheBuilder, not sure if this is needed/correct
+// TODO: See if this is even needed (I suspect not), and if not remove it
+bool validNode(Frame* startFrame, void* matchFrame,
+        void* matchNode)
+{
+    if (matchFrame == startFrame) {
+        if (matchNode == NULL)
+            return true;
+        Node* node = startFrame->document();
+        while (node != NULL) {
+            if (node == matchNode) {
+                const IntRect& rect = node->hasTagName(HTMLNames::areaTag) ?
+                    getAreaRect(static_cast<HTMLAreaElement*>(node)) : node->getRect();
+                // Consider nodes with empty rects that are not at the origin
+                // to be valid, since news.google.com has valid nodes like this
+                if (rect.x() == 0 && rect.y() == 0 && rect.isEmpty())
+                    return false;
+                return true;
+            }
+            node = node->traverseNextNode();
+        }
+        return false;
+    }
+    Frame* child = startFrame->tree()->firstChild();
+    while (child) {
+        bool result = validNode(child, matchFrame, matchNode);
+        if (result)
+            return result;
+        child = child->tree()->nextSibling();
+    }
+    return false;
+}
 
 static SkTDArray<WebViewCore*> gInstanceList;
 
@@ -231,7 +295,7 @@ void WebViewCore::addInstance(WebViewCore* inst) {
 
 void WebViewCore::removeInstance(WebViewCore* inst) {
     int index = gInstanceList.find(inst);
-    LOG_ASSERT(index >= 0, "RemoveInstance inst not found");
+    ALOG_ASSERT(index >= 0, "RemoveInstance inst not found");
     if (index >= 0) {
         gInstanceList.removeShuffle(index);
     }
@@ -285,7 +349,6 @@ bool WebViewCore::isSupportedMediaMimeType(const WTF::String& mimeType) {
 // ----------------------------------------------------------------------------
 
 #define GET_NATIVE_VIEW(env, obj) ((WebViewCore*)env->GetIntField(obj, gWebViewCoreFields.m_nativeClass))
-
 // Field ids for WebViewCore
 struct WebViewCoreFields {
     jfieldID    m_nativeClass;
@@ -296,7 +359,6 @@ struct WebViewCoreFields {
     jfieldID    m_viewportMaximumScale;
     jfieldID    m_viewportUserScalable;
     jfieldID    m_viewportDensityDpi;
-    jfieldID    m_webView;
     jfieldID    m_drawIsPaused;
     jfieldID    m_lowMemoryUsageMb;
     jfieldID    m_highMemoryUsageMb;
@@ -309,26 +371,32 @@ struct WebViewCore::JavaGlue {
     jweak       m_obj;
     jmethodID   m_scrollTo;
     jmethodID   m_contentDraw;
-    jmethodID   m_layersDraw;
     jmethodID   m_requestListBox;
     jmethodID   m_openFileChooser;
     jmethodID   m_requestSingleListBox;
     jmethodID   m_jsAlert;
     jmethodID   m_jsConfirm;
     jmethodID   m_jsPrompt;
+//	SAMSUNG CHANGE >> Print functionality support for JS content		
+    jmethodID 	m_printPage;
+//	SAMSUNG CHANGE <<
     jmethodID   m_jsUnload;
     jmethodID   m_jsInterrupt;
+    jmethodID   m_getWebView;
     jmethodID   m_didFirstLayout;
     jmethodID   m_updateViewport;
     jmethodID   m_sendNotifyProgressFinished;
     jmethodID   m_sendViewInvalidate;
     jmethodID   m_updateTextfield;
     jmethodID   m_updateTextSelection;
+//SAMSUNG CHANGES MPSG100006129 >>
+    jmethodID   m_updateTextSelectionStartAndEnd;
+//SAMSUNG CHANGES MPSG100006129 <<
+    jmethodID   m_updateTextSizeAndScroll;
     jmethodID   m_clearTextEntry;
     jmethodID   m_restoreScale;
     jmethodID   m_needTouchEvents;
     jmethodID   m_requestKeyboard;
-    jmethodID   m_requestKeyboardWithSelection;
     jmethodID   m_exceededDatabaseQuota;
     jmethodID   m_reachedMaxAppCacheSize;
     jmethodID   m_populateVisitedLinks;
@@ -337,7 +405,7 @@ struct WebViewCore::JavaGlue {
     jmethodID   m_getDeviceMotionService;
     jmethodID   m_getDeviceOrientationService;
     jmethodID   m_addMessageToConsole;
-    jmethodID   m_formDidBlur;
+    jmethodID   m_focusNodeChanged;
     jmethodID   m_getPluginClass;
     jmethodID   m_showFullScreenPlugin;
     jmethodID   m_hideFullScreenPlugin;
@@ -347,23 +415,28 @@ struct WebViewCore::JavaGlue {
     jmethodID   m_destroySurface;
     jmethodID   m_getContext;
     jmethodID   m_keepScreenOn;
-    jmethodID   m_sendFindAgain;
     jmethodID   m_showRect;
     jmethodID   m_centerFitRect;
     jmethodID   m_setScrollbarModes;
     jmethodID   m_setInstallableWebApp;
     jmethodID   m_enterFullscreenForVideoLayer;
+    jmethodID   m_exitFullscreenVideo;
     jmethodID   m_setWebTextViewAutoFillable;
     jmethodID   m_selectAt;
-//SISO_HTMLCOMPOSER begin
+    jmethodID   m_initEditField;
+//SISO_HTMLCOMPOSER start
     jmethodID   m_isEditableSupport;
 //SISO_HTMLCOMPOSER end
-//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
-	jmethodID   m_requestDateTimePickers;
-//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
-//SAMSUNG CHANGE >> LIGHT TOUCH
-    jmethodID   m_setNavType ;
-//SAMSUNG CHANGE << LIGHT TOUCH
+
+//SAMSUNG CHANGE Form Navigation >>
+    jmethodID   m_initSelectField;
+//SAMSUNG CHANGE Form Navigation <<
+
+    jmethodID   m_chromeCanTakeFocus;
+    jmethodID   m_chromeTakeFocus;
+//SAMSUNG CHANGE HTML5 COLOR <<
+    jmethodID   m_openColorChooser;  
+//SAMSUNG CHANGE HTML5 COLOR >>
 // Samsung Change - HTML5 Web Notification	>>
     #if ENABLE(NOTIFICATIONS)
     jmethodID   m_notificationPermissionsShowPrompt;
@@ -372,10 +445,15 @@ struct WebViewCore::JavaGlue {
     jmethodID m_notificationPermissionsHidePrompt;
     #endif
 // Samsung Change - HTML5 Web Notification	<<
-//SAMSUNG CHANGE HTML5 COLOR <<
-    jmethodID   m_openColorChooser;  
-//SAMSUNG CHANGE HTML5 COLOR >>
-	jmethodID m_setTouchHighlightRects; // Samsung change
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
+	jmethodID   m_requestDateTimePickers;
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+//SAMSUNG CHANGES: MPSG100006003 >>
+    jmethodID   m_sendScrollRectOnScreen;
+//SAMSUNG CHANGES <<
+//SAMSUNG changes <S-PEN Text Selection>
+    jmethodID   m_sendStartActionMode;
+//SAMSUNG changes <S-PEN Text Selection>
 
     AutoJObject object(JNIEnv* env) {
         // We hold a weak reference to the Java WebViewCore to avoid memeory
@@ -389,6 +467,27 @@ struct WebViewCore::JavaGlue {
     }
 };
 
+struct WebViewCore::TextFieldInitDataGlue {
+    jmethodID  m_constructor;
+    jfieldID   m_fieldPointer;
+    jfieldID   m_text;
+    jfieldID   m_type;
+    jfieldID   m_isSpellCheckEnabled;
+    jfieldID   m_isTextFieldNext;
+    jfieldID   m_isTextFieldPrev;
+//SAMSUNG CHANGE Form Navigation >>
+    jfieldID   m_isSelectFieldNext;
+    jfieldID   m_isSelectFieldPrev;
+//SAMSUNG CHANGE Form Navigation <<
+    jfieldID   m_isAutoCompleteEnabled;
+    jfieldID   m_name;
+    jfieldID   m_label;
+    jfieldID   m_maxLength;
+    jfieldID   m_contentBounds;
+    jfieldID   m_nodeLayerId;
+    jfieldID   m_contentRect;
+};
+
 /*
  * WebViewCore Implementation
  */
@@ -396,58 +495,37 @@ struct WebViewCore::JavaGlue {
 static jmethodID GetJMethod(JNIEnv* env, jclass clazz, const char name[], const char signature[])
 {
     jmethodID m = env->GetMethodID(clazz, name, signature);
-    LOG_ASSERT(m, "Could not find method %s", name);
+    ALOG_ASSERT(m, "Could not find method %s", name);
     return m;
 }
 
-Mutex WebViewCore::gFrameCacheMutex;
-Mutex WebViewCore::gCursorBoundsMutex;
-
 WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* mainframe)
-    : m_frameCacheKit(0)
-    , m_navPictureKit(0)
-    , m_moveGeneration(0)
-    , m_touchGeneration(0)
+    : m_touchGeneration(0)
     , m_lastGeneration(0)
-    , m_updatedFrameCache(true)
-    , m_findIsUp(false)
-    , m_hasCursorBounds(false)
-    , m_cursorBounds(WebCore::IntRect(0, 0, 0, 0))
-    , m_cursorHitBounds(WebCore::IntRect(0, 0, 0, 0))
-    , m_cursorFrame(0)
-    , m_cursorLocation(WebCore::IntPoint(0, 0))
-    , m_cursorNode(0)
     , m_javaGlue(new JavaGlue)
+    , m_textFieldInitDataGlue(new TextFieldInitDataGlue)
     , m_mainFrame(mainframe)
     , m_popupReply(0)
-    , m_lastFocused(0)
-    , m_lastFocusedBounds(WebCore::IntRect(0,0,0,0))
-    , m_blurringNodePointer(0)
-    , m_lastFocusedSelStart(0)
-    , m_lastFocusedSelEnd(0)
     , m_blockTextfieldUpdates(false)
     , m_focusBoundsChanged(false)
     , m_skipContentDraw(false)
     , m_textGeneration(0)
-    , m_temp(0)
-    , m_tempPict(0)
     , m_maxXScroll(320/4)
     , m_maxYScroll(240/4)
     , m_scrollOffsetX(0)
     , m_scrollOffsetY(0)
     , m_mousePos(WebCore::IntPoint(0,0))
-    , m_frameCacheOutOfDate(true)
-    , m_progressDone(false)
     , m_screenWidth(320)
     , m_screenHeight(240)
     , m_textWrapWidth(320)
     , m_scale(1.0f)
-    , m_domtree_version(0)
-    , m_check_domtree_version(true)
     , m_groupForVisitedLinks(0)
     , m_isPaused(false)
     , m_cacheMode(0)
-    , m_shouldPaintCaret(true)
+    , m_fullscreenVideoMode(false)
+    , m_matchCount(0)
+    , m_activeMatchIndex(0)
+    , m_activeMatch(0)
     , m_pluginInvalTimer(this, &WebViewCore::pluginInvalTimerFired)
     , m_screenOnCounter(0)
     , m_currentNodeDomNavigationAxis(0)
@@ -455,52 +533,47 @@ WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* m
 #if ENABLE(TOUCH_EVENTS)
     , m_forwardingTouchEvents(false)
 #endif
-#if USE(CHROME_NETWORK_STACK)
     , m_webRequestContext(0)
-#endif
-// SAMSUNG CHANGE +
-   , animatedImage(0)
-// SAMSUNG CHANGE -
+    , m_prerenderEnabled(false)
 //SAMSUNG CHANGE HTML5 COLOR <<
    , m_colorChooser(0)
 //SAMSUNG CHANGE HTML5 COLOR >>
-//SAMSUNG CHANGES >>
-   , m_heightCanMeasure(false)
-//SAMSUNG CHANGES <<   
-    , m_focusRingDisabled(0)    // focus ring drawing is enabled by default
-
 {
-    LOG_ASSERT(m_mainFrame, "Uh oh, somehow a frameview was made without an initial frame!");
+    ALOG_ASSERT(m_mainFrame, "Uh oh, somehow a frameview was made without an initial frame!");
 
     jclass clazz = env->GetObjectClass(javaWebViewCore);
     m_javaGlue->m_obj = env->NewWeakGlobalRef(javaWebViewCore);
     m_javaGlue->m_scrollTo = GetJMethod(env, clazz, "contentScrollTo", "(IIZZ)V");
     m_javaGlue->m_contentDraw = GetJMethod(env, clazz, "contentDraw", "()V");
-    m_javaGlue->m_layersDraw = GetJMethod(env, clazz, "layersDraw", "()V");
-    //SAMSUNG CHANGE - Form Navigation
-    m_javaGlue->m_requestListBox = GetJMethod(env, clazz, "requestListBox", "([Ljava/lang/String;Ljava/lang/String;[I[II)V");
-    m_javaGlue->m_openFileChooser = GetJMethod(env, clazz, "openFileChooser", "(Ljava/lang/String;)Ljava/lang/String;");
-    //SAMSUNG CHANGE - Form Navigation
-//SISO_HTMLCOMPOSER begin
+    m_javaGlue->m_requestListBox = GetJMethod(env, clazz, "requestListBox", "([Ljava/lang/String;[I[I)V");
+    m_javaGlue->m_openFileChooser = GetJMethod(env, clazz, "openFileChooser", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+//SISO_HTMLCOMPOSER start
     m_javaGlue->m_isEditableSupport = GetJMethod(env, clazz, "isEditableSupport", "()Z");
 //SISO_HTMLCOMPOSER end
-    m_javaGlue->m_requestSingleListBox = GetJMethod(env, clazz, "requestListBox", "([Ljava/lang/String;Ljava/lang/String;[III)V");
+    m_javaGlue->m_requestSingleListBox = GetJMethod(env, clazz, "requestListBox", "([Ljava/lang/String;[II)V");
     m_javaGlue->m_jsAlert = GetJMethod(env, clazz, "jsAlert", "(Ljava/lang/String;Ljava/lang/String;)V");
     m_javaGlue->m_jsConfirm = GetJMethod(env, clazz, "jsConfirm", "(Ljava/lang/String;Ljava/lang/String;)Z");
     m_javaGlue->m_jsPrompt = GetJMethod(env, clazz, "jsPrompt", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+//	SAMSUNG CHANGE >> Print functionality support for JS content		
+    m_javaGlue->m_printPage = GetJMethod(env, clazz, "printPage", "()V");
+//	SAMSUNG CHANGE >> Print functionality support for JS content		
     m_javaGlue->m_jsUnload = GetJMethod(env, clazz, "jsUnload", "(Ljava/lang/String;Ljava/lang/String;)Z");
     m_javaGlue->m_jsInterrupt = GetJMethod(env, clazz, "jsInterrupt", "()Z");
+    m_javaGlue->m_getWebView = GetJMethod(env, clazz, "getWebView", "()Landroid/webkit/WebView;");
     m_javaGlue->m_didFirstLayout = GetJMethod(env, clazz, "didFirstLayout", "(Z)V");
     m_javaGlue->m_updateViewport = GetJMethod(env, clazz, "updateViewport", "()V");
     m_javaGlue->m_sendNotifyProgressFinished = GetJMethod(env, clazz, "sendNotifyProgressFinished", "()V");
     m_javaGlue->m_sendViewInvalidate = GetJMethod(env, clazz, "sendViewInvalidate", "(IIII)V");
     m_javaGlue->m_updateTextfield = GetJMethod(env, clazz, "updateTextfield", "(IZLjava/lang/String;I)V");
-    m_javaGlue->m_updateTextSelection = GetJMethod(env, clazz, "updateTextSelection", "(IIII)V");
+    m_javaGlue->m_updateTextSelection = GetJMethod(env, clazz, "updateTextSelection", "(IIIII)V");
+//SAMSUNG CHANGES MPSG100006129 >>
+    m_javaGlue->m_updateTextSelectionStartAndEnd = GetJMethod(env, clazz, "updateTextSelectionStartAndEnd", "(IIIII)V");
+//SAMSUNG CHANGES MPSG100006129 <<
+    m_javaGlue->m_updateTextSizeAndScroll = GetJMethod(env, clazz, "updateTextSizeAndScroll", "(IIIII)V");
     m_javaGlue->m_clearTextEntry = GetJMethod(env, clazz, "clearTextEntry", "()V");
     m_javaGlue->m_restoreScale = GetJMethod(env, clazz, "restoreScale", "(FF)V");
     m_javaGlue->m_needTouchEvents = GetJMethod(env, clazz, "needTouchEvents", "(Z)V");
     m_javaGlue->m_requestKeyboard = GetJMethod(env, clazz, "requestKeyboard", "(Z)V");
-    m_javaGlue->m_requestKeyboardWithSelection = GetJMethod(env, clazz, "requestKeyboardWithSelection", "(IIII)V");
     m_javaGlue->m_exceededDatabaseQuota = GetJMethod(env, clazz, "exceededDatabaseQuota", "(Ljava/lang/String;Ljava/lang/String;JJ)V");
     m_javaGlue->m_reachedMaxAppCacheSize = GetJMethod(env, clazz, "reachedMaxAppCacheSize", "(J)V");
     m_javaGlue->m_populateVisitedLinks = GetJMethod(env, clazz, "populateVisitedLinks", "()V");
@@ -509,7 +582,7 @@ WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* m
     m_javaGlue->m_getDeviceMotionService = GetJMethod(env, clazz, "getDeviceMotionService", "()Landroid/webkit/DeviceMotionService;");
     m_javaGlue->m_getDeviceOrientationService = GetJMethod(env, clazz, "getDeviceOrientationService", "()Landroid/webkit/DeviceOrientationService;");
     m_javaGlue->m_addMessageToConsole = GetJMethod(env, clazz, "addMessageToConsole", "(Ljava/lang/String;ILjava/lang/String;I)V");
-    m_javaGlue->m_formDidBlur = GetJMethod(env, clazz, "formDidBlur", "(I)V");
+    m_javaGlue->m_focusNodeChanged = GetJMethod(env, clazz, "focusNodeChanged", "(ILandroid/webkit/WebViewCore$WebKitHitTest;)V");
     m_javaGlue->m_getPluginClass = GetJMethod(env, clazz, "getPluginClass", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Class;");
     m_javaGlue->m_showFullScreenPlugin = GetJMethod(env, clazz, "showFullScreenPlugin", "(Landroid/webkit/ViewManager$ChildView;II)V");
     m_javaGlue->m_hideFullScreenPlugin = GetJMethod(env, clazz, "hideFullScreenPlugin", "()V");
@@ -519,11 +592,26 @@ WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* m
     m_javaGlue->m_destroySurface = GetJMethod(env, clazz, "destroySurface", "(Landroid/webkit/ViewManager$ChildView;)V");
     m_javaGlue->m_getContext = GetJMethod(env, clazz, "getContext", "()Landroid/content/Context;");
     m_javaGlue->m_keepScreenOn = GetJMethod(env, clazz, "keepScreenOn", "(Z)V");
-    m_javaGlue->m_sendFindAgain = GetJMethod(env, clazz, "sendFindAgain", "()V");
     m_javaGlue->m_showRect = GetJMethod(env, clazz, "showRect", "(IIIIIIFFFF)V");
     m_javaGlue->m_centerFitRect = GetJMethod(env, clazz, "centerFitRect", "(IIII)V");
     m_javaGlue->m_setScrollbarModes = GetJMethod(env, clazz, "setScrollbarModes", "(II)V");
     m_javaGlue->m_setInstallableWebApp = GetJMethod(env, clazz, "setInstallableWebApp", "()V");
+#if ENABLE(VIDEO)
+    m_javaGlue->m_enterFullscreenForVideoLayer = GetJMethod(env, clazz, "enterFullscreenForVideoLayer", "(ILjava/lang/String;)V");
+    m_javaGlue->m_exitFullscreenVideo = GetJMethod(env, clazz, "exitFullscreenVideo", "()V");
+#endif
+    m_javaGlue->m_setWebTextViewAutoFillable = GetJMethod(env, clazz, "setWebTextViewAutoFillable", "(ILjava/lang/String;)V");
+    m_javaGlue->m_selectAt = GetJMethod(env, clazz, "selectAt", "(II)V");
+    m_javaGlue->m_initEditField = GetJMethod(env, clazz, "initEditField", "(IIILandroid/webkit/WebViewCore$TextFieldInitData;)V");
+//SAMSUNG CHANGE Form Navigation >>
+    m_javaGlue->m_initSelectField = GetJMethod(env, clazz, "initSelectField", "(Landroid/webkit/WebViewCore$TextFieldInitData;)V");
+//SAMSUNG CHANGE Form Navigation <<
+    m_javaGlue->m_chromeCanTakeFocus = GetJMethod(env, clazz, "chromeCanTakeFocus", "(I)Z");
+    m_javaGlue->m_chromeTakeFocus = GetJMethod(env, clazz, "chromeTakeFocus", "(I)V");
+//SAMSUNG CHANGE HTML5 COLOR <<
+    m_javaGlue->m_openColorChooser = GetJMethod(env, clazz, "openColorChooser", "()V");
+//SAMSUNG CHANGE HTML5 COLOR >>
+
     // Samsung Change - HTML5 Web Notification	>>
     #if ENABLE(NOTIFICATIONS)
     m_javaGlue->m_notificationPermissionsShowPrompt = GetJMethod(env, clazz, "notificationPermissionsShowPrompt", "(Ljava/lang/String;)V");
@@ -532,28 +620,40 @@ WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* m
      m_javaGlue->m_notificationPermissionsHidePrompt = GetJMethod(env, clazz, "notificationPermissionsHidePrompt", "()V");
     #endif
     // Samsung Change - HTML5 Web Notification	<<
-#if ENABLE(VIDEO)
-    m_javaGlue->m_enterFullscreenForVideoLayer = GetJMethod(env, clazz, "enterFullscreenForVideoLayer", "(ILjava/lang/String;)V");
-#endif
-    m_javaGlue->m_setWebTextViewAutoFillable = GetJMethod(env, clazz, "setWebTextViewAutoFillable", "(ILjava/lang/String;)V");
-    m_javaGlue->m_selectAt = GetJMethod(env, clazz, "selectAt", "(II)V");
 
 //SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
     m_javaGlue->m_requestDateTimePickers = GetJMethod(env, clazz, "requestDateTimePickers", "(Ljava/lang/String;Ljava/lang/String;)V");	
 //SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>	
-//SAMSUNG CHANGE >> LIGHT TOUCH
-    m_javaGlue->m_setNavType = GetJMethod(env, clazz, "setNavType", "(I)V");
-//SAMSUNG CHANGE << LIGHT TOUCH
-//SAMSUNG CHANGE HTML5 COLOR <<
-    m_javaGlue->m_openColorChooser = GetJMethod(env, clazz, "openColorChooser", "()V");
-//SAMSUNG CHANGE HTML5 COLOR >>
-
-    // Samsung change
-	m_javaGlue->m_setTouchHighlightRects = GetJMethod(env, clazz, "setTouchHighLightRects", "(Ljava/util/ArrayList;I)V");
-
+//SAMSUNG CHANGES: MPSG100006003 >>
+    m_javaGlue->m_sendScrollRectOnScreen = GetJMethod(env, clazz, "sendScrollRectOnScreen", "(IIII)V");	
+//SAMSUNG CHANGES <<
+//SAMSUNG changes <S-PEN Text Selection>
+    m_javaGlue->m_sendStartActionMode = GetJMethod(env, clazz, "sendStartActionMode", "(Z)V");	
+//SAMSUNG changes <S-PEN Text Selection>
     env->DeleteLocalRef(clazz);
 
     env->SetIntField(javaWebViewCore, gWebViewCoreFields.m_nativeClass, (jint)this);
+
+    jclass tfidClazz = env->FindClass("android/webkit/WebViewCore$TextFieldInitData");
+    m_textFieldInitDataGlue->m_fieldPointer = env->GetFieldID(tfidClazz, "mFieldPointer", "I");
+    m_textFieldInitDataGlue->m_text = env->GetFieldID(tfidClazz, "mText", "Ljava/lang/String;");
+    m_textFieldInitDataGlue->m_type = env->GetFieldID(tfidClazz, "mType", "I");
+    m_textFieldInitDataGlue->m_isSpellCheckEnabled = env->GetFieldID(tfidClazz, "mIsSpellCheckEnabled", "Z");
+    m_textFieldInitDataGlue->m_isTextFieldNext = env->GetFieldID(tfidClazz, "mIsTextFieldNext", "Z");
+    m_textFieldInitDataGlue->m_isTextFieldPrev = env->GetFieldID(tfidClazz, "mIsTextFieldPrev", "Z");
+//SAMSUNG CHANGE Form Navigation >>
+    m_textFieldInitDataGlue->m_isSelectFieldNext = env->GetFieldID(tfidClazz, "mIsSelectFieldNext", "Z");
+    m_textFieldInitDataGlue->m_isSelectFieldPrev = env->GetFieldID(tfidClazz, "mIsSelectFieldPrev", "Z");
+//SAMSUNG CHANGE Form Navigation <<
+    m_textFieldInitDataGlue->m_isAutoCompleteEnabled = env->GetFieldID(tfidClazz, "mIsAutoCompleteEnabled", "Z");
+    m_textFieldInitDataGlue->m_name = env->GetFieldID(tfidClazz, "mName", "Ljava/lang/String;");
+    m_textFieldInitDataGlue->m_label = env->GetFieldID(tfidClazz, "mLabel", "Ljava/lang/String;");
+    m_textFieldInitDataGlue->m_maxLength = env->GetFieldID(tfidClazz, "mMaxLength", "I");
+    m_textFieldInitDataGlue->m_contentBounds = env->GetFieldID(tfidClazz, "mContentBounds", "Landroid/graphics/Rect;");
+    m_textFieldInitDataGlue->m_nodeLayerId = env->GetFieldID(tfidClazz, "mNodeLayerId", "I");
+    m_textFieldInitDataGlue->m_contentRect = env->GetFieldID(tfidClazz, "mContentRect", "Landroid/graphics/Rect;");
+    m_textFieldInitDataGlue->m_constructor = GetJMethod(env, tfidClazz, "<init>", "()V");
+    env->DeleteLocalRef(tfidClazz);
 
     PageGroup::setShouldTrackVisitedLinks(true);
 
@@ -565,31 +665,34 @@ WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* m
 
     WebViewCore::addInstance(this);
 
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLCOMPOSER start
     m_composingVisibleSelection = VisibleSelection();
     m_underLineVisibleSelection = VisibleSelection();
     m_imStr = 0;
     m_imEnd = 0;
 //SISO_HTMLCOMPOSER end
-#if USE(CHROME_NETWORK_STACK)
     AndroidNetworkLibraryImpl::InitWithApplicationContext(env, 0);
-#endif
 
-#if USE(V8)
+    // increase the font cache size beyond the standard system setting
+    SkGraphics::SetFontCacheLimit(1572864); // 1572864 bytes == 1.5 MB
+
     // Static initialisation of certain important V8 static data gets performed at system startup when
     // libwebcore gets loaded. We now need to associate the WebCore thread with V8 to complete
     // initialisation.
     v8::V8::Initialize();
+
 //SAMSUNG_WEB_WORKER_CHANGES >>
     WebCore::V8BindingPerIsolateData::ensureInitialized(v8::Isolate::GetCurrent());
 //SAMSUNG_WEB_WORKER_CHANGES <<
-#endif
+
 
     // Configure any RuntimeEnabled features that we need to change from their default now.
     // See WebCore/bindings/generic/RuntimeEnabledFeatures.h
 
     // HTML5 History API
     RuntimeEnabledFeatures::setPushStateEnabled(true);
+    if (m_mainFrame)
+        m_mainFrame->settings()->setMinDOMTimerInterval(FOREGROUND_TIMER_INTERVAL);
 }
 
 WebViewCore::~WebViewCore()
@@ -599,30 +702,53 @@ WebViewCore::~WebViewCore()
     // Release the focused view
     Release(m_popupReply);
 
+//SAMSUNG CHANGE HTML5 COLOR <<	
+    if(m_colorChooser){
+        delete(m_colorChooser);   
+	m_colorChooser = 0; 	
+    }
+//SAMSUNG CHANGE HTML5 COLOR >>
+
     if (m_javaGlue->m_obj) {
         JNIEnv* env = JSC::Bindings::getJNIEnv();
         env->DeleteWeakGlobalRef(m_javaGlue->m_obj);
         m_javaGlue->m_obj = 0;
     }
     delete m_javaGlue;
-    delete m_frameCacheKit;
-    delete m_navPictureKit;
 }
 
 WebViewCore* WebViewCore::getWebViewCore(const WebCore::FrameView* view)
 {
-    return getWebViewCore(static_cast<const WebCore::ScrollView*>(view));
+    if (!view)
+        return 0;
+    if (view->platformWidget())
+        return static_cast<WebFrameView*>(view->platformWidget())->webViewCore();
+    Frame* frame = view->frame();
+    while (Frame* parent = frame->tree()->parent())
+        frame = parent;
+    WebFrameView* webFrameView = 0;
+    if (frame && frame->view())
+        webFrameView = static_cast<WebFrameView*>(frame->view()->platformWidget());
+    if (!webFrameView)
+        return 0;
+    return webFrameView->webViewCore();
 }
 
 WebViewCore* WebViewCore::getWebViewCore(const WebCore::ScrollView* view)
 {
     if (!view)
         return 0;
-
-    WebFrameView* webFrameView = static_cast<WebFrameView*>(view->platformWidget());
-    if (!webFrameView)
-        return 0;
-    return webFrameView->webViewCore();
+    if (view->platformWidget())
+        return static_cast<WebFrameView*>(view->platformWidget())->webViewCore();
+    const FrameView* frameView = 0;
+    if (view->isFrameView())
+        frameView = static_cast<const FrameView*>(view);
+    else {
+        frameView = static_cast<const FrameView*>(view->root());
+        if (!frameView)
+            return 0;
+    }
+    return getWebViewCore(frameView);
 }
 
 static bool layoutIfNeededRecursive(WebCore::Frame* f)
@@ -633,105 +759,34 @@ static bool layoutIfNeededRecursive(WebCore::Frame* f)
     WebCore::FrameView* v = f->view();
     if (!v)
         return true;
-
-    if (v->needsLayout())
-        v->layout(f->tree()->parent());
-
-    WebCore::Frame* child = f->tree()->firstChild();
-    bool success = true;
-    while (child) {
-        success &= layoutIfNeededRecursive(child);
-        child = child->tree()->nextSibling();
-    }
-
-    return success && !v->needsLayout();
-}
-
-CacheBuilder& WebViewCore::cacheBuilder()
-{
-    return FrameLoaderClientAndroid::get(m_mainFrame)->getCacheBuilder();
+    v->updateLayoutAndStyleIfNeededRecursive();
+    return !v->needsLayout();
 }
 
 WebCore::Node* WebViewCore::currentFocus()
 {
-//SAMSUNG CHANGE - gmail keypad issue fix >>
-    Frame* focusFrame = NULL;
-    Node* focusNode = NULL;
-    if (m_mainFrame->page() && m_mainFrame->page()->focusController()) {
-        focusFrame = m_mainFrame->page()->focusController()->focusedOrMainFrame();
-    }
-
-    if (NULL == focusFrame) {
-        DBG_NAV_LOG("focusFrame is NULL");
-        focusFrame = m_mainFrame;
-    }
-
-    Document* doc = focusFrame->document();
-    if (doc != NULL) {
-        focusNode = doc->focusedNode();
-    }
-
-    if (NULL != focusNode) {
-        return focusNode;
-    }
-    DBG_NAV_LOG("focusNode is NULL");
-//SAMSUNG CHANGE - gmail keypad issue fix <<
-    return cacheBuilder().currentFocus();
+    return focusedFrame()->document()->focusedNode();
 }
 
-void WebViewCore::recordPicture(SkPicture* picture)
+void WebViewCore::layout()
 {
+    TRACE_METHOD();
+
     // if there is no document yet, just return
     if (!m_mainFrame->document()) {
-        DBG_NAV_LOG("no document");
+        ALOGV("!m_mainFrame->document()");
         return;
     }
-    // Call layout to ensure that the contentWidth and contentHeight are correct
-    if (!layoutIfNeededRecursive(m_mainFrame)) {
-        DBG_NAV_LOG("layout failed");
-        return;
-    }
-    // draw into the picture's recording canvas
-    WebCore::FrameView* view = m_mainFrame->view();
-    DBG_NAV_LOGD("view=(w=%d,h=%d)", view->contentsWidth(),
-        view->contentsHeight());
-    SkAutoPictureRecord arp(picture, view->contentsWidth(),
-                            view->contentsHeight(), PICT_RECORD_FLAGS);
-    SkAutoMemoryUsageProbe mup(__FUNCTION__);
 
-    WebCore::PlatformGraphicsContext pgc(arp.getRecordingCanvas());
-    WebCore::GraphicsContext gc(&pgc);
-    view->platformWidget()->draw(&gc, WebCore::IntRect(0, 0,
-        view->contentsWidth(), view->contentsHeight()));
-}
-
-void WebViewCore::recordPictureSet(PictureSet* content)
-{
-    // if there is no document yet, just return
-    if (!m_mainFrame->document()) {
-        DBG_SET_LOG("!m_mainFrame->document()");
-        return;
-    }
-    if (m_addInval.isEmpty()) {
-        DBG_SET_LOG("m_addInval.isEmpty()");
-        return;
-    }
     // Call layout to ensure that the contentWidth and contentHeight are correct
     // it's fine for layout to gather invalidates, but defeat sending a message
     // back to java to call webkitDraw, since we're already in the middle of
     // doing that
-    m_skipContentDraw = true;
     bool success = layoutIfNeededRecursive(m_mainFrame);
-    m_skipContentDraw = false;
 
     // We may be mid-layout and thus cannot draw.
     if (!success)
         return;
-
-    {   // collect WebViewCoreRecordTimeCounter after layoutIfNeededRecursive
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreRecordTimeCounter);
-#endif
 
     // if the webkit page dimensions changed, discard the pictureset and redraw.
     WebCore::FrameView* view = m_mainFrame->view();
@@ -783,6 +838,8 @@ void WebViewCore::recordPictureSet(PictureSet* content)
     // If the new total is larger than the content, resize the view to include
     // all the content.
     if (!contentRect.contains(total)) {
+        // TODO: Does this ever happen? Is this needed now that we don't flatten
+        // frames?
         // Resize the view to change the overflow clip.
         view->resize(total.fRight, total.fBottom);
 
@@ -791,159 +848,27 @@ void WebViewCore::recordPictureSet(PictureSet* content)
         view->forceLayout();
 
         // Relayout similar to above
-        m_skipContentDraw = true;
-        bool success = layoutIfNeededRecursive(m_mainFrame);
-        m_skipContentDraw = false;
-        if (!success)
-            return;
-
-        // Set the computed content width
-        width = view->contentsWidth();
-        height = view->contentsHeight();
-    }
-
-    if (cacheBuilder().pictureSetDisabled())
-        content->clear();
-
-#if USE(ACCELERATED_COMPOSITING)
-    // The invals are not always correct when the content size has changed. For
-    // now, let's just reset the inval so that it invalidates the entire content
-    // -- the pictureset will be fully repainted, tiles will be marked dirty and
-    // will have to be repainted.
-
-    // FIXME: the webkit invals ought to have been enough...
-    if (content->width() != width || content->height() != height) {
-        SkIRect r;
-        r.fLeft = 0;
-        r.fTop = 0;
-        r.fRight = width;
-        r.fBottom = height;
-        m_addInval.setRect(r);
-    }
-#endif
-
-    content->setDimensions(width, height, &m_addInval);
-
-    // Add the current inval rects to the PictureSet, and rebuild it.
-    content->add(m_addInval, 0, 0, false);
-
-    // If we have too many invalidations, just get the area bounds
-    SkRegion::Iterator iterator(m_addInval);
-    int nbInvals = 0;
-    while (!iterator.done()) {
-        iterator.next();
-        nbInvals++;
-        if (nbInvals > MAX_INVALIDATIONS)
-            break;
-    }
-    if (nbInvals > MAX_INVALIDATIONS) {
-        SkIRect r = m_addInval.getBounds();
-        m_addInval.setRect(r);
-    }
-
-    // Rebuild the pictureset (webkit repaint)
-    rebuildPictureSet(content);
-    } // WebViewCoreRecordTimeCounter
-
-    WebCore::Node* oldFocusNode = currentFocus();
-    m_frameCacheOutOfDate = true;
-    WebCore::IntRect oldBounds;
-    int oldSelStart = 0;
-    int oldSelEnd = 0;
-    if (oldFocusNode) {
-        oldBounds = oldFocusNode->getRect();
-        RenderObject* renderer = oldFocusNode->renderer();
-        if (renderer && (renderer->isTextArea() || renderer->isTextField())) {
-            WebCore::RenderTextControl* rtc =
-                static_cast<WebCore::RenderTextControl*>(renderer);
-            oldSelStart = rtc->selectionStart();
-            oldSelEnd = rtc->selectionEnd();
-        }
-    } else
-        oldBounds = WebCore::IntRect(0,0,0,0);
-    unsigned latestVersion = 0;
-    if (m_check_domtree_version) {
-        // as domTreeVersion only increment, we can just check the sum to see
-        // whether we need to update the frame cache
-        for (Frame* frame = m_mainFrame; frame; frame = frame->tree()->traverseNext()) {
-            const Document* doc = frame->document();
-            latestVersion += doc->domTreeVersion() + doc->styleVersion();
-        }
-    }
-    DBG_NAV_LOGD("m_lastFocused=%p oldFocusNode=%p"
-        " m_lastFocusedBounds={%d,%d,%d,%d} oldBounds={%d,%d,%d,%d}"
-        " m_lastFocusedSelection={%d,%d} oldSelection={%d,%d}"
-        " m_check_domtree_version=%s latestVersion=%d m_domtree_version=%d",
-        m_lastFocused, oldFocusNode,
-        m_lastFocusedBounds.x(), m_lastFocusedBounds.y(),
-        m_lastFocusedBounds.width(), m_lastFocusedBounds.height(),
-        oldBounds.x(), oldBounds.y(), oldBounds.width(), oldBounds.height(),
-        m_lastFocusedSelStart, m_lastFocusedSelEnd, oldSelStart, oldSelEnd,
-        m_check_domtree_version ? "true" : "false",
-        latestVersion, m_domtree_version);
-    if (m_lastFocused == oldFocusNode && m_lastFocusedBounds == oldBounds
-            && m_lastFocusedSelStart == oldSelStart
-            && m_lastFocusedSelEnd == oldSelEnd
-            && !m_findIsUp
-            && (!m_check_domtree_version || latestVersion == m_domtree_version))
-    {
-        return;
-    }
-    m_focusBoundsChanged |= m_lastFocused == oldFocusNode
-        && m_lastFocusedBounds != oldBounds;
-    m_lastFocused = oldFocusNode;
-    m_lastFocusedBounds = oldBounds;
-    m_lastFocusedSelStart = oldSelStart;
-    m_lastFocusedSelEnd = oldSelEnd;
-    m_domtree_version = latestVersion;
-    DBG_NAV_LOG("call updateFrameCache");
-    updateFrameCache();
-    if (m_findIsUp) {
-        LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
-        JNIEnv* env = JSC::Bindings::getJNIEnv();
-        AutoJObject javaObject = m_javaGlue->object(env);
-        if (javaObject.get()) {
-            env->CallVoidMethod(javaObject.get(), m_javaGlue->m_sendFindAgain);
-            checkException(env);
-        }
+        layoutIfNeededRecursive(m_mainFrame);
     }
 }
 
-// note: updateCursorBounds is called directly by the WebView thread
-// This needs to be called each time we call CachedRoot::setCursor() with
-// non-null CachedNode/CachedFrame, since otherwise the WebViewCore's data
-// about the cursor is incorrect.  When we call setCursor(0,0), we need
-// to set hasCursorBounds to false.
-void WebViewCore::updateCursorBounds(const CachedRoot* root,
-        const CachedFrame* cachedFrame, const CachedNode* cachedNode)
+void WebViewCore::recordPicturePile()
 {
-    LOG_ASSERT(root, "updateCursorBounds: root cannot be null");
-    LOG_ASSERT(cachedNode, "updateCursorBounds: cachedNode cannot be null");
-    LOG_ASSERT(cachedFrame, "updateCursorBounds: cachedFrame cannot be null");
-    gCursorBoundsMutex.lock();
-    m_hasCursorBounds = !cachedNode->isHidden();
-    // If m_hasCursorBounds is false, we never look at the other
-    // values, so do not bother setting them.
-    if (m_hasCursorBounds) {
-        WebCore::IntRect bounds = cachedNode->bounds(cachedFrame);
-        if (m_cursorBounds != bounds)
-            DBG_NAV_LOGD("new cursor bounds=(%d,%d,w=%d,h=%d)",
-                bounds.x(), bounds.y(), bounds.width(), bounds.height());
-        m_cursorBounds = bounds;
-        m_cursorHitBounds = cachedNode->hitBounds(cachedFrame);
-        m_cursorFrame = cachedFrame->framePointer();
-        root->getSimulatedMousePosition(&m_cursorLocation);
-        m_cursorNode = cachedNode->nodePointer();
-    }
-    gCursorBoundsMutex.unlock();
+    // if the webkit page dimensions changed, discard the pictureset and redraw.
+    WebCore::FrameView* view = m_mainFrame->view();
+    int width = view ? view->contentsWidth() : 0;
+    int height = view ? view->contentsHeight() : 0;
+
+    m_content.setSize(IntSize(width, height));
+
+    // Rebuild the pictureset (webkit repaint)
+    m_content.updatePicturesIfNeeded(this);
 }
 
 void WebViewCore::clearContent()
 {
-    DBG_SET_LOG("");
-    m_content.clear();
-    m_addInval.setEmpty();
-    m_rebuildInval.setEmpty();
+    m_content.reset();
+    updateLocale();
 }
 
 bool WebViewCore::focusBoundsChanged()
@@ -953,75 +878,90 @@ bool WebViewCore::focusBoundsChanged()
     return result;
 }
 
-SkPicture* WebViewCore::rebuildPicture(const SkIRect& inval)
+void WebViewCore::paintContents(WebCore::GraphicsContext* gc, WebCore::IntRect& dirty)
 {
     WebCore::FrameView* view = m_mainFrame->view();
-    int width = view->contentsWidth();
-    int height = view->contentsHeight();
-    SkPicture* picture = new SkPicture();
-    SkAutoPictureRecord arp(picture, width, height, PICT_RECORD_FLAGS);
-    SkAutoMemoryUsageProbe mup(__FUNCTION__);
-    SkCanvas* recordingCanvas = arp.getRecordingCanvas();
+    if (!view) {
+        gc->setFillColor(WebCore::Color::white, WebCore::ColorSpaceDeviceRGB);
+        gc->fillColor();
+        return;
+    }
 
-    WebCore::PlatformGraphicsContext pgc(recordingCanvas);
-    WebCore::GraphicsContext gc(&pgc);
     IntPoint origin = view->minimumScrollPosition();
-    WebCore::IntRect drawArea(inval.fLeft + origin.x(), inval.fTop + origin.y(),
-            inval.width(), inval.height());
-    recordingCanvas->translate(-drawArea.x(), -drawArea.y());
-    recordingCanvas->save();
-    view->platformWidget()->draw(&gc, drawArea);
-    m_rebuildInval.op(inval, SkRegion::kUnion_Op);
-    DBG_SET_LOGD("m_rebuildInval={%d,%d,r=%d,b=%d}",
-        m_rebuildInval.getBounds().fLeft, m_rebuildInval.getBounds().fTop,
-        m_rebuildInval.getBounds().fRight, m_rebuildInval.getBounds().fBottom);
-
-    return picture;
+    IntRect drawArea = dirty;
+    gc->translate(-origin.x(), -origin.y());
+    drawArea.move(origin.x(), origin.y());
+    view->platformWidget()->draw(gc, drawArea);
 }
 
-void WebViewCore::rebuildPictureSet(PictureSet* pictureSet)
+void WebViewCore::setPrerenderingEnabled(bool enable)
 {
-    WebCore::FrameView* view = m_mainFrame->view();
-
-#ifdef FAST_PICTURESET
-    WTF::Vector<Bucket*>* buckets = pictureSet->bucketsToUpdate();
-
-    for (unsigned int i = 0; i < buckets->size(); i++) {
-        Bucket* bucket = (*buckets)[i];
-        for (unsigned int j = 0; j < bucket->size(); j++) {
-            BucketPicture& bucketPicture = (*bucket)[j];
-            const SkIRect& inval = bucketPicture.mRealArea;
-            SkPicture* picture = rebuildPicture(inval);
-            SkSafeUnref(bucketPicture.mPicture);
-            bucketPicture.mPicture = picture;
-        }
+    if (m_prerenderEnabled != enable) {
+        MutexLocker locker(m_prerenderLock);
+        m_prerenderEnabled = enable;
     }
-    buckets->clear();
-#else
-    size_t size = pictureSet->size();
-    for (size_t index = 0; index < size; index++) {
-        if (pictureSet->upToDate(index))
-            continue;
-        const SkIRect& inval = pictureSet->bounds(index);
-        DBG_SET_LOGD("pictSet=%p [%d] {%d,%d,w=%d,h=%d}", pictureSet, index,
-            inval.fLeft, inval.fTop, inval.width(), inval.height());
-        pictureSet->setPicture(index, rebuildPicture(inval));
-    }
-
-    pictureSet->validate(__FUNCTION__);
-#endif
 }
 
-bool WebViewCore::updateLayers(LayerAndroid* layers)
+bool WebViewCore::prerenderingEnabled()
 {
-    // We update the layers
-    ChromeClientAndroid* chromeC = static_cast<ChromeClientAndroid*>(m_mainFrame->page()->chrome()->client());
-    GraphicsLayerAndroid* root = static_cast<GraphicsLayerAndroid*>(chromeC->layersSync());
-    if (root) {
-        LayerAndroid* updatedLayer = root->contentLayer();
-        return layers->updateWithTree(updatedLayer);
+    MutexLocker locker(m_prerenderLock);
+    return m_prerenderEnabled;
+}
+
+SkCanvas* WebViewCore::createPrerenderCanvas(PrerenderedInval* prerendered)
+{
+    // Has WebView disabled prerenders (not attached, etc...)?
+    if (!prerenderingEnabled())
+        return 0;
+    // Does this WebView have focus?
+    if (!m_mainFrame->page()->focusController()->isActive())
+        return 0;
+    // Are we scrolling?
+    if (currentTimeMS() - m_scrollSetTime < PRERENDER_AFTER_SCROLL_DELAY)
+        return 0;
+    // Do we have anything to render?
+    if (prerendered->area.isEmpty())
+        return 0;
+    FloatRect scaleTemp(m_scrollOffsetX, m_scrollOffsetY, m_screenWidth, m_screenHeight);
+    scaleTemp.scale(m_scale);
+    IntRect visibleTileClip = enclosingIntRect(scaleTemp);
+    FloatRect scaledArea = prerendered->area;
+    scaledArea.scale(m_scale);
+    IntRect enclosingScaledArea = enclosingIntRect(scaledArea);
+    if (enclosingScaledArea.isEmpty())
+        return 0;
+    // "round out" the screen to tile boundaries so that we can clip yet still
+    // cover any visible tiles with the prerender
+    int tw = TilesManager::tileWidth();
+    int th = TilesManager::tileHeight();
+    float left = tw * (int) (visibleTileClip.x() / tw);
+    float top = th * (int) (visibleTileClip.y() / th);
+    float right = tw * (int) ceilf(visibleTileClip.maxX() / (float) tw);
+    float bottom = th * (int) ceilf(visibleTileClip.maxY() / (float) th);
+    visibleTileClip = IntRect(left, top, right - left, bottom - top);
+    enclosingScaledArea.intersect(visibleTileClip);
+    if (enclosingScaledArea.isEmpty())
+        return 0;
+   //Samsung Change>> Can not Allocate more than 2 GB memory .
+    if( enclosingScaledArea.height() > MAX_HEIGHT ) 
+   {
+	return 0;
     }
-    return true;
+   //Samsung Change <<
+    prerendered->screenArea = enclosingScaledArea;
+    FloatRect enclosingDocArea(enclosingScaledArea);
+    enclosingDocArea.scale(1 / m_scale);
+    prerendered->area = enclosingIntRect(enclosingDocArea);
+    if (prerendered->area.isEmpty())
+        return 0;
+    prerendered->bitmap.setConfig(SkBitmap::kARGB_8888_Config,
+                                  enclosingScaledArea.width(),
+                                  enclosingScaledArea.height());
+    prerendered->bitmap.allocPixels();
+    SkCanvas* bitmapCanvas = new SkCanvas(prerendered->bitmap);
+    bitmapCanvas->scale(m_scale, m_scale);
+    bitmapCanvas->translate(-enclosingDocArea.x(), -enclosingDocArea.y());
+    return bitmapCanvas;
 }
 
 void WebViewCore::notifyAnimationStarted()
@@ -1035,121 +975,113 @@ void WebViewCore::notifyAnimationStarted()
 
 }
 
-BaseLayerAndroid* WebViewCore::createBaseLayer(SkRegion* region)
+BaseLayerAndroid* WebViewCore::createBaseLayer(GraphicsLayerAndroid* root)
 {
-    BaseLayerAndroid* base = new BaseLayerAndroid();
-    base->setContent(m_content);
-
-        m_skipContentDraw = true;
-        bool layoutSucceeded = layoutIfNeededRecursive(m_mainFrame);
-        m_skipContentDraw = false;
-        // Layout only fails if called during a layout.
-        LOG_ASSERT(layoutSucceeded, "Can never be called recursively");
-
-#if USE(ACCELERATED_COMPOSITING)
     // We set the background color
+    Color background = Color::white;
+
+    bool bodyHasFixedBackgroundImage = false;
+    bool bodyHasCSSBackground = false;
+
     if (m_mainFrame && m_mainFrame->document()
         && m_mainFrame->document()->body()) {
+
         Document* document = m_mainFrame->document();
         RefPtr<RenderStyle> style = document->styleForElementIgnoringPendingStylesheets(document->body());
         if (style->hasBackground()) {
-            Color color = style->visitedDependentColor(CSSPropertyBackgroundColor);
-            if (color.isValid() && color.alpha() > 0)
-// SAMSUNG CHANGE >> White flickering issue.
-// WAS:base->setBackgroundColor(color);
-			{
-				SkColor c = SkColorSetARGB(color.alpha(), color.red(), color.green(), color.blue());
-                base->setBackgroundColor(c);
-			}
+            background = style->visitedDependentColor(CSSPropertyBackgroundColor);
+            bodyHasCSSBackground = true;
         }
-		else
-		{
-			WebCore::FrameView* view = m_mainFrame->view();			
-			if( view )
-			{	
-				Color color = view->baseBackgroundColor();				
-				if (color.isValid() && color.alpha() > 0)
-				{
-					SkColor c = SkColorSetARGB(color.alpha(), color.red(), color.green(), color.blue());
-					base->setBackgroundColor(c);
-				}
-			}			
-// SAMSUNG CHANGE <<
+        WebCore::FrameView* view = m_mainFrame->view();
+        if (view) {
+            Color viewBackground = view->baseBackgroundColor();
+            background = bodyHasCSSBackground ? viewBackground.blend(background) : viewBackground;
+        }
+        if (style->hasFixedBackgroundImage()) {
+            Image* backgroundImage = FixedBackgroundImageLayerAndroid::GetCachedImage(style);
+            if (backgroundImage && backgroundImage->width() > 1 && backgroundImage->height() > 1)
+                bodyHasFixedBackgroundImage = true;
         }
     }
 
+    PicturePileLayerContent* content = new PicturePileLayerContent(m_content);
+    m_content.clearPrerenders();
+
+    BaseLayerAndroid* realBase = 0;
+    LayerAndroid* base = 0;
+
+    //If we have a fixed background image on the body element, the fixed image
+    // will be contained in the PictureSet (the content object), and the foreground
+    //of the body element will be moved to a layer.
+    //In that case, let's change the hierarchy to obtain:
+    //
+    //BaseLayerAndroid
+    // \- FixedBackgroundBaseLayerAndroid (fixed positioning)
+    // \- ForegroundBaseLayerAndroid
+    //   \- root layer (webkit composited tree)
+
+    if (bodyHasFixedBackgroundImage) {
+        base = new ForegroundBaseLayerAndroid(0);
+        base->setSize(content->width(), content->height());
+
+        Document* document = m_mainFrame->document();
+        RefPtr<RenderStyle> style = document->styleForElementIgnoringPendingStylesheets(document->body());
+
+        FixedBackgroundImageLayerAndroid* baseBackground =
+             new FixedBackgroundImageLayerAndroid(style, content->width(), content->height());
+
+        realBase = new BaseLayerAndroid(0);
+        realBase->setSize(content->width(), content->height());
+        realBase->addChild(baseBackground);
+        realBase->addChild(base);
+        baseBackground->unref();
+        base->unref();
+    } else {
+        realBase = new BaseLayerAndroid(content);
+        base = realBase;
+    }
+
+    realBase->setBackgroundColor(background);
+
+    SkSafeUnref(content);
+
     // We update the layers
-    ChromeClientAndroid* chromeC = static_cast<ChromeClientAndroid*>(m_mainFrame->page()->chrome()->client());
-    GraphicsLayerAndroid* root = static_cast<GraphicsLayerAndroid*>(chromeC->layersSync());
     if (root) {
         LayerAndroid* copyLayer = new LayerAndroid(*root->contentLayer());
         base->addChild(copyLayer);
         copyLayer->unref();
         root->contentLayer()->clearDirtyRegion();
     }
-#endif
 
-    return base;
+    return realBase;
 }
 
-BaseLayerAndroid* WebViewCore::recordContent(SkRegion* region, SkIPoint* point)
+BaseLayerAndroid* WebViewCore::recordContent(SkIPoint* point)
 {
-    DBG_SET_LOG("start");
-    // If there is a pending style recalculation, just return.
-    if (m_mainFrame->document()->isPendingStyleRecalc()) {
-        DBG_SET_LOGD("recordContent: pending style recalc, ignoring.");
-        return 0;
-    }
-    float progress = (float) m_mainFrame->page()->progress()->estimatedProgress();
-    m_progressDone = progress <= 0.0f || progress >= 1.0f;
-    recordPictureSet(&m_content);
-    if (!m_progressDone && m_content.isEmpty()) {
-        DBG_SET_LOGD("empty (progress=%g)", progress);
-        return 0;
-    }
-    region->set(m_addInval);
-    m_addInval.setEmpty();
+    m_skipContentDraw = true;
+    layout();
+    ChromeClientAndroid* chromeC = static_cast<ChromeClientAndroid*>(m_mainFrame->page()->chrome()->client());
+    GraphicsLayerAndroid* root = static_cast<GraphicsLayerAndroid*>(chromeC->layersSync());
+    m_skipContentDraw = false;
+    recordPicturePile();
+
+    BaseLayerAndroid* baseLayer = createBaseLayer(root);
+
+    baseLayer->markAsDirty(m_content.dirtyRegion());
+    m_content.dirtyRegion().setEmpty();
 #if USE(ACCELERATED_COMPOSITING)
 #else
-    region->op(m_rebuildInval, SkRegion::kUnion_Op);
+    baseLayer->markAsDirty(m_rebuildInval);
 #endif
-    m_rebuildInval.setEmpty();
-    point->fX = m_content.width();
-    point->fY = m_content.height();
-    DBG_SET_LOGD("region={%d,%d,r=%d,b=%d}", region->getBounds().fLeft,
-        region->getBounds().fTop, region->getBounds().fRight,
-        region->getBounds().fBottom);
-    DBG_SET_LOG("end");
+    point->fX = m_content.size().width();
+    point->fY = m_content.size().height();
 
-    //SAMSUNG CHNAGES >>
-    //Commenting this patch for vellamo benchmark issue.
-    //TODO: Find the alertanative patch.
-    //if ( m_content.width() == 0 || m_content.height() == 0){
-    //	DBG_SET_LOGD("Picture set is empty. It has to be of screen size atleast. Recording again");
-    //    return 0;
-    //}
-    //SAMSUNG CHNAGES <<
-
-    return createBaseLayer(region);
-}
-
-void WebViewCore::splitContent(PictureSet* content)
-{
-#ifdef FAST_PICTURESET
-#else
-    bool layoutSucceeded = layoutIfNeededRecursive(m_mainFrame);
-    LOG_ASSERT(layoutSucceeded, "Can never be called recursively");
-    content->split(&m_content);
-    rebuildPictureSet(&m_content);
-    content->set(m_content);
-#endif // FAST_PICTURESET
+    return baseLayer;
 }
 
 void WebViewCore::scrollTo(int x, int y, bool animate)
 {
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
-
-//    LOGD("WebViewCore::scrollTo(%d %d)\n", x, y);
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
 
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
@@ -1160,9 +1092,39 @@ void WebViewCore::scrollTo(int x, int y, bool animate)
     checkException(env);
 }
 
+//SAMSUNG CHANGES: MPSG100006003 >>
+void WebViewCore::scrollRectOnScreen(IntRect rect)
+{
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    ALOGV("scrollRectOnScreen() rect=[%d, %d, w=%d h=%d]", rect.x(),rect.y(), rect.width(), rect.height());
+
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_sendScrollRectOnScreen, rect.x(), rect.y(), rect.maxX(), rect.maxY());
+    checkException(env);
+}
+//SAMSUNG CHANGES <<
+
+//SAMSUNG changes <S-PEN Text Selection>
+void WebViewCore::startActionMode(bool textSelected)
+{
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_sendStartActionMode, textSelected);
+    checkException(env);
+}
+//SAMSUNG changes <S-PEN Text Selection>
 void WebViewCore::sendNotifyProgressFinished()
 {
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
     if (!javaObject.get())
@@ -1173,7 +1135,7 @@ void WebViewCore::sendNotifyProgressFinished()
 
 void WebViewCore::viewInvalidate(const WebCore::IntRect& rect)
 {
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
     if (!javaObject.get())
@@ -1194,35 +1156,23 @@ void WebViewCore::contentDraw()
     checkException(env);
 }
 
-void WebViewCore::layersDraw()
-{
-    JNIEnv* env = JSC::Bindings::getJNIEnv();
-    AutoJObject javaObject = m_javaGlue->object(env);
-    if (!javaObject.get())
-        return;
-    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_layersDraw);
-    checkException(env);
-}
-
 void WebViewCore::contentInvalidate(const WebCore::IntRect &r)
 {
-    DBG_SET_LOGD("rect={%d,%d,w=%d,h=%d}", r.x(), r.y(), r.width(), r.height());
-    SkIRect rect(r);
-    if (!rect.intersect(0, 0, INT_MAX, INT_MAX))
-        return;
-    m_addInval.op(rect, SkRegion::kUnion_Op);
-    DBG_SET_LOGD("m_addInval={%d,%d,r=%d,b=%d}",
-        m_addInval.getBounds().fLeft, m_addInval.getBounds().fTop,
-        m_addInval.getBounds().fRight, m_addInval.getBounds().fBottom);
+    if((NULL==m_mainFrame)  || (NULL== m_mainFrame->view())) // Preventive check for P120930-0624
+	   return ;
+    IntPoint origin = m_mainFrame->view()->minimumScrollPosition();
+    IntRect dirty = r;
+    dirty.move(-origin.x(), -origin.y());
+    m_content.invalidate(dirty);
     if (!m_skipContentDraw)
         contentDraw();
 }
 
-//SAMSUNG CHANGE: MPSG100003899, MPSG100005262 >>
+//SAMSUNG CHANGES: mobile page zoom scale change issue - merge from ICS >>
 void WebViewCore::recalcWidthAndForceLayout()
 {
     if(!m_mainFrame->document()){
-        DBG_SET_LOG("!m_mainFrame->document()");		
+        ALOGV("!m_mainFrame->document()");
         return;
     }
 
@@ -1230,7 +1180,7 @@ void WebViewCore::recalcWidthAndForceLayout()
     m_mainFrame->contentRenderer()->setNeedsLayoutAndPrefWidthsRecalc();
     view->forceLayout();
 }
-//SAMSUNG CHANGE <<
+//SAMSUNG CHANGES <<
 
 void WebViewCore::contentInvalidateAll()
 {
@@ -1247,19 +1197,9 @@ void WebViewCore::offInvalidate(const WebCore::IntRect &r)
     contentInvalidate(r);
 }
 
-static int pin_pos(int x, int width, int targetWidth)
-{
-    if (x + width > targetWidth)
-        x = targetWidth - width;
-    if (x < 0)
-        x = 0;
-    return x;
-}
-
 void WebViewCore::didFirstLayout()
 {
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
 
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
@@ -1269,15 +1209,10 @@ void WebViewCore::didFirstLayout()
     const WebCore::KURL& url = m_mainFrame->document()->url();
     if (url.isEmpty())
         return;
-    LOGV("::WebCore:: didFirstLayout %s", url.string().ascii().data());
-    DBG_NAV_LOG("didFirstLayout ; image set to NULL");
-    // SAMSUNG CHANGE ++	
-    if (animatedImage)	{
-	animatedImage->deref();
-    	animatedImage = NULL; 
-    }
-    // SAMSUNG CHANGE --	
+    ALOGV("::WebCore:: didFirstLayout %s", url.string().ascii().data());
+
     WebCore::FrameLoadType loadType = m_mainFrame->loader()->loadType();
+
     // SAMSUNG CHANGE + MPSG100005448 - for mysingle app when we scroll and load same url with more data scroll position is not retained.
     if (m_mainFrame->settings() == NULL || m_mainFrame->settings()->isBrowserApp()) {
         env->CallVoidMethod(javaObject.get(), m_javaGlue->m_didFirstLayout,
@@ -1299,17 +1234,11 @@ void WebViewCore::didFirstLayout()
     }
     // SAMSUNG CHANGE -
     checkException(env);
-
-    DBG_NAV_LOG("call updateFrameCache");
-    m_check_domtree_version = false;
-    updateFrameCache();
-    m_history.setDidFirstLayout(true);
 }
 
 void WebViewCore::updateViewport()
 {
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
 
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
@@ -1321,8 +1250,7 @@ void WebViewCore::updateViewport()
 
 void WebViewCore::restoreScale(float scale, float textWrapScale)
 {
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
 
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
@@ -1334,8 +1262,7 @@ void WebViewCore::restoreScale(float scale, float textWrapScale)
 
 void WebViewCore::needTouchEvents(bool need)
 {
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
 
 #if ENABLE(TOUCH_EVENTS)
     JNIEnv* env = JSC::Bindings::getJNIEnv();
@@ -1353,26 +1280,9 @@ void WebViewCore::needTouchEvents(bool need)
 #endif
 }
 
-void WebViewCore::requestKeyboardWithSelection(const WebCore::Node* node,
-        int selStart, int selEnd)
-{
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
-
-    JNIEnv* env = JSC::Bindings::getJNIEnv();
-    AutoJObject javaObject = m_javaGlue->object(env);
-    if (!javaObject.get())
-        return;
-    env->CallVoidMethod(javaObject.get(),
-            m_javaGlue->m_requestKeyboardWithSelection,
-            reinterpret_cast<int>(node), selStart, selEnd, m_textGeneration);
-    checkException(env);
-}
-
 void WebViewCore::requestKeyboard(bool showKeyboard)
 {
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
 
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
@@ -1382,63 +1292,17 @@ void WebViewCore::requestKeyboard(bool showKeyboard)
     checkException(env);
 }
 
-//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
-void WebViewCore::requestDateTimePickers(const WTF::String& type , const WTF::String& value)
-{
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    LOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
-
-    JNIEnv* env = JSC::Bindings::getJNIEnv();
-    AutoJObject javaObject = m_javaGlue->object(env);
-    if (!javaObject.get())
-        return;
-    jstring jinputStr = wtfStringToJstring(env, type);	
-    jstring jvalueStr = NULL;
-    if(value != NULL)
-        jvalueStr = wtfStringToJstring(env, value);	
-    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_requestDateTimePickers,jinputStr, jvalueStr);
-    checkException(env);
-}
-//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
-
 void WebViewCore::notifyProgressFinished()
 {
-    m_check_domtree_version = true;
     sendNotifyProgressFinished();
 }
 
-void WebViewCore::doMaxScroll(CacheBuilder::Direction dir)
+void WebViewCore::setScrollOffset(bool sendScrollEvent, int dx, int dy)
 {
-    int dx = 0, dy = 0;
-
-    switch (dir) {
-    case CacheBuilder::LEFT:
-        dx = -m_maxXScroll;
-        break;
-    case CacheBuilder::UP:
-        dy = -m_maxYScroll;
-        break;
-    case CacheBuilder::RIGHT:
-        dx = m_maxXScroll;
-        break;
-    case CacheBuilder::DOWN:
-        dy = m_maxYScroll;
-        break;
-    case CacheBuilder::UNINITIALIZED:
-    default:
-        LOG_ASSERT(0, "unexpected focus selector");
-    }
-    WebCore::FrameView* view = m_mainFrame->view();
-    this->scrollTo(view->scrollX() + dx, view->scrollY() + dy, true);
-}
-
-void WebViewCore::setScrollOffset(int moveGeneration, bool sendScrollEvent, int dx, int dy)
-{
-    DBG_NAV_LOGD("{%d,%d} m_scrollOffset=(%d,%d), sendScrollEvent=%d", dx, dy,
-        m_scrollOffsetX, m_scrollOffsetY, sendScrollEvent);
     if (m_scrollOffsetX != dx || m_scrollOffsetY != dy) {
         m_scrollOffsetX = dx;
         m_scrollOffsetY = dy;
+        m_scrollSetTime = currentTimeMS();
         // The visible rect is located within our coordinate space so it
         // contains the actual scroll position. Setting the location makes hit
         // testing work correctly.
@@ -1469,29 +1333,10 @@ void WebViewCore::setScrollOffset(int moveGeneration, bool sendScrollEvent, int 
         // update the currently visible screen
         sendPluginVisibleScreen();
     }
-    gCursorBoundsMutex.lock();
-    bool hasCursorBounds = m_hasCursorBounds;
-    Frame* frame = (Frame*) m_cursorFrame;
-    IntPoint location = m_cursorLocation;
-    gCursorBoundsMutex.unlock();
-    // SAMSUNG CHANGE +
-    if (animatedImage) {
-	DBG_NAV_LOG("Animated Image Preset");
-	if (animatedImage->checkForVisibleImageAnimation()) {
-	    animatedImage->deref();	
-	animatedImage = NULL;
-	    DBG_NAV_LOG("Animation Started");
-	}
-    }
-    // SAMSUNG CHANGE -
-    if (!hasCursorBounds)
-        return;
-    moveMouseIfLatest(moveGeneration, frame, location.x(), location.y());
 }
 
 void WebViewCore::setGlobalBounds(int x, int y, int h, int v)
 {
-    DBG_NAV_LOGD("{%d,%d}", x, y);
     m_mainFrame->view()->platformWidget()->setWindowBounds(x, y, h, v);
 }
 
@@ -1499,10 +1344,6 @@ void WebViewCore::setSizeScreenWidthAndScale(int width, int height,
     int textWrapWidth, float scale, int screenWidth, int screenHeight,
     int anchorX, int anchorY, bool ignoreHeight)
 {
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>> When Textarea is on focus and user rotates the screen repainting should happen
-	 m_mainFrame->document()->setCheckNode(0);
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
- 
     // Ignore the initial empty document.
     const WebCore::KURL& url = m_mainFrame->document()->url();
     if (url.isEmpty())
@@ -1514,9 +1355,6 @@ void WebViewCore::setSizeScreenWidthAndScale(int width, int height,
     int osw = m_screenWidth;
     int osh = m_screenHeight;
     int otw = m_textWrapWidth;
-    float oldScale = m_scale;
-    DBG_NAV_LOGD("old:(w=%d,h=%d,sw=%d,scale=%g) new:(w=%d,h=%d,sw=%d,scale=%g)",
-        ow, oh, osw, m_scale, width, height, screenWidth, scale);
     m_screenWidth = screenWidth;
     m_screenHeight = screenHeight;
     m_textWrapWidth = textWrapWidth;
@@ -1535,11 +1373,8 @@ void WebViewCore::setSizeScreenWidthAndScale(int width, int height,
 
     if (ow != width || (!ignoreHeight && oh != height) || reflow) {
         WebCore::RenderObject *r = m_mainFrame->contentRenderer();
-        DBG_NAV_LOGD("renderer=%p view=(w=%d,h=%d)", r,
-                screenWidth, screenHeight);
         if (r) {
             WebCore::IntPoint anchorPoint = WebCore::IntPoint(anchorX, anchorY);
-            DBG_NAV_LOGD("anchorX=%d anchorY=%d", anchorX, anchorY);
             RefPtr<WebCore::Node> node;
             WebCore::IntRect bounds;
             WebCore::IntPoint offset;
@@ -1551,19 +1386,28 @@ void WebViewCore::setSizeScreenWidthAndScale(int width, int height,
                         m_mainFrame->eventHandler()->hitTestResultAtPoint(
                                 anchorPoint, false);
                 node = hitTestResult.innerNode();
-				// SAMSUNG CHANGES >>
+                if (node && !node->isTextNode()) {
+                    // If the hitTestResultAtPoint didn't find a suitable node
+                    // for anchoring, try again with some slop.
+                    static const int HIT_SLOP = 30;
+                    anchorPoint.move(HIT_SLOP, HIT_SLOP);
+                    hitTestResult =
+                        m_mainFrame->eventHandler()->hitTestResultAtPoint(
+                                anchorPoint, false);
+                    node = hitTestResult.innerNode();
+                }
+				
+				// SAMSUNG CHANGES ++ :
 				// if node is fullscreen size node, it returns 0,0. so viewpoint goes to 0,0.
 				// eg. naver pc page, double tap blank space of top-right side and rotate > viewpoint goes to 0,0
 				if(node) {
 					bounds = node->getRect();
 					if ( bounds.width() == ow ) node = NULL ;
 				}
-				// SAMSUNG CHANGES <<
+				// SAMSUNG CHANGES --
             }
             if (node) {
                 bounds = node->getRect();
-                DBG_NAV_LOGD("ob:(x=%d,y=%d,w=%d,h=%d)",
-                    bounds.x(), bounds.y(), bounds.width(), bounds.height());
                 // sites like nytimes.com insert a non-standard tag <nyt_text>
                 // in the html. If it is the HitTestResult, it may have zero
                 // width and height. In this case, use its parent node.
@@ -1571,8 +1415,6 @@ void WebViewCore::setSizeScreenWidthAndScale(int width, int height,
                     node = node->parentOrHostNode();
                     if (node) {
                         bounds = node->getRect();
-                        DBG_NAV_LOGD("found a zero width node and use its parent, whose ob:(x=%d,y=%d,w=%d,h=%d)",
-                                bounds.x(), bounds.y(), bounds.width(), bounds.height());
                     }
                 }
             }
@@ -1587,17 +1429,12 @@ void WebViewCore::setSizeScreenWidthAndScale(int width, int height,
             } else
                 m_mainFrame->view()->setUseFixedLayout(false);
             r->setNeedsLayoutAndPrefWidthsRecalc();
-//SAMSUNG CHANGE -[MPSG100003482] - Display issue fix in amazon.com
-            //if (m_mainFrame->view()->didFirstLayout())
-//SAMSUNG CHANGE -[MPSG100003482] - Display issue fix in amazon.com
-            m_mainFrame->view()->forceLayout();
+            if (m_mainFrame->view()->didFirstLayout())
+                m_mainFrame->view()->forceLayout();
 
             // scroll to restore current screen center
             if (node) {
                 const WebCore::IntRect& newBounds = node->getRect();
-                DBG_NAV_LOGD("nb:(x=%d,y=%d,w=%d,"
-                    "h=%d)", newBounds.x(), newBounds.y(),
-                    newBounds.width(), newBounds.height());
                 if ((osw && osh && bounds.width() && bounds.height())
                     && (bounds != newBounds)) {
                     WebCore::FrameView* view = m_mainFrame->view();
@@ -1630,17 +1467,7 @@ void WebViewCore::setSizeScreenWidthAndScale(int width, int height,
             m_mainFrame->view()->setFixedLayoutSize(IntSize(width, height));
         } else
             m_mainFrame->view()->setUseFixedLayout(false);
-   		// SAMSUNG CHANEGS >>
-   		if( m_heightCanMeasure ) {    
-   			WebCore::RenderObject *r = m_mainFrame->contentRenderer();
-        	DBG_NAV_LOGD("renderer=%p view=(w=%d,h=%d)", r, screenWidth, screenHeight);
-        	if (r) { 
-        		r->setNeedsLayoutAndPrefWidthsRecalc();
-            	m_mainFrame->view()->forceLayout();
-            }
-        }
-        //SAMSUNG CHANGES <<
-        }
+    }
 
     // update the currently visible screen as perceived by the plugin
     sendPluginVisibleScreen();
@@ -1662,7 +1489,8 @@ void WebViewCore::dumpDomTree(bool useFile)
 void WebViewCore::dumpRenderTree(bool useFile)
 {
 #ifdef ANDROID_DOM_LOGGING
-    WTF::CString renderDump = WebCore::externalRepresentation(m_mainFrame).utf8();
+	WTF::CString renderDump = WebCore::externalRepresentation(m_mainFrame, WebCore::RenderAsTextShowAllLayers | 
+		WebCore::RenderAsTextShowCompositedLayers | WebCore::RenderAsTextShowIDAndClass | WebCore::RenderAsTextShowLayerNesting | WebCore::RenderAsTextShowAddresses).utf8();
     const char* data = renderDump.data();
     if (useFile) {
         gRenderTreeFile = fopen(RENDER_TREE_LOG_FILE, "w");
@@ -1684,13 +1512,6 @@ void WebViewCore::dumpRenderTree(bool useFile)
 #endif
 }
 
-void WebViewCore::dumpNavTree()
-{
-#if DUMP_NAV_CACHE
-    cacheBuilder().mDebug.print();
-#endif
-}
-
 HTMLElement* WebViewCore::retrieveElement(int x, int y,
     const QualifiedName& tagName)
 {
@@ -1699,12 +1520,12 @@ HTMLElement* WebViewCore::retrieveElement(int x, int y,
         DontHitTestScrollbars, HitTestRequest::Active | HitTestRequest::ReadOnly,
         IntSize(1, 1));
     if (!hitTestResult.innerNode() || !hitTestResult.innerNode()->inDocument()) {
-        LOGE("Should not happen: no in document Node found");
+        ALOGE("Should not happen: no in document Node found");
         return 0;
     }
     const ListHashSet<RefPtr<Node> >& list = hitTestResult.rectBasedTestResult();
     if (list.isEmpty()) {
-        LOGE("Should not happen: no rect-based-test nodes found");
+        ALOGE("Should not happen: no rect-based-test nodes found");
         return 0;
     }
     Node* node = hitTestResult.innerNode();
@@ -1713,9 +1534,6 @@ HTMLElement* WebViewCore::retrieveElement(int x, int y,
         || !element->hasTagName(tagName))) {
         element = element->parentNode();
     }
-    DBG_NAV_LOGD("node=%p element=%p x=%d y=%d nodeName=%s tagName=%s", node,
-        element, x, y, node->nodeName().utf8().data(),
-        element ? ((Element*) element)->tagName().utf8().data() : "<none>");
     return static_cast<WebCore::HTMLElement*>(element);
 }
 
@@ -1733,8 +1551,10 @@ HTMLImageElement* WebViewCore::retrieveImageElement(int x, int y)
 
 WTF::String WebViewCore::retrieveHref(int x, int y)
 {
-    WebCore::HTMLAnchorElement* anchor = retrieveAnchorElement(x, y);
-    return anchor ? anchor->href() : WTF::String();
+    // TODO: This is expensive, cache
+    HitTestResult result = m_mainFrame->eventHandler()->hitTestResultAtPoint(IntPoint(x, y),
+                false, false, DontHitTestScrollbars, HitTestRequest::Active | HitTestRequest::ReadOnly, IntSize(1, 1));
+    return result.absoluteLinkURL();
 }
 
 WTF::String WebViewCore::retrieveAnchorText(int x, int y)
@@ -1745,14 +1565,16 @@ WTF::String WebViewCore::retrieveAnchorText(int x, int y)
 
 WTF::String WebViewCore::retrieveImageSource(int x, int y)
 {
-    HTMLImageElement* image = retrieveImageElement(x, y);
-    return image ? image->src().string() : WTF::String();
+    // TODO: This is expensive, cache
+    HitTestResult result = m_mainFrame->eventHandler()->hitTestResultAtPoint(IntPoint(x, y),
+                false, false, DontHitTestScrollbars, HitTestRequest::Active | HitTestRequest::ReadOnly, IntSize(1, 1));
+    return result.absoluteImageURL();
 }
 
 WTF::String WebViewCore::requestLabel(WebCore::Frame* frame,
         WebCore::Node* node)
 {
-    if (node && CacheBuilder::validNode(m_mainFrame, frame, node)) {
+    if (node && validNode(m_mainFrame, frame, node)) {
         RefPtr<WebCore::NodeList> list = node->document()->getElementsByTagName("label");
         unsigned length = list->length();
         for (unsigned i = 0; i < length; i++) {
@@ -1762,7 +1584,7 @@ WTF::String WebViewCore::requestLabel(WebCore::Frame* frame,
                 Node* node = label;
                 String result;
                 while ((node = node->traverseNextNode(label))) {
-                    if (node->isTextNode() && node->renderer()) { //SISO_CHANGE, [MPSG100003942] [GA0100484981]
+                    if (node->isTextNode()) {
                         Text* textNode = static_cast<Text*>(node);
                         result += textNode->dataImpl();
                     }
@@ -1776,20 +1598,73 @@ WTF::String WebViewCore::requestLabel(WebCore::Frame* frame,
 
 static bool isContentEditable(const WebCore::Node* node)
 {
-    if (!node) return false;
-    return node->document()->frame()->selection()->isContentEditable();
+    if (!node)
+        return false;
+    return node->isContentEditable();
 }
 
 // Returns true if the node is a textfield, textarea, or contentEditable
 static bool isTextInput(const WebCore::Node* node)
 {
-    if (isContentEditable(node))
-        return true;
     if (!node)
         return false;
+    if (isContentEditable(node))
+        return true;
     WebCore::RenderObject* renderer = node->renderer();
     return renderer && (renderer->isTextField() || renderer->isTextArea());
 }
+
+//SAMSUNG CHANGE Form Navigation >>
+
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
+static bool isDateTime(WebCore::Node *node)
+{
+    if(node && node->hasTagName(HTMLNames::inputTag))
+    {
+        WebCore::Element* ele = static_cast<Element*>(node);
+	const AtomicString &typestr = ele->getAttribute(HTMLNames::typeAttr);		    
+	const WTF::String& typestring = typestr.string();
+	if((typestr == "date") || (typestr == "datetime") || (typestr == "datetime-local") || (typestr == "time"))
+            return true;	
+    }
+    return false;
+}
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+
+static bool isFormNavTextInput(WebCore::Node* node)
+{
+    if (!node)
+        return false;
+    if (node->hasTagName(HTMLNames::inputTag)) {
+        HTMLInputElement *inputElement = static_cast<HTMLInputElement*>(node);
+        if (inputElement->readOnly())
+            return false;
+    }
+    if (isContentEditable(node))
+        return true;
+
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
+    if(isDateTime(node))	
+        return false;
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+
+    WebCore::RenderObject* renderer = node->renderer();
+    return renderer && (renderer->isTextField() || renderer->isTextArea());
+}
+
+// Returns true if the node is a Select element
+static bool isSelectInput(const WebCore::Node* node)
+{
+    if (!node)
+        return false;
+    WebCore::RenderObject* renderer = node->renderer();
+    if (renderer && (renderer->isMenuList() || renderer->isListBox())) {
+        return true;
+    }
+    else
+        return false;
+}
+//SAMSUNG CHANGE Form Navigation <<
 
 void WebViewCore::revealSelection()
 {
@@ -1801,755 +1676,615 @@ void WebViewCore::revealSelection()
     WebCore::Frame* focusedFrame = focus->document()->frame();
     if (!focusedFrame->page()->focusController()->isActive())
         return;
-//SAMSUNG CHANGE >>
-// Original google code alligned to edge, but we have modified it to align to center
-//AJAY - Align to center is causing flickering effect while entering in multiline input box
-//Changing to align to edge
     focusedFrame->selection()->revealSelection(ScrollAlignment::alignToEdgeIfNeeded);
-//SAMSUNG CHANGE <<
-}
-
-void WebViewCore::updateCacheOnNodeChange()
-{
-    gCursorBoundsMutex.lock();
-    bool hasCursorBounds = m_hasCursorBounds;
-    Frame* frame = (Frame*) m_cursorFrame;
-    Node* node = (Node*) m_cursorNode;
-    IntRect bounds = m_cursorHitBounds;
-    gCursorBoundsMutex.unlock();
-    if (!hasCursorBounds || !node)
-        return;
-    if (CacheBuilder::validNode(m_mainFrame, frame, node)) {
-        RenderObject* renderer = node->renderer();
-        if (renderer && renderer->style()->visibility() != HIDDEN) {
-            IntRect absBox = renderer->absoluteBoundingBoxRect();
-            int globalX, globalY;
-            CacheBuilder::GetGlobalOffset(frame, &globalX, &globalY);
-            absBox.move(globalX, globalY);
-            if (absBox == bounds)
-                return;
-            DBG_NAV_LOGD("absBox=(%d,%d,%d,%d) bounds=(%d,%d,%d,%d)",
-                absBox.x(), absBox.y(), absBox.width(), absBox.height(),
-                bounds.x(), bounds.y(), bounds.width(), bounds.height());
-        }
-    }
-    DBG_NAV_LOGD("updateFrameCache node=%p", node);
-    updateFrameCache();
-}
-
-void WebViewCore::updateFrameCache()
-{
-    if (!m_frameCacheOutOfDate) {
-        DBG_NAV_LOG("!m_frameCacheOutOfDate");
-        return;
-    }
-
-    // If there is a pending style recalculation, do not update the frame cache.
-    // Until the recalculation is complete, there may be internal objects that
-    // are in an inconsistent state (such as font pointers).
-    // In any event, there's not much point to updating the cache while a style
-    // recalculation is pending, since it will simply have to be updated again
-    // once the recalculation is complete.
-    // TODO: Do we need to reschedule an update for after the style is recalculated?
-    if (m_mainFrame && m_mainFrame->document() && m_mainFrame->document()->isPendingStyleRecalc()) {
-        LOGW("updateFrameCache: pending style recalc, ignoring.");
-        return;
-    }
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreBuildNavTimeCounter);
-#endif
-    m_frameCacheOutOfDate = false;
-    m_temp = new CachedRoot();
-    m_temp->init(m_mainFrame, &m_history);
-#if USE(ACCELERATED_COMPOSITING)
-    GraphicsLayerAndroid* graphicsLayer = graphicsRootLayer();
-    if (graphicsLayer)
-        m_temp->setRootLayer(graphicsLayer->contentLayer());
-#endif
-    CacheBuilder& builder = cacheBuilder();
-    WebCore::Settings* settings = m_mainFrame->page()->settings();
-    builder.allowAllTextDetection();
-#ifdef ANDROID_META_SUPPORT
-    if (settings) {
-        if (!settings->formatDetectionAddress())
-            builder.disallowAddressDetection();
-        if (!settings->formatDetectionEmail())
-            builder.disallowEmailDetection();
-        if (!settings->formatDetectionTelephone())
-            builder.disallowPhoneDetection();
-    }
-#endif
-    builder.buildCache(m_temp);
-    m_tempPict = new SkPicture();
-    recordPicture(m_tempPict);
-    m_temp->setPicture(m_tempPict);
-    m_temp->setTextGeneration(m_textGeneration);
-    WebCoreViewBridge* window = m_mainFrame->view()->platformWidget();
-    m_temp->setVisibleRect(WebCore::IntRect(m_scrollOffsetX,
-        m_scrollOffsetY, window->width(), window->height()));
-    gFrameCacheMutex.lock();
-    delete m_frameCacheKit;
-    delete m_navPictureKit;
-    m_frameCacheKit = m_temp;
-    m_navPictureKit = m_tempPict;
-    m_updatedFrameCache = true;
-#if DEBUG_NAV_UI
-    const CachedNode* cachedFocusNode = m_frameCacheKit->currentFocus();
-    DBG_NAV_LOGD("cachedFocusNode=%d (nodePointer=%p)",
-        cachedFocusNode ? cachedFocusNode->index() : 0,
-        cachedFocusNode ? cachedFocusNode->nodePointer() : 0);
-#endif
-    gFrameCacheMutex.unlock();
-}
-
-void WebViewCore::updateFrameCacheIfLoading()
-{
-    if (!m_check_domtree_version)
-        updateFrameCache();
 }
 
 struct TouchNodeData {
-    Node* mNode;
+    Node* mUrlNode;
+    Node* mInnerNode;
     IntRect mBounds;
 };
 
-//SAMSUNG CHANGE >> LIGHT TOUCH
-/* HTMLArea needs speical handling for getting the bounds */
-static IntRect getAreaRect(const HTMLAreaElement* area)
-{
-    Node* node = area->document();
-    while ((node = node->traverseNextNode()) != NULL) {
-        RenderObject* renderer = node->renderer();
-        if (renderer && renderer->isRenderImage()) {
-            RenderImage* image = static_cast<RenderImage*>(renderer);
-            HTMLMapElement* map = image->imageMap();
-            if (map) {
-                Node* n;
-                for (n = map->firstChild(); n;
-                        n = n->traverseNextNode(map)) {
-                    if (n == area) {
-                        if (area->isDefault())
-                            return image->absoluteBoundingBoxRect();
-                        return area->computeRect(image);
-                    }
-                }
-            }
-        }
-    }
-    return IntRect();
-}
-
 // get the bounding box of the Node
 static IntRect getAbsoluteBoundingBox(Node* node) {
+ //MPSG100005781 start ++
     if(!node)
         return IntRect(0,0,0,0) ;
-    if(node->hasTagName(HTMLNames::areaTag)){
-        HTMLAreaElement* area = static_cast<HTMLAreaElement*>(node);
-        return getAreaRect(area) ;
-    }
-    RenderObject* render = node->renderer();
-    if(!render){
-        return IntRect(0,0,0,0) ;
-    }
-
+ //MPSG100005781 end --
     IntRect rect;
-    if (render->isRenderInline()){
+    RenderObject* render = node->renderer();
+    if (!render)
+        return rect;
+    if (render->isRenderInline())
         rect = toRenderInline(render)->linesVisualOverflowBoundingBox();
-    }else if (render->isBox()){
+    else if (render->isBox())
         rect = toRenderBox(render)->visualOverflowRect();
-    }
-    else if (render->isText()){
+    else if (render->isText())
         rect = toRenderText(render)->linesBoundingBox();
-    }
-    else{
-        LOGE("getAbsoluteBoundingBox failed for node %p, name %s", node, render->renderName());
-    }
-     FloatPoint  absPos = render->localToAbsolute(FloatPoint(),false,true);   //Fix for MPSG100004672
+    else
+        ALOGE("getAbsoluteBoundingBox failed for node %p, name %s", node, render->renderName());
+    FloatPoint absPos = render->localToAbsolute(FloatPoint(), false, true);
     rect.move(absPos.x(), absPos.y());
-    RenderBlock *rBlock = render->containingBlock() ;
-    if(rBlock){
-             IntRect clipRect ;
-             Node *tNode = ((RenderObject*)rBlock)->node() ;
-             clipRect =  rBlock->absoluteBoundingBoxRect(true);   //Fix for MPSG100004672
-             DBG_NAV_LOGD("clip rect(%d %d %d %d) Node name %s", \
-                clipRect.x(), clipRect.y(), clipRect.width(), clipRect.height(),\
-                tNode?tNode->nodeName().ascii().data():"NULL") ;
-			// MPSG100004839 - Check whether the rect is contained in the clipRect.
-            // In this case, the button which is inside a form and is relative positioned, has its bounds outside the form
-			DBG_NAV_LOGD("clipRect(%d %d %d %d)", clipRect.x(), clipRect.y(), clipRect.width(),clipRect.height());
-            if( clipRect.contains(rect)) {
-				rect.intersect(clipRect);
-				DBG_NAV_LOGD("rect (%d %d %d %d) clipped", rect.x(), rect.y(), rect.width(), rect.height());
-			} else { 
-				DBG_NAV_LOGD("rect (%d %d %d %d) not clipped", rect.x(), rect.y(), rect.width(), rect.height());
-			}	
-// SAMSUNG CHANGE MPSG 3590 >>> If the container block has the same rect after intersecting with the child rect
-// (in case of input element with background-position with negative values) focus ring is drawing
-// with the container node rect, made it reset to the child node bound rect
-	     IntRect absoluteBoundingRect = render->absoluteBoundingBoxRect(true);   //Fix for MPSG100004672
-             if(rect.contains(absoluteBoundingRect)) {
-                rect = absoluteBoundingRect;
-             }
-// SAMSUNG CHANGE MPSG 3590 <<<
-    }
     return rect;
 }
-static void  getFocusRingRects(WebCore::Node *node, Vector<IntRect> &ringRect, int offsetX, int offsetY, const WebCore::IntPoint &pt, bool &modClickPoint){
-    RenderObject *renderer = NULL ;
-    DBG_NAV_LOGD("Orig Pt(%d %d)", pt.x(), pt.y()) ;
-    if(node && (renderer = node->renderer())){
-        Vector<FloatQuad> quads ;
-        RenderBlock *rBlock = renderer->containingBlock() ;
-        IntRect clipRect ;
-        if(rBlock){
-             Node *tNode = ((RenderObject*)rBlock)->node() ;
-             clipRect =  rBlock->absoluteBoundingBoxRect();
-             DBG_NAV_LOGD("clip rect(%d %d %d %d) Node name %s", \
-                clipRect.x(), clipRect.y(), clipRect.width(), clipRect.height(),\
-                tNode?tNode->nodeName().ascii().data():"NULL") ;
-         }
-        node->renderer()->absoluteFocusRingQuads(quads) ;
-        for(unsigned int i = 0; i < quads.size() ; ++i ){
-            FloatQuad rect = quads[i];
-            IntRect tRect = rect.enclosingBoundingBox() ;
-            if(rBlock && !clipRect.isEmpty()){
-// SAMSUNG CHANGE >>> MPSG 3731, Avoiding the clipping when "nowrap" is applied for the WML <p> element, which is the parent of the anchor.
-                if (renderer->style() && renderer->style()->whiteSpace() != NOWRAP){
-                    tRect.intersect(clipRect) ;
-                }
-// SAMSUNG CHANGE <<< MPSG 3731, Avoiding the clipping when "nowrap" is applied for the WML <p> element, which is the parent of the anchor.
-                if(tRect.isEmpty()){
-                    DBG_NAV_LOG("Clipped out") ;
-                    continue ;
-                }
-            }
-            tRect.move(offsetX, offsetY);
-            DBG_NAV_LOGD("focus ring rects (%d %d %d %d)", tRect.x(), tRect.y(), tRect.width(), tRect.height()) ;
-            if(tRect.contains(pt) && (modClickPoint == true)){
-              DBG_NAV_LOG("Not modifying the click point") ;   
-		modClickPoint = false ;
-	    } 
-            ringRect.append(tRect) ;
-        }
-    }
-}
-static bool hasTrigger(WebCore::Node *node){
 
-         bool t1 = node->hasEventListeners(eventNames().clickEvent) ;
-         bool t2 = node->hasEventListeners(eventNames().mousedownEvent) ;
-         bool t3 = node->hasEventListeners(eventNames().mouseupEvent) ;
-         bool t4 = node->hasEventListeners(eventNames().keydownEvent) ;
-         bool t5 = node->hasEventListeners(eventNames().keyupEvent) ;
-         bool t6 = false ; //node->hasEventListeners(eventNames().mouseoverEvent) ;
-         bool t7 = false ; //node->hasEventListeners(eventNames().mouseoutEvent) ;
-
-         DBG_NAV_LOGD("t1(%d)t2(%d)t3(%d)t4(%d)t5(%d)t6(%d)t7(%d)", t1, t2, t3, t4, t5, t6, t7) ;
-         return t1||t2||t3||t4||t5||t6||t7 ;
-}
-
-static bool getBestRect(Vector<IntRect> &vectRect, IntRect &rect){
-        if(vectRect.size() == 0){
-          return false ;
-        }
-        rect = vectRect[0] ;
-        for(unsigned int i= 1; i < vectRect.size(); ++i){
-           if(rect.contains(vectRect[i])){
-              rect = vectRect[i] ;
-           }
-        }
-        return true ; 
-}
-/*
-    1. Update any of the Layers in the engine, before doing the hit test. If we are lucky with the direct hit test, use the
-    result. Else, go for the Rect based Hit test result.
-    2. For all the nodes other than the anchor, use the absolute bounds. For Anchor tags, get the bunch of rects that form the
-    focus ring rects
-    3. Update the Mouse Position for Mouse Events later on
-    */
-
-// get the highlight rectangles for the touch point (x, y) with the slop
-Vector<IntRect> WebViewCore::getTouchHighlightRects(int x, int y, int slop)
+WebCore::Frame* WebViewCore::focusedFrame() const
 {
-    Vector<IntRect> rects;
-    m_mousePosLT = IntPoint(x - m_scrollOffsetX, y - m_scrollOffsetY);
-    DBG_NAV_LOGD("The original X Y (%d %d) offset(%d %d)", x - m_scrollOffsetX, y - m_scrollOffsetY, m_scrollOffsetX, m_scrollOffsetY) ;
-    
-    m_focusRingDisabled = 0;    // Samsung change. draw the focus ring
+    return m_mainFrame->page()->focusController()->focusedOrMainFrame();
+}
 
-    HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(IntPoint(x, y),
-            false, false, DontHitTestScrollbars, HitTestRequest::ReadOnly | HitTestRequest::Active, IntSize(slop, slop));
-    Node *directHit  = hitTestResult.innerNode() ;
-    if(!directHit || !directHit->inDocument()){
-        DBG_NAV_LOG("Should not happen: no in document Node found");
-        return rects;
+VisiblePosition WebViewCore::visiblePositionForContentPoint(int x, int y)
+{
+    return visiblePositionForContentPoint(IntPoint(x, y));
+}
+
+VisiblePosition WebViewCore::visiblePositionForContentPoint(const IntPoint& point)
+{
+    // Hit test of this kind required for this to work inside input fields
+    HitTestRequest request(HitTestRequest::Active
+                           | HitTestRequest::MouseMove
+                           | HitTestRequest::ReadOnly
+                           | HitTestRequest::IgnoreClipping);
+    HitTestResult result(point);
+    focusedFrame()->document()->renderView()->layer()->hitTest(request, result);
+
+    // Matching the logic in MouseEventWithHitTestResults::targetNode()
+    Node* node = result.innerNode();
+    if (!node)
+        return VisiblePosition();
+    Element* element = node->parentElement();
+    if (!node->inDocument() && element && element->inDocument())
+        node = element;
+
+    return node->renderer()->positionForPoint(result.localPoint());
+}
+
+bool WebViewCore::selectWordAt(int x, int y)
+{
+    HitTestResult hoverResult;
+    moveMouse(x, y, &hoverResult);
+    if (hoverResult.innerNode()) {
+        Node* node = hoverResult.innerNode();
+        Frame* frame = node->document()->frame();
+        Page* page = m_mainFrame->document()->page();
+        page->focusController()->setFocusedFrame(frame);
     }
 
-    Frame* frame = m_mainFrame ;
-    if(directHit->document() && directHit->document()->frame()){
-        frame = directHit->document()->frame() ;
-    }
-    bool found = false;
-    TouchNodeData final ;
-    m_mousePosFrame = frame->view()->windowToContents(m_mousePosLT);
-    IntRect testRect(m_mousePosFrame.x() - slop, m_mousePosFrame.y() - slop, 2 * slop + 1, 2 * slop + 1);
+    IntPoint point = convertGlobalContentToFrameContent(IntPoint(x, y));
 
-    if(hitTestResult.URLElement() && hitTestResult.URLElement()->isLink()){
-        Node* node = directHit ;
-        while(node && !node->isLink()){
-            node = node->parentNode() ;
+    // Hit test of this kind required for this to work inside input fields
+    HitTestRequest request(HitTestRequest::Active);
+    HitTestResult result(point);
+
+    focusedFrame()->document()->renderView()->layer()->hitTest(request, result);
+
+    // Matching the logic in MouseEventWithHitTestResults::targetNode()
+    Node* node = result.innerNode();
+    if (!node)
+        return false;
+    Element* element = node->parentElement();
+    if (!node->inDocument() && element && element->inDocument())
+        node = element;
+
+    SelectionController* sc = focusedFrame()->selection();
+    // SAMSUNG: Text Selection >> 
+    sc->setSelection(VisibleSelection());
+    // SAMSUNG: Text Selection <<
+    bool wordSelected = false;
+    if (!sc->contains(point) && (node->isContentEditable() || node->isTextNode()) && !result.isLiveLink()
+            && node->dispatchEvent(Event::create(eventNames().selectstartEvent, true, true))) {
+        VisiblePosition pos(node->renderer()->positionForPoint(result.localPoint()));
+        wordSelected = selectWordAroundPosition(node->document()->frame(), pos);
+    }
+    return wordSelected;
+}
+
+bool WebViewCore::selectWordAroundPosition(Frame* frame, VisiblePosition pos)
+{
+    VisibleSelection selection(pos);
+    selection.expandUsingGranularity(WordGranularity);
+    SelectionController* selectionController = frame->selection();
+
+    bool wordSelected = false;
+    if (selectionController->shouldChangeSelection(selection)) {
+        bool allWhitespaces = true;
+        RefPtr<Range> firstRange = selection.firstRange();
+        String text = firstRange.get() ? firstRange->text() : "";
+        for (size_t i = 0; i < text.length(); ++i) {
+            if (!isSpaceOrNewline(text[i])) {
+                allWhitespaces = false;
+                break;
+            }
         }
-        if(node){
-            directHit = node ;
+        if (allWhitespaces) {
+            VisibleSelection emptySelection(pos);
+            selectionController->setSelection(emptySelection);
+        } else {
+            selectionController->setSelection(selection);
+            wordSelected = true;
         }
     }
-    if(!found){
-        const ListHashSet<RefPtr<Node> >& list = hitTestResult.rectBasedTestResult();
-        if (list.isEmpty()) {
-            DBG_NAV_LOG("Should not happen: no rect-based-test nodes found");
-            return rects;
-        }
-        frame = hitTestResult.innerNode()->document()->frame();
-        Vector<TouchNodeData> nodeDataList;
-        ListHashSet<RefPtr<Node> >::const_iterator last = list.end();
-        for (ListHashSet<RefPtr<Node> >::const_iterator it = list.begin(); it != last; ++it) {
-            // TODO: it seems reasonable to not search across the frame. Isn't it?
-            // if the node is not in the same frame as the innerNode, skip it
-            if (it->get()->document()->frame() != frame)
+    return wordSelected;
+}
+
+int WebViewCore::platformLayerIdFromNode(Node* node, LayerAndroid** outLayer)
+{
+    if (!node || !node->renderer())
+        return -1;
+    RenderLayer* renderLayer = node->renderer()->enclosingLayer();
+    while (renderLayer && !renderLayer->isComposited())
+        renderLayer = renderLayer->parent();
+    if (!renderLayer || !renderLayer->isComposited())
+        return -1;
+    GraphicsLayer* graphicsLayer = renderLayer->backing()->graphicsLayer();
+    if (!graphicsLayer)
+        return -1;
+    GraphicsLayerAndroid* agl = static_cast<GraphicsLayerAndroid*>(graphicsLayer);
+    LayerAndroid* layer = agl->foregroundLayer();
+    if (!layer)
+        layer = agl->contentLayer();
+    if (!layer)
+        return -1;
+    if (outLayer)
+        *outLayer = layer;
+    return layer->uniqueId();
+}
+
+void WebViewCore::layerToAbsoluteOffset(const LayerAndroid* layer, IntPoint& offset)
+{
+    while (layer) {
+        const SkPoint& pos = layer->getPosition();
+        offset.move(pos.fX, pos.fY);
+        const IntPoint& scroll = layer->getScrollOffset();
+        offset.move(-scroll.x(), -scroll.y());
+        layer = static_cast<LayerAndroid*>(layer->getParent());
+    }
+}
+
+void WebViewCore::setSelectionCaretInfo(SelectText* selectTextContainer,
+        const WebCore::Position& pos, const IntPoint& frameOffset,
+        SelectText::HandleId handleId, int caretRectOffset, EAffinity affinity)
+{
+    Node* node = pos.anchorNode();
+    LayerAndroid* layer = 0;
+    int layerId = platformLayerIdFromNode(node, &layer);
+    selectTextContainer->setCaretLayerId(handleId, layerId);
+    IntPoint offset = frameOffset;
+    layerToAbsoluteOffset(layer, offset);
+    RenderObject* r = node->renderer();
+    RenderText* renderText = toRenderText(r);
+    int caretOffset;
+    InlineBox* inlineBox;
+    pos.getInlineBoxAndOffset(affinity, inlineBox, caretOffset);
+    IntRect caretRect = renderText->localCaretRect(inlineBox, caretOffset);
+    FloatPoint absoluteOffset = renderText->localToAbsolute(caretRect.location());
+    caretRect.setX(absoluteOffset.x() - offset.x() + caretRectOffset);
+    caretRect.setY(absoluteOffset.y() - offset.y());
+    selectTextContainer->setCaretRect(handleId, caretRect);
+    selectTextContainer->setTextRect(handleId,
+            positionToTextRect(pos, affinity, offset));
+}
+
+bool WebViewCore::isLtr(const Position& position)
+{
+    InlineBox* inlineBox = 0;
+    int caretOffset = 0;
+    position.getInlineBoxAndOffset(DOWNSTREAM, inlineBox, caretOffset);
+    bool isLtr;
+    if (inlineBox)
+        isLtr = inlineBox->isLeftToRightDirection();
+    else
+        isLtr = position.primaryDirection() == LTR;
+    return isLtr;
+}
+
+SelectText* WebViewCore::createSelectText(const VisibleSelection& selection)
+{
+    bool isCaret = selection.isCaret();
+    if (selection.isNone() || (!selection.isContentEditable() && isCaret)
+            || !selection.start().anchorNode()
+            || !selection.start().anchorNode()->renderer()
+            || !selection.end().anchorNode()
+            || !selection.end().anchorNode()->renderer())
+        return 0;
+
+    RefPtr<Range> range = selection.firstRange();
+    Node* startContainer = range->startContainer();
+    Node* endContainer = range->endContainer();
+
+    if (!startContainer || !endContainer)
+        return 0;
+    if (!isCaret && startContainer == endContainer
+            && range->startOffset() == range->endOffset())
+        return 0;
+
+    IntPoint frameOffset = convertGlobalContentToFrameContent(IntPoint());
+    SelectText* selectTextContainer = new SelectText();
+    if (isCaret) {
+        setSelectionCaretInfo(selectTextContainer, selection.start(), frameOffset,
+                SelectText::LeftHandle, 0, selection.affinity());
+        setSelectionCaretInfo(selectTextContainer, selection.start(), frameOffset,
+                SelectText::RightHandle, 0, selection.affinity());
+    } else {
+        bool ltr = isLtr(selection.start());
+        Position left = ltr ? selection.start() : selection.end();
+        Position right = ltr ? selection.end() : selection.start();
+        int leftOffset = isLtr(left) ? 0 : -1;
+        int rightOffset = isLtr(right) ? 0 : -1;
+        setSelectionCaretInfo(selectTextContainer, left, frameOffset,
+                SelectText::LeftHandle, leftOffset, selection.affinity());
+        setSelectionCaretInfo(selectTextContainer, right, frameOffset,
+                SelectText::RightHandle, rightOffset, selection.affinity());
+
+        Node* stopNode = range->pastLastNode();
+        for (Node* node = range->firstNode(); node != stopNode; node = node->traverseNextNode()) {
+            RenderObject* r = node->renderer();
+            if (!r || !r->isText() || r->style()->visibility() != VISIBLE)
                 continue;
-            // traverse up the tree to find the first node that needs highlight
-            Node* eventNode = it->get();
-            while (eventNode) {
-                DBG_NAV_LOGD("Node %s", eventNode->nodeName().latin1().data()) ;
-                RenderObject* render = eventNode->renderer();
-                if(eventNode->disabled())
-                    break ;
-                if (render && (render->isBody() || render->isRenderView()))
-                    break;
-                if (eventNode->isFocusable() || hasTrigger(eventNode)) {
-                    DBG_NAV_LOGD("Node %s has event Listners", eventNode->nodeName().latin1().data()) ;
-                    found = true;
-                    break;
-                }else{
-                    DBG_NAV_LOG("has no Event Handlers") ;
-                }
-                // the nodes in the rectBasedTestResult() are ordered based on z-index during hit testing.
-                // so do not search for the eventNode across explicit z-index border.
-                // TODO: this is a hard one to call. z-index is quite complicated as its value only
-                // matters when you compare two RenderLayer in the same hierarchy level. e.g. in
-                // the following example, "b" is on the top as its z level is the highest. even "c"
-                // has 100 as z-index, it is still below "d" as its parent has the same z-index as
-                // "d" and logically before "d". Of course "a" is the lowest in the z level.
-                //
-                // z-index:auto "a"
-                //   z-index:2 "b"
-                //   z-index:1
-                //     z-index:100 "c"
-                //   z-index:1 "d"
-                //
-                // If the fat point touches everyone, the order in the list should be "b", "d", "c"
-                // and "a". When we search for the event node for "b", we really don't want "a" as
-                // in the z-order it is behind everything else.
-                if (!render->style()->hasAutoZIndex())
-                    break;
-                eventNode = eventNode->parentNode();
-            }
-            // didn't find any eventNode, skip it
-            if (!found){
-                DBG_NAV_LOG("Did Not find anything in the current Tree. Moving to the next node in the HitTest Result") ;
-                continue;
-            }
-            // first quick check whether it is a duplicated node before computing bounding box
-            Vector<TouchNodeData>::const_iterator nlast = nodeDataList.end();
-            DBG_NAV_LOGD("Node Data List %d", nodeDataList.size()) ;
-            for (Vector<TouchNodeData>::const_iterator n = nodeDataList.begin(); n != nlast; ++n) {
-                // found the same node, skip it
-                if (eventNode == n->mNode) {
-                    found = false;
-                    break;
-                }
-            }
-            if (!found)
-                continue;
-            // next check whether the node is fully covered by or fully covering another node.
-            found = false;
-            IntRect rect = getAbsoluteBoundingBox(eventNode);
-            if (rect.isEmpty()) {
-                // if the node's bounds is empty and it is not a ContainerNode, skip it.
-                if (!eventNode->isContainerNode())
-                    continue;
-                // if the node's children are all positioned objects, its bounds can be empty.
-                // Walk through the children to find the bounding box.
-                DBG_NAV_LOG("Node's children are all positioned") ;
-                Node* child = static_cast<const ContainerNode*>(eventNode)->firstChild();
-                while (child) {
-                    IntRect childrect;
-                    if (child->renderer())
-                        childrect = getAbsoluteBoundingBox(child);
-                    if (!childrect.isEmpty()) {
-                        rect.unite(childrect);
-                        child = child->traverseNextSibling(eventNode);
-                    } else
-                        child = child->traverseNextNode(eventNode);
-                }
-                DBG_NAV_LOGD("rect (%d %d %d %d)", rect.x(), rect.y(), rect.width(), rect.height()) ;
-            }
-            for (int i = nodeDataList.size() - 1; i >= 0; i--) {
-                TouchNodeData n = nodeDataList.at(i);
-                // the new node is enclosing an existing node, skip it
-                if (rect.contains(n.mBounds)) {
-                    found = true;
-                    break;
-                }
-                // the new node is fully inside an existing node, remove the existing node
-                if (n.mBounds.contains(rect))
-                    nodeDataList.remove(i);
-            }
-            if (!found) {
-                DBG_NAV_LOGD("Found a Node(%s) that  has to be added to the stack bounds (%d %d %d %d)",\
-                    eventNode->nodeName().latin1().data(), rect.x(), rect.y(), rect.width(), rect.height()) ;
-                TouchNodeData newNode;
-                newNode.mNode = eventNode;
-                newNode.mBounds = rect;
-                nodeDataList.append(newNode);
-            }
-        }
-        if (!nodeDataList.size()){
-            DBG_NAV_LOG("Hit Test Returned Empty") ;
-            if(!directHit || !(directHit->isFocusable() || hasTrigger(directHit))){
-                DBG_NAV_LOG("directHit has no trigger as well") ;
-            return rects;
-            }else{
-                DBG_NAV_LOG("directHit added to Empty Node List") ;
-                TouchNodeData data ;
-                data.mNode = directHit ;
-                data.mBounds = getAbsoluteBoundingBox(directHit) ;
-                nodeDataList.append(data) ;
-        }
-        }
-        // finally select the node with the largest overlap with the fat point
-        final.mNode = 0;
-        DBG_NAV_LOGD("Test Rect (%d %d %d %d)", testRect.x(), testRect.y(), testRect.width(), testRect.height()) ;
-        int area = 0;
-        Vector<TouchNodeData>::const_iterator nlast = nodeDataList.end();
-        for (Vector<TouchNodeData>::const_iterator n = nodeDataList.begin(); n != nlast; ++n) {
-            IntRect rect = n->mBounds;
-            rect.intersect(testRect);
-            int a = rect.width() * rect.height();
-            if (a > area) {
-                final = *n;
-                area = a;
-            }else{
-                // Give Preference to the child
-                if(n->mNode->isDescendantOf(final.mNode)){
-                    final = *n ;
-                    area = a ;
-                }
-            }
-        }
-    }
+//SAMSUNG - Google Text Selection >>
+		Node* shadowAncestor = r->node()->shadowAncestorNode();
 
-	
-    // now get the node's highlight rectangles in the page coordinate system
-    if (final.mNode) {
+		IntRect TextFieldBox=IntRect(0,0,0,0);
 
-    	if(directHit && directHit != final.mNode){
-    		if(directHit->isDescendantOf(final.mNode)){
-    			if(directHit->isFocusable() || hasTrigger(directHit)){
-    				final.mNode = directHit ;
-    				final.mBounds = getAbsoluteBoundingBox(directHit) ;
-    				DBG_NAV_LOG("Direct Hit replacing indirect Hit") ;
-    			}else{
-    				DBG_NAV_LOG("Direct Hit on a Descendant without any triggers") ;
-    				//return rects ;
-    			}
-    		}
-    	}
-
-    	IntPoint frameAdjust = IntPoint(0,0);
-    	if (frame != m_mainFrame) {
-    		frameAdjust = frame->view()->contentsToWindow(IntPoint());
-    		frameAdjust.move(m_scrollOffsetX, m_scrollOffsetY);
-    	}
-    	DBG_NAV_LOGD("Final Node name %s bounds(%d %d %d %d) ptr(%p) ", \
-    			final.mNode->nodeName().latin1().data(),\
-    			final.mBounds.x(), final.mBounds.y(), final.mBounds.width(), final.mBounds.height(),\
-    			final.mNode) ;
-    	DBG_NAV_LOGD("Final Node is a link: %d",final.mNode->isLink());
-    	if (final.mNode->isLink()) {
-    		//SAMSUNG CHANGE >> LIGHT TOUCH
-    		setNavType(1) ;
-    		//SAMSUNG CHANGE << LIGHT TOUCH
-    		const HTMLAnchorElement* anchorNode =
-    				(const HTMLAnchorElement*) (final.mNode);
-    		KURL href = anchorNode->href();
-    		String exported ;
-    		if (!href.isEmpty() && !WebCore::protocolIsJavaScript(href.string()))
-    			// Set the exported string for all non-javascript anchors.
-    			exported = href.string().threadsafeCopy();
-    		DBG_NAV_LOGD("Link %s", exported.latin1().data()) ;
-    		// most of the links are inline instead of box style. So the bounding box is not
-    		// a good representation for the highlights. Get the list of rectangles instead.
-    		bool changeClickPt = true ;
-    		getFocusRingRects(final.mNode, rects, frameAdjust.x(), \
-    				frameAdjust.y(), WebCore::IntPoint(x,y), changeClickPt) ;
-
-    		if (!rects.isEmpty()) {
-    			// if neither x nor y has overlap, just pick the top/left of the first rectangle
-    			int newx = x ;
-    			int newy = y ;
-    			DBG_NAV_LOGD("newx, new y -->1  (%d %d)", newx, newy) ;
-    			if(changeClickPt){
-    				IntRect tRect(0,0,0,0) ;
-    				if(getBestRect(rects, tRect)){
-    					if(!tRect.contains(IntPoint(newx, newy))){
-    						newx = tRect.x() ;
-    						newy = tRect.y() ;
-    					}
-    				}
-    			}
-    			DBG_NAV_LOGD("newx, new y -->2  (%d %d)", newx, newy) ;
-    			m_mousePosLT.setX(newx - m_scrollOffsetX);
-    			m_mousePosLT.setY(newy - m_scrollOffsetY);
-    			DBG_NAV_LOGD("Move x/y from (%d, %d) to (%d, %d) scrollOffset is (%d, %d) MousePos(%d %d)",
-    					x, y, m_mousePosLT.x() + m_scrollOffsetX, m_mousePosLT.y() + m_scrollOffsetY,
-    					m_scrollOffsetX, m_scrollOffsetY, m_mousePosFrame.x(), m_mousePosFrame.y());
-    			DBG_NAV_LOGD("1 rects size %d", rects.size()) ;
-    			for(unsigned int i = 0; i  < rects.size(); ++i){
-    				DBG_NAV_LOGD("rects(%d %d %d %d)", rects[i].x(), rects[i].y(), rects[i].width(),rects[i].height()) ;
-    			}
-    			DBG_NAV_LOGD("The New X Y (%d %d) offset(%d %d)", newx - m_scrollOffsetX, newy - m_scrollOffsetY, m_scrollOffsetX, m_scrollOffsetY) ;
-    			m_mousePosFrame = frame->view()->windowToContents(m_mousePosLT);
-    		}
-    	}else{
-    		if (final.mNode->hasTagName(HTMLNames::inputTag)) {
-    			DBG_NAV_LOG("is a inputTag ");
-    			HTMLInputElement *inputElement = static_cast<HTMLInputElement *>(final.mNode);
-    			if (!inputElement->isText() && !inputElement->isEmailField() && !inputElement->isFileUpload() &&
-    					!inputElement->isInputTypeHidden() && !inputElement->isPasswordField()) {
-    				setNavType(1) ;
-    			}
-    		}else if (!(final.mNode->hasTagName(HTMLNames::objectTag)
-                         || final.mNode->hasTagName(HTMLNames::selectTag)
-                         || final.mNode->hasTagName(HTMLNames::embedTag)
-                         || final.mNode->hasTagName(HTMLNames::textareaTag)
-#if ENABLE(WML)
-    				|| final.mNode->hasTagName(WMLNames::selectTag)
-#endif
-    		)) {
-                       DBG_NAV_LOG("need anchor behavior !! ");
-    			setNavType(1) ;
-    		}
-    		RenderObject *renderer ;
-    		if(final.mNode && (renderer = final.mNode->renderer())){
-    			RenderBlock *rBlock = renderer->containingBlock() ;
-    			if(rBlock){
-                    IntRect clipRect  =  rBlock->absoluteBoundingBoxRect();
-                    // MPSG100004839 - Check whether the rect is contained in the clipRect.
-                    // In this case, the button which is inside a form and is relative positioned and has its bounds outside the form
-                    DBG_NAV_LOGD("clipRect(%d %d %d %d)", clipRect.x(), clipRect.y(), clipRect.width(),clipRect.height());
-                    if(clipRect.contains(final.mBounds)){
-                        final.mBounds.intersect(clipRect);
-                        DBG_NAV_LOGD("final.mBounds(%d %d %d %d) clipped", final.mBounds.x(), final.mBounds.y(), final.mBounds.width(),final.mBounds.height());
-                    } else {
-                        DBG_NAV_LOGD("final.mBounds(%d %d %d %d) not clipped", final.mBounds.x(), final.mBounds.y(), final.mBounds.width(),final.mBounds.height());					
-                    }
-                }
-    		}
-
-    		IntRect rect = final.mBounds;
-    		rect.move(frameAdjust.x(), frameAdjust.y());
-    		rects.append(rect);
-    		// adjust m_mousePos if it is not inside the returned highlight rectangle
-    		testRect.move(frameAdjust.x(), frameAdjust.y());
-    		testRect.intersect(rect);
-    		if (!testRect.contains(x, y)) {
-    			m_mousePosLT = WebCore::IntPoint(testRect.x(), testRect.y()) ;
-    			m_mousePosLT.move(-m_scrollOffsetX, -m_scrollOffsetY);
-    			DBG_NAV_LOGD("Move x/y from (%d, %d) to (%d, %d) scrollOffset is (%d, %d) mousePos(%d %d)",
-    					x, y, m_mousePosLT.x() + m_scrollOffsetX, m_mousePosLT.y() + m_scrollOffsetY,
-    					m_scrollOffsetX, m_scrollOffsetY, m_mousePosFrame.x(), m_mousePosFrame.y());
-    			m_mousePosFrame = frame->view()->windowToContents(m_mousePosLT);
-    		}
-    	}
-    }
-
-	// Check if we should not draw focus ring
-	if(final.mNode && final.mNode->renderer()) {
-		RenderStyle* style = final.mNode->renderer()->style();
-		if(style) {
-#ifdef ANDROID_CSS_TAP_HIGHLIGHT_COLOR
-			DBG_NAV_LOGD("style->tapHighlightColor().alpha() %d", style->tapHighlightColor().alpha());
-#endif
+		if (shadowAncestor &&  shadowAncestor->renderer()->isTextArea())
+		{
+			TextFieldBox = shadowAncestor->renderer()->absoluteBoundingBoxRect();
 		}
 
-		if(final.mNode && !final.mNode->isFocusable()	// Do not draw the focus ring for non-focusable nodes
-#ifdef ANDROID_CSS_TAP_HIGHLIGHT_COLOR
-			||	(style && style->tapHighlightColor().alpha() == 0)	// Do not draw the focus ring if it is disabled in content
-#endif
-		) {
-			DBG_NAV_LOGD("No Focus ring for node name %s; clearing the rects", final.mNode->nodeName().latin1().data());
-			rects.clear();
-		}
-	}
+ //SAMSUNG - Google Text Selection <<
+            RenderText* renderText = toRenderText(r);
+            int startOffset = node == startContainer ? range->startOffset() : 0;
+            int endOffset = node == endContainer ? range->endOffset() : numeric_limits<int>::max();
+            LayerAndroid* layer = 0;
+            int layerId = platformLayerIdFromNode(node, &layer);
+            Vector<IntRect> rects;
+            renderText->absoluteRectsForRange(rects, startOffset, endOffset, true);
+//SAMSUNG - Google Text Selection >>
+	   if (!TextFieldBox.isEmpty())
+	   {
+	        for (size_t i = 0; i < rects.size(); i++) {
+			rects[i].intersect(TextFieldBox);
+	        }
 
-    DBG_NAV_LOGD("the New X Y (%d %d) offset(%d %d)",m_mousePosLT.x(),m_mousePosLT.y(),\
-        m_scrollOffsetX, m_scrollOffsetY) ;
-    DBG_NAV_LOGD("rects size %d", rects.size()) ;
-    return rects;
+	            selectTextContainer->addHighlightRegion(layer, rects, frameOffset);
+	   }
+	   else
+//SAMSUNG - Google Text Selection <<
+	   {
+	            selectTextContainer->addHighlightRegion(layer, rects, frameOffset);
+	   }
+        }
+    }
+    selectTextContainer->setText(range->text());
+    return selectTextContainer;
 }
 
-// Samsung Change
-// This method will set the touch highlight region in framework and also 
-// passes on additional information like whether focus ring should be drawn or not
-void WebViewCore::setTouchHighlightRects(jobject rects)
+IntRect WebViewCore::positionToTextRect(const Position& position,
+        EAffinity affinity, const WebCore::IntPoint& offset)
 {
-    JNIEnv* env = JSC::Bindings::getJNIEnv();
-    AutoJObject javaObject = m_javaGlue->object(env);
-    if (!javaObject.get())
+    IntRect textRect;
+    InlineBox* inlineBox;
+    int offsetIndex;
+    position.getInlineBoxAndOffset(affinity, inlineBox, offsetIndex);
+    if (inlineBox && inlineBox->isInlineTextBox()) {
+        InlineTextBox* box = static_cast<InlineTextBox*>(inlineBox);
+        RootInlineBox* root = box->root();
+        RenderText* renderText = box->textRenderer();
+        int left = root->logicalLeft();
+        int width = root->logicalWidth();
+        int top = root->selectionTop();
+        int height = root->selectionHeight();
+
+        if (!renderText->style()->isHorizontalWritingMode()) {
+            swap(left, top);
+            swap(width, height);
+        }
+        FloatPoint origin(left, top);
+        FloatPoint absoluteOrigin = renderText->localToAbsolute(origin);
+
+        textRect.setX(absoluteOrigin.x() - offset.x());
+        textRect.setWidth(width);
+        textRect.setY(absoluteOrigin.y() - offset.y());
+        textRect.setHeight(height);
+    }
+    return textRect;
+}
+
+IntPoint WebViewCore::convertGlobalContentToFrameContent(const IntPoint& point, WebCore::Frame* frame)
+{
+    if (!frame) frame = focusedFrame();
+    IntPoint frameOffset(-m_scrollOffsetX, -m_scrollOffsetY);
+    frameOffset = frame->view()->windowToContents(frameOffset);
+    return IntPoint(point.x() + frameOffset.x(), point.y() + frameOffset.y());
+}
+
+Position WebViewCore::trimSelectionPosition(const Position &start, const Position& stop)
+{
+    int direction = comparePositions(start, stop);
+    if (direction == 0)
+        return start;
+    bool forward = direction < 0;
+    EAffinity affinity = forward ? DOWNSTREAM : UPSTREAM;
+    bool move;
+    Position pos = start;
+    bool movedTooFar = false;
+    do {
+        move = true;
+        Node* node = pos.anchorNode();
+        if (node && node->isTextNode() && node->renderer()) {
+            RenderText *textRenderer = toRenderText(node->renderer());
+            move = !textRenderer->textLength();
+        }
+        if (move) {
+            Position nextPos = forward ? pos.next() : pos.previous();
+            movedTooFar = nextPos.isNull() || pos == nextPos
+                    || ((comparePositions(nextPos, stop) < 0) != forward);
+            pos = nextPos;
+        }
+    } while (move && !movedTooFar);
+    if (movedTooFar)
+        pos = stop;
+    return pos;
+}
+
+void WebViewCore::selectText(int startX, int startY, int endX, int endY)
+{
+    SelectionController* sc = focusedFrame()->selection();
+    IntPoint startPoint = convertGlobalContentToFrameContent(IntPoint(startX, startY));
+    VisiblePosition startPosition(visiblePositionForContentPoint(startPoint));
+    IntPoint endPoint = convertGlobalContentToFrameContent(IntPoint(endX, endY));
+    VisiblePosition endPosition(visiblePositionForContentPoint(endPoint));
+
+    if (startPosition.isNull() || endPosition.isNull())
         return;
 
-    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_setTouchHighlightRects, rects, m_focusRingDisabled);
+    // Ensure startPosition is before endPosition
+    if (comparePositions(startPosition, endPosition) > 0)
+        swap(startPosition, endPosition);
+
+    if (sc->isContentEditable()) {
+        startPosition = sc->selection().visibleStart().honorEditableBoundaryAtOrAfter(startPosition);
+        endPosition = sc->selection().visibleEnd().honorEditableBoundaryAtOrBefore(endPosition);
+        if (startPosition.isNull() || endPosition.isNull()) {
+            return;
+        }
+    }
+
+    // Ensure startPosition is not at end of block
+    if (startPosition != endPosition && isEndOfBlock(startPosition)) {
+        VisiblePosition nextStartPosition(startPosition.next());
+        if (!nextStartPosition.isNull())
+            startPosition = nextStartPosition;
+    }
+    // Ensure endPosition is not at start of block
+    if (startPosition != endPosition && isStartOfBlock(endPosition)) {
+        VisiblePosition prevEndPosition(endPosition.previous());
+        if (!prevEndPosition.isNull())
+            endPosition = prevEndPosition;
+    }
+
+    Position start = startPosition.deepEquivalent();
+    Position end = endPosition.deepEquivalent();
+    start = trimSelectionPosition(start, end);
+    end = trimSelectionPosition(end, start);
+    VisibleSelection selection(start, end);
+    // Only allow changes between caret positions or to text selection.
+    bool selectChangeAllowed = (!selection.isCaret() || sc->isCaret());
+    if (selectChangeAllowed && sc->shouldChangeSelection(selection))
+        sc->setSelection(selection);
 }
 
-static WebCore::IntRect toContainingView(const WebCore::RenderObject* renderer, const WebCore::IntRect& rendererRect)
+bool WebViewCore::nodeIsClickableOrFocusable(Node* node)
 {
-    WebCore::IntRect result = rendererRect;
-    WebCore::RenderView *view = renderer->view() ;
-    LOGD("toContainingView: rendererRect(%d, %d, %d, %d)", result.x(), result.y(), result.width(), result.height());
-
-    if (view && view->frameView() ) {
-        WebCore::FrameView * frameView = view->frameView() ;
-        if (const WebCore::ScrollView* parentScrollView = frameView->parent()) {
-            if (parentScrollView->isFrameView()) {
-
-                const FrameView* parentView = static_cast<const WebCore::FrameView*>(parentScrollView);
-
-                // Get our renderer in the parent view
-                WebCore::RenderPart* renderer = frameView->frame()->ownerRenderer();
-                if (renderer) {
-                    WebCore::IntPoint point(rendererRect.location());
-
-                    // Add borders and padding
-                    point.move(renderer->borderLeft() + renderer->paddingLeft(),
-                        renderer->borderTop() + renderer->paddingTop());
-                    WebCore::IntPoint pt = WebCore::roundedIntPoint(renderer->localToAbsolute(point, false, true /* use transforms */));
-                    result.setLocation(pt);
-                }
-
-                //Let us verify the calculated location
-                WebCore::IntPoint test(rendererRect.location());
-                LOGD("toContainingView: test(%d, %d)", test.x(), test.y());
-                ScrollView* view = frameView;
-                //while (view) {
-                    LOGD("toContainingView: frame position(%d, %d)", view->x(), view->y());
-                    //test.move(view->x(), view->y());
-                    //test = _convertToContainingWindow(frameView, test) ;
-                    test = view->convertToContainingWindow(test);
-                    //view = view->parent();
-                //}
-                IntPoint scroll ;
-                while (view) {
-                    scroll.move(view->scrollX(), view->scrollY());
-                    view = view->parent();
-                }
-                test.move(scroll.x(), scroll.y()) ;
-
-                if (test.x() > result.x() || test.y() > result.y()) {
-                    LOGD("toContainingView: Inconsistant result(%d, %d, %d, %d), recalculating using frame positions...", result.x(), result.y(), result.width(), result.height());
-                    result.setLocation(test);
-                }
-            }
-            else {
-                result = frameView->Widget::convertToContainingView(result);
-            }
-        }
-    }
-
-    LOGD("toContainingView: result(%d, %d, %d, %d)", result.x(), result.y(), result.width(), result.height());
-    return result ;
+    if (!node)
+        return false;
+    if (node->disabled())
+        return false;
+    if (!node->inDocument())
+        return false;
+    if (!node->renderer() || node->renderer()->style()->visibility() != VISIBLE)
+        return false;
+    return node->supportsFocus()
+            || node->hasEventListeners(eventNames().clickEvent)
+            || node->hasEventListeners(eventNames().mousedownEvent)
+            || node->hasEventListeners(eventNames().mouseupEvent)
+            || node->hasEventListeners(eventNames().mouseoverEvent);
 }
 
-WebCore::IntRect WebViewCore::getBlockBounds(WebCore::Node* node)
+// get the highlight rectangles for the touch point (x, y) with the slop
+AndroidHitTestResult WebViewCore::hitTestAtPoint(int x, int y, int slop, bool doMoveMouse)
 {
-    WebCore::IntRect result;
-    if (!node) {
-        DBG_NAV_LOG("getRenderBlockBounds : HitTest Result Node is NULL!");
-        return result;
+    if (doMoveMouse)
+        moveMouse(x, y, 0, true);
+    HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(IntPoint(x, y),
+            false, false, DontHitTestScrollbars, HitTestRequest::Active | HitTestRequest::ReadOnly, IntSize(slop, slop));
+    AndroidHitTestResult androidHitResult(this, hitTestResult);
+    if (!hitTestResult.innerNode() || !hitTestResult.innerNode()->inDocument()) {
+        ALOGE("Should not happen: no in document Node found");
+        return androidHitResult;
     }
-    WTF::String nodeName = node->nodeName() ;
-    WTF::CString nodeNameLatin1 = nodeName.latin1() ;
-    DBG_NAV_LOGD("getRenderBlockBounds: node name = %s", nodeNameLatin1.data());
-
-
-    WebCore::RenderObject *renderer = NULL ;
-    WebCore::RenderObject* nodeRenderer = node->renderer();
-    if (nodeRenderer != NULL) {
-        DBG_NAV_LOGD("getRenderBlockBounds: nodeRenderer = %s", nodeRenderer->renderName());
-
-        if (nodeRenderer->isRenderPart()){
-            renderer = nodeRenderer ;
+    const ListHashSet<RefPtr<Node> >& list = hitTestResult.rectBasedTestResult();
+    if (list.isEmpty()) {
+        ALOGE("Should not happen: no rect-based-test nodes found");
+        return androidHitResult;
+    }
+    androidHitResult.setDoubleTapNode(hitTestResult.innerNode());            //SAMSUNG_CHANGES - MPSG100006065 
+    Frame* frame = hitTestResult.innerNode()->document()->frame();
+    Vector<TouchNodeData> nodeDataList;
+    if (hitTestResult.innerNode() != hitTestResult.innerNonSharedNode()
+            && hitTestResult.innerNode()->hasTagName(WebCore::HTMLNames::areaTag)) {
+        HTMLAreaElement* area = static_cast<HTMLAreaElement*>(hitTestResult.innerNode());
+        androidHitResult.hitTestResult().setURLElement(area);
+        androidHitResult.highlightRects().append(area->computeRect(
+                hitTestResult.innerNonSharedNode()->renderer()));
+        return androidHitResult;
+    }
+    ListHashSet<RefPtr<Node> >::const_iterator last = list.end();
+    for (ListHashSet<RefPtr<Node> >::const_iterator it = list.begin(); it != last; ++it) {
+        // TODO: it seems reasonable to not search across the frame. Isn't it?
+        // if the node is not in the same frame as the innerNode, skip it
+        if (it->get()->document()->frame() != frame)
+            continue;
+        // traverse up the tree to find the first node that needs highlight
+        bool found = false;
+        Node* eventNode = it->get();
+        Node* innerNode = eventNode;
+        while (eventNode) {
+            RenderObject* render = eventNode->renderer();
+            if (render && (render->isBody() || render->isRenderView()))
+                break;
+            if (nodeIsClickableOrFocusable(eventNode)) {
+                found = true;
+                break;
+            }
+            // the nodes in the rectBasedTestResult() are ordered based on z-index during hit testing.
+            // so do not search for the eventNode across explicit z-index border.
+            // TODO: this is a hard one to call. z-index is quite complicated as its value only
+            // matters when you compare two RenderLayer in the same hierarchy level. e.g. in
+            // the following example, "b" is on the top as its z level is the highest. even "c"
+            // has 100 as z-index, it is still below "d" as its parent has the same z-index as
+            // "d" and logically before "d". Of course "a" is the lowest in the z level.
+            //
+            // z-index:auto "a"
+            //   z-index:2 "b"
+            //   z-index:1
+            //     z-index:100 "c"
+            //   z-index:1 "d"
+            //
+            // If the fat point touches everyone, the order in the list should be "b", "d", "c"
+            // and "a". When we search for the event node for "b", we really don't want "a" as
+            // in the z-order it is behind everything else.
+            if (render && !render->style()->hasAutoZIndex())
+                break;
+            eventNode = eventNode->parentNode();
         }
-        else if (!nodeRenderer->isRenderBlock() && !nodeRenderer->isRenderImage()) {
-            WebCore::RenderBlock *block = nodeRenderer->containingBlock() ;
-            if (block) {
-                renderer = block ;
+        // didn't find any eventNode, skip it
+        if (!found)
+            continue;
+        // first quick check whether it is a duplicated node before computing bounding box
+        Vector<TouchNodeData>::const_iterator nlast = nodeDataList.end();
+        for (Vector<TouchNodeData>::const_iterator n = nodeDataList.begin(); n != nlast; ++n) {
+            // found the same node, skip it
+            if (eventNode == n->mUrlNode) {
+                found = false;
+                break;
             }
         }
-        else {
-            renderer = nodeRenderer ;
+        if (!found)
+            continue;
+        // next check whether the node is fully covered by or fully covering another node.
+        found = false;
+        IntRect rect = getAbsoluteBoundingBox(eventNode);
+        if (rect.isEmpty()) {
+            // if the node's bounds is empty and it is not a ContainerNode, skip it.
+            if (!eventNode->isContainerNode())
+                continue;
+            // if the node's children are all positioned objects, its bounds can be empty.
+            // Walk through the children to find the bounding box.
+            Node* child = static_cast<const ContainerNode*>(eventNode)->firstChild();
+            while (child) {
+                IntRect childrect;
+                if (child->renderer())
+                    childrect = getAbsoluteBoundingBox(child);
+                if (!childrect.isEmpty()) {
+                    rect.unite(childrect);
+                    child = child->traverseNextSibling(eventNode);
+                } else
+                    child = child->traverseNextNode(eventNode);
+            }
+        }
+        for (int i = nodeDataList.size() - 1; i >= 0; i--) {
+            TouchNodeData n = nodeDataList.at(i);
+            // the new node is enclosing an existing node, skip it
+            if (rect.contains(n.mBounds)) {
+                found = true;
+                break;
+            }
+            // the new node is fully inside an existing node, remove the existing node
+            if (n.mBounds.contains(rect))
+                nodeDataList.remove(i);
+        }
+        if (!found) {
+            TouchNodeData newNode;
+            newNode.mUrlNode = eventNode;
+            newNode.mBounds = rect;
+            newNode.mInnerNode = innerNode;
+            nodeDataList.append(newNode);
         }
     }
-    else if (node->hasTagName(HTMLNames::areaTag) ){
-        HTMLAreaElement *area = static_cast<HTMLAreaElement*>(node) ;
+    if (!nodeDataList.size()) {
+        androidHitResult.searchContentDetectors();
+        return androidHitResult;
+    }
+    // finally select the node with the largest overlap with the fat point
+    TouchNodeData final;
+    final.mUrlNode = 0;
+    IntPoint docPos = frame->view()->windowToContents(m_mousePos);
+    IntRect testRect(docPos.x() - slop, docPos.y() - slop, 2 * slop + 1, 2 * slop + 1);
+    int area = 0;
+    Vector<TouchNodeData>::const_iterator nlast = nodeDataList.end();
+    for (Vector<TouchNodeData>::const_iterator n = nodeDataList.begin(); n != nlast; ++n) {
+        IntRect rect = n->mBounds;
+        rect.intersect(testRect);
+        int a = rect.width() * rect.height();
+        if (a > area || !final.mUrlNode) {
+            final = *n;
+            area = a;
+        }
+    }
+    // SAMSUNG CHANGE MPSG100006305 >>
+    if (final.mUrlNode && final.mUrlNode->isContainerNode() && !final.mUrlNode->isLink()) {
+        WebCore::Node *child = static_cast<const ContainerNode*>(final.mUrlNode)->firstChild();
 
-        if (area->shape() == HTMLAreaElement::Rect
-            && node->parentNode()
-            && node->parentNode()->hasTagName(HTMLNames::mapTag)) {
-
-            Node *map = node->parentNode() ;
-            if ( map->parentNode()) {
-                WebCore::RenderObject *r = map->parentNode()->renderer() ;
-                if (r->isRenderBlock()) {
-                    IntRect parentRect = r->absoluteBoundingBoxRect() ;
-                    result = area->rect() ;
-                    result.move(parentRect.x(), parentRect.y()) ;
-
-                    if (r->view() && r->view()->frameView())
-                        result = toContainingView(r, result) ;
+        while(child) {
+              ALOGV("Child  %s ",child->nodeName().latin1().data());
+              if( nodeIsClickableOrFocusable(child) ) {
+                 ALOGV("Dont draw focus ring since children are focusable or have trigger ie %s ",child->nodeName().latin1().data());
+                 androidHitResult.dontDrawTapHighlight();
+                 break;
+              }
+              child = child->traverseNextNode(final.mUrlNode);
+        }
+    }
+    // SAMSUNG CHANGE MPSG100006305 <<
+    // now get the node's highlight rectangles in the page coordinate system
+    if (final.mUrlNode) {
+        // Update innerNode and innerNonSharedNode
+        androidHitResult.hitTestResult().setInnerNode(final.mInnerNode);
+        androidHitResult.hitTestResult().setInnerNonSharedNode(final.mInnerNode);
+        if (final.mUrlNode->isElementNode()) {
+            // We found a URL element. Update the hitTestResult
+            androidHitResult.setURLElement(static_cast<Element*>(final.mUrlNode));
+        } else {
+            androidHitResult.setURLElement(0);
+        }
+        Vector<IntRect>& highlightRects = androidHitResult.highlightRects();
+        if (doMoveMouse && highlightRects.size() > 0) {
+            // adjust m_mousePos if it is not inside the returned highlight
+            // rectangles
+            IntRect foundIntersection;
+            IntRect inputRect = IntRect(x - slop, y - slop,
+                                        slop * 2 + 1, slop * 2 + 1);
+            for (size_t i = 0; i < highlightRects.size(); i++) {
+                IntRect& hr = highlightRects[i];
+                IntRect test = inputRect;
+                test.intersect(hr);
+                if (!test.isEmpty()) {
+                    foundIntersection = test;
+                    break;
                 }
             }
+            if (!foundIntersection.isEmpty() && !foundIntersection.contains(x, y)) {
+                IntPoint pt = foundIntersection.center();
+                moveMouse(pt.x(), pt.y(), 0, true);
+            }
         }
+    } else {
+        androidHitResult.searchContentDetectors();
     }
-
-    if (renderer) {
-        result = renderer->absoluteBoundingBoxRect() ;
-        result = toContainingView(renderer, result) ;
-    }
-
-    if ( renderer == NULL)
-        DBG_NAV_LOG("getRenderBlockBounds: No render block found!");
-    else
-        DBG_NAV_LOGD("getRenderBlockBounds: node=%p result(%d, %d, %d, %d)", node, result.x(), result.y(), result.width(), result.height());
-
-    return result;
-
+    return androidHitResult;
 }
 
-WebCore::IntRect WebViewCore::getBlockBounds(const WebCore::IntPoint &pt)
-{
-    WebCore::IntRect result;
-    LOGD("getRenderBlockBounds: point=(%d, %d)", pt.x(), pt.y() );
-
-    WebCore::HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(pt, false, true);
-
-    WebCore::Node* node = hitTestResult.innerNode();
-    if (!node) {
-        DBG_NAV_LOG("getRenderBlockBounds : HitTest Result Node is NULL!");
-        return result;
-    }else{
-        return getBlockBounds(node);
-    }
-}
 ///////////////////////////////////////////////////////////////////////////////
 
 void WebViewCore::addPlugin(PluginWidgetAndroid* w)
@@ -2718,87 +2453,38 @@ static PluginView* nodeIsPlugin(Node* node) {
     return 0;
 }
 
-Node* WebViewCore::cursorNodeIsPlugin() {
-    gCursorBoundsMutex.lock();
-    bool hasCursorBounds = m_hasCursorBounds;
-    Frame* frame = (Frame*) m_cursorFrame;
-    Node* node = (Node*) m_cursorNode;
-    gCursorBoundsMutex.unlock();
-    if (hasCursorBounds && CacheBuilder::validNode(m_mainFrame, frame, node)
-            && nodeIsPlugin(node)) {
-        return node;
-    }
-    return 0;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
-void WebViewCore::moveMouseIfLatest(int moveGeneration,
-    WebCore::Frame* frame, int x, int y)
-{
-    DBG_NAV_LOGD("m_moveGeneration=%d moveGeneration=%d"
-        " frame=%p x=%d y=%d",
-        m_moveGeneration, moveGeneration, frame, x, y);
-    if (m_moveGeneration > moveGeneration) {
-        DBG_NAV_LOGD("m_moveGeneration=%d > moveGeneration=%d",
-            m_moveGeneration, moveGeneration);
-        return; // short-circuit if a newer move has already been generated
-    }
-    m_lastGeneration = moveGeneration;
-    moveMouse(frame, x, y);
-}
-
-void WebViewCore::moveFocus(WebCore::Frame* frame, WebCore::Node* node)
-{
-    DBG_NAV_LOGD("frame=%p node=%p", frame, node);
-    if (!node || !CacheBuilder::validNode(m_mainFrame, frame, node)
-            || !node->isElementNode())
-        return;
-    // Code borrowed from FocusController::advanceFocus
-    WebCore::FocusController* focusController
-            = m_mainFrame->page()->focusController();
-    WebCore::Document* oldDoc
-            = focusController->focusedOrMainFrame()->document();
-    if (oldDoc->focusedNode() == node)
-        return;
-    if (node->document() != oldDoc)
-        oldDoc->setFocusedNode(0);
-    focusController->setFocusedFrame(frame);
-    static_cast<WebCore::Element*>(node)->focus(false);
-}
 
 // Update mouse position
-void WebViewCore::moveMouse(WebCore::Frame* frame, int x, int y)
+void WebViewCore::moveMouse(int x, int y, HitTestResult* hoveredNode, bool isClickCandidate)
 {
-    DBG_NAV_LOGD("frame=%p x=%d y=%d scrollOffset=(%d,%d)", frame,
-        x, y, m_scrollOffsetX, m_scrollOffsetY);
-    if (!frame || !CacheBuilder::validNode(m_mainFrame, frame, 0))
-        frame = m_mainFrame;
     // mouse event expects the position in the window coordinate
     m_mousePos = WebCore::IntPoint(x - m_scrollOffsetX, y - m_scrollOffsetY);
+    if (isClickCandidate)
+        m_mouseClickPos = m_mousePos;
     // validNode will still return true if the node is null, as long as we have
     // a valid frame.  Do not want to make a call on frame unless it is valid.
     WebCore::PlatformMouseEvent mouseEvent(m_mousePos, m_mousePos,
         WebCore::NoButton, WebCore::MouseEventMoved, 1, false, false, false,
         false, WTF::currentTime());
-    frame->eventHandler()->handleMouseMoveEvent(mouseEvent);
-    updateCacheOnNodeChange();
+    m_mainFrame->eventHandler()->handleMouseMoveEvent(mouseEvent, hoveredNode);
 }
 
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION >>
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 WTF::String WebViewCore::getSelectedText()
 {
-    DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
-    WebCore::Frame* frame = m_mainFrame;
+ // WebCore::Frame* frame = m_mainFrame;
+ 	WebCore::Frame* frame = focusedFrame();
     WTF::String str = frame->editor()->selectedText();
-    DEBUG_NAV_UI_LOGD("%s: End", __FUNCTION__);
     return str;
 }
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION <<
-//SISO_HTMLCOMPOSER begin
+//SAMSUNG ADVANCED TEXT SELECTION - END
+//SISO_HTMLCOMPOSER start
 void WebViewCore::insertContent(WTF::String content,int newcursorpostion, bool composing, Vector<CompositionUnderline> undVec,
                                 int& startOffset,int& endOffset)
 {
-    LOGD("insertContent enter %d",composing);
+    ALOGV("insertContent enter %d",composing);
 
     SelectionController* selectionContrler = m_mainFrame->selection();
     if(selectionContrler != NULL && !(selectionContrler->isNone()))
@@ -2807,9 +2493,9 @@ void WebViewCore::insertContent(WTF::String content,int newcursorpostion, bool c
         if(composing == true)
         {
             m_mainFrame->editor()->setUnderLineUpdateFlag(true);
-            LOGD(" undVec %d len " ,  undVec.size());
+            ALOGV(" undVec %d len " ,  undVec.size());
             undelineVec = undVec;
-            LOGD(" undelineVec %d len " ,  undelineVec.size());
+            ALOGV(" undelineVec %d len " ,  undelineVec.size());
             m_mainFrame->editor()->setComposition(content, undelineVec , content.length(), content.length());
             startOffset =0;
             endOffset = content.length();
@@ -2853,14 +2539,14 @@ Position WebViewCore::getPreviousPosition(Position& pos , int prevNum)
     if(positionNode)
         renderer= positionNode->renderer();
     else
-        LOGD("getPreviousPosition position node is null");
-    
+        ALOGV("getPreviousPosition position node is null");
+
     if (renderer && renderer->isImage()) {
-        LOGD("getPreviousPosition the node before cursor is an image so returning");
+        ALOGV("getPreviousPosition the node before cursor is an image so returning");
         return pos;
     }
     else{
-        LOGD("getPreviousPosition the node before cursor is not an image");
+        ALOGV("getPreviousPosition the node before cursor is not an image");
     
     }
 
@@ -2868,11 +2554,11 @@ Position WebViewCore::getPreviousPosition(Position& pos , int prevNum)
         return pos;
 
     if(pos.anchorNode()->renderer() && pos.anchorNode()->renderer()->isBR())
-     LOGD(" &&&&&&&&&&&&&&&&&&&&&& node()->renderer()->isBR() pos %s %d " , pos.anchorNode()->nodeName().utf8().data() , pos.deprecatedEditingOffset());
+     ALOGV(" &&&&&&&&&&&&&&&&&&&&&& node()->renderer()->isBR() pos %s %d " , pos.anchorNode()->nodeName().utf8().data() , pos.deprecatedEditingOffset());
 
     if(!pos.anchorNode()->offsetInCharacters() )
     {
-        LOGD("!pos.anchorNode()->offsetInCharacters() getPreviousPosition");
+        ALOGV("!pos.anchorNode()->offsetInCharacters() getPreviousPosition");
         pos = pos.previous();
         return getPreviousPosition(pos , prevNum);
     }
@@ -2881,6 +2567,21 @@ Position WebViewCore::getPreviousPosition(Position& pos , int prevNum)
     while(cnt < prevNum)
     {
         retVal = retVal.previous();
+
+        positionNode = retVal.anchorNode();
+
+        if( positionNode )
+            renderer = positionNode->renderer();
+        else
+            __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "getPreviousPosition position node is null");
+
+        if( renderer && renderer->isImage() ) {
+            __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "getPreviousPosition the node before cursor is an image so returning");
+            return retVal.next();     
+        } else {
+            __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "getPreviousPosition the node before cursor is not an image");
+        }
+
         if(retVal.anchorNode()->offsetInCharacters() )
         {
             cnt++;
@@ -2897,19 +2598,21 @@ Position WebViewCore::getPreviousPosition(Position& pos , int prevNum)
 
 Position WebViewCore::getNextPosition(Position& pos ,int nextNum)
 {
+    int cnt = 0;
+
     Node* positionNode = pos.anchorNode(); 
     RenderObject* renderer = 0;
     if(positionNode)
         renderer= positionNode->renderer();
     else
-        LOGD("getPreviousPosition position node is null");
+        ALOGV("getPreviousPosition position node is null");
 
     if (renderer && renderer->isImage()) {
-        LOGD("getPreviousPosition the node before cursor is an image so returning");
+        ALOGV("getPreviousPosition the node before cursor is an image so returning");
         return pos;
     }
     else{
-        LOGD("getPreviousPosition the node before cursor is not an image");
+        ALOGV("getPreviousPosition the node before cursor is not an image");
     }
 
     if(pos.atEndOfTree())
@@ -2917,20 +2620,51 @@ Position WebViewCore::getNextPosition(Position& pos ,int nextNum)
 
     if(!pos.anchorNode()->offsetInCharacters()  )
     {
-        LOGD("!pos.anchorNode()->offsetInCharacters() getNextPosition");
+        if( pos.anchorNode()->renderer() && !pos.anchorNode()->renderer()->isBR() ) {
+            __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "!pos.anchorNode()->offsetInCharacters() BR is checked. So text count ++");
+            cnt++;
+        }
+
+        __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "!pos.anchorNode()->offsetInCharacters() getNextPosition");
+
+        if( cnt < nextNum ) {
         pos = pos.next();
-        return getNextPosition(pos , nextNum);
+
+            return getNextPosition(pos , nextNum-cnt);
+        } else {
+            return pos;
+        }
     }
 
     Position retVal = pos;
-    int cnt = 0;
+
     while(cnt < nextNum)
     {
         retVal = retVal.next();
+
+        positionNode = retVal.anchorNode();
+
+        if(positionNode)
+            renderer= positionNode->renderer();
+        else
+            __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "getNextPosition position node is null");
+
+        if (renderer && renderer->isImage()) {
+            __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "getNextPosition the node before cursor is an image so returning");
+
+            while ( !retVal.anchorNode()->offsetInCharacters() ) {
+                retVal = retVal.previous();
+            }
+            return retVal;
+        }
+        else{
+            __android_log_print(ANDROID_LOG_DEBUG,"webcoreglue", "getNextPosition the node before cursor is not an image");
+        }
+
         if(retVal.anchorNode()->offsetInCharacters()  )
         {
             cnt++;
-            if(cnt != nextNum && retVal.deprecatedEditingOffset() == 0)
+            if(retVal.deprecatedEditingOffset() == 0)
             {
                 cnt--;
             }
@@ -2944,10 +2678,10 @@ Position WebViewCore::getNextPosition(Position& pos ,int nextNum)
 
 void WebViewCore::simulateDelKeyForCount(int count)
 {
-    LOGD("simulateDelKeyForCount enter");
+    ALOGV("simulateDelKeyForCount enter");
 
     if( m_mainFrame->editor()->hasComposition() ) {
-        LOGD("simulateDelKeyForCount hasComposition == true");
+        ALOGV("simulateDelKeyForCount hasComposition == true");
 
         m_mainFrame->editor()->deleteBackwardByDecomposingPreviousCharacter(count);
 
@@ -2961,15 +2695,15 @@ void WebViewCore::simulateDelKeyForCount(int count)
         key(down);
         key(up);
     }
-    LOGD("simulateDelKeyForCount exit");
+    ALOGV("simulateDelKeyForCount exit");
 }
 
 WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
 {
-    LOGD("getTextAroundCursor enter");
+    ALOGV("getTextAroundCursor enter");
     if(count == -1)
     {
-        LOGD("getTextAroundCursor -1 ");
+        ALOGV("getTextAroundCursor -1 ");
         SelectionController* selectionContrler = m_mainFrame->selection();
         if(selectionContrler != NULL && !(selectionContrler->isNone()))
         {
@@ -2991,7 +2725,7 @@ WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
             {
                 WTF::String plainText = range->text();
                 plainText.replace(NonBreakingSpaceCharacter, SpaceCharacter);
-                LOGD("getTextAroundCursor -1 ret");
+                ALOGV("getTextAroundCursor -1 ret");
                 return plainText;
             }
 
@@ -3002,7 +2736,7 @@ WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
         SelectionController* frameSelectionContrler = m_mainFrame->selection();
         if(frameSelectionContrler == NULL)
             return "";
-        LOGD("getTextAroundCursor setSelection ent");
+        ALOGV("getTextAroundCursor setSelection ent");
         SelectionController newSelection;
 
         Position m_endSelPos;///////////
@@ -3010,11 +2744,11 @@ WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
         bool isBr = false;
         if(isBefore)
         {
-            LOGD("getTextAroundCursor setSelection Inside isBefore ");
+            ALOGV("getTextAroundCursor setSelection Inside isBefore ");
             m_endSelPos = frameSelectionContrler->selection().visibleStart().deepEquivalent();//////////////
             if(m_endSelPos.anchorNode() && m_endSelPos.anchorNode()->renderer() && m_endSelPos.anchorNode()->renderer()->isBR() && m_endSelPos.deprecatedEditingOffset() == 0)
             {
-                LOGD(" &&&&&&&&&&&&&&&&&&&&&& node()->renderer()->isBR()  ");
+                ALOGV(" &&&&&&&&&&&&&&&&&&&&&& node()->renderer()->isBR()  ");
 
                 //m_endSelPos = Position(m_endSelPos.anchorNode() , Position::PositionIsAfterAnchor);
                 isBr = true;
@@ -3023,11 +2757,11 @@ WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
         }
         else
         {
-            LOGD("getTextAroundCursor setSelection Inside NOT isBefore ");
+            ALOGV("getTextAroundCursor setSelection Inside NOT isBefore ");
             m_startSelPos = frameSelectionContrler->selection().visibleEnd().deepEquivalent();
             if(m_startSelPos.anchorNode() && m_startSelPos.anchorNode()->renderer() && m_startSelPos.anchorNode()->renderer()->isBR() /*&& m_startSelPos.deprecatedEditingOffset() == 0*/)
             {
-                LOGD(" &&&&&&&&&&&&&&&&&&&&&& node()->renderer()->isBR()  ");
+                ALOGV(" &&&&&&&&&&&&&&&&&&&&&& node()->renderer()->isBR()  ");
 
                 //m_endSelPos = Position(m_endSelPos.anchorNode() , Position::PositionIsAfterAnchor);
                 isBr = true;
@@ -3039,7 +2773,7 @@ WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
         {
             SelectionController newSelection;
             newSelection.setSelection(frameSelectionContrler->selection());
-            LOGD("getTextAroundCursor setSelection exit");
+            ALOGV("getTextAroundCursor setSelection exit");
             for(int cnt = 0 ; cnt < count ; cnt++)
             {
                 if(isBefore)
@@ -3062,21 +2796,21 @@ WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
         {
             rangePtr = Range::create(m_mainFrame->document(), m_startSelPos , m_endSelPos);
         }
-        LOGD("getTextAroundCursor getting rangePtr from toNormalizedRange   ");
+        ALOGV("getTextAroundCursor getting rangePtr from toNormalizedRange   ");
 
-        LOGD("getTextAroundCursor getting range from rangePtr  ");
+        ALOGV("getTextAroundCursor getting range from rangePtr  ");
         if(rangePtr == NULL )
         {
-            LOGD("getTextAroundCursor rangePtr  is NULL  ");
+            ALOGV("getTextAroundCursor rangePtr  is NULL  ");
             return "";
         }
         WebCore::Range* range = rangePtr.get();
-        LOGD("getTextAroundCursor range->text ent");
+        ALOGV("getTextAroundCursor range->text ent");
         if(range != NULL)
         {
             WTF::String plainText = range->text();
-            LOGD("HTML getTextAroundCursor range->text exit with following plainText %p:  plainText.length()  =  %d  count = %d " ,  plainText.utf8().data() , plainText.length(), count );//+ plainText);
-            LOGD("getTextAroundCursor exit");
+            ALOGV("HTML getTextAroundCursor range->text exit with following plainText %p:  plainText.length()  =  %d  count = %d " ,  plainText.utf8().data() , plainText.length(), count );//+ plainText);
+            ALOGV("getTextAroundCursor exit");
             if(plainText.length() > count)
             {
                 if(isBefore)
@@ -3088,11 +2822,11 @@ WTF::String WebViewCore::getTextAroundCursor(int count , bool isBefore)
                     plainText = plainText.substring(0,count);
                 }
             }
-            LOGD("HTML getTextAroundCursor rreturns following plainText :  " );//+ plainText);
+            ALOGV("HTML getTextAroundCursor rreturns following plainText :  " );//+ plainText);
             return plainText ;
         }
     }
-    LOGD("HTML getTextAroundCursor exit");
+    ALOGV("HTML getTextAroundCursor exit");
     return "";
 }
 
@@ -3138,31 +2872,18 @@ int WebViewCore::checkSelectionAtBoundry()
 
 void WebViewCore::saveSelectionController()
 {
-    LOGD("VIN saveSelectionController called here");
+    ALOGV("VIN saveSelectionController called here");
 
     m_VisibleSelection = m_mainFrame->selection()->selection();
 }
 
 void WebViewCore::restorePreviousSelectionController()
 {
-    LOGD("VIN restorePreviousSelectionController called here");
+    ALOGV("VIN restorePreviousSelectionController called here");
 
     SelectionController* selectionContrler = m_mainFrame->selection();
-    Position endSelPos = selectionContrler->selection().visibleEnd().deepEquivalent();
 
-    if(selectionContrler != NULL)
-    {
-        LOGD("VIN selectionContrler->setSelection called here");
-    selectionContrler->setSelection(VisibleSelection(endSelPos));
-       
-     WebCore::Node* focus = currentFocus();
-     if (!focus) {
-      DBG_NAV_LOG("!focus");
-      return;
-     }
-     setFocusControllerActive(true);
-        
-    }
+    selectionContrler->setSelection(m_VisibleSelection);
 }
 
 
@@ -3244,12 +2965,12 @@ WebCore::IntRect WebViewCore::getCursorRect(bool giveContentRect)
     {
         WebCore::IntRect caretRect;
         caretRect = m_mainFrame->selection()->absoluteCaretBounds();//localCaretRect();
-//        LOGD("getCursorRect %d %d %d %d " , caretRect.x() , caretRect.y() , caretRect.right() , caretRect.bottom());
+//        LOGD("getCursorRect %d %d %d %d " , caretRect.x() , caretRect.y() , caretRect.maxX() , caretRect.maxY());
         WebCore::IntPoint locInWindow = m_mainFrame->view()->contentsToWindow(caretRect.location());
         //caretRect = m_mainFrame->view()->convertToContainingView(caretRect);
         caretRect.setLocation(locInWindow);
- //       LOGD("getCursorRect %d %d %d %d " , caretRect.x() , caretRect.y() , caretRect.right() , caretRect.bottom());
-        LOGD("getCursorRect exit");
+ //       LOGD("getCursorRect %d %d %d %d " , caretRect.x() , caretRect.y() , caretRect.maxX() , caretRect.maxY());
+        ALOGV("getCursorRect exit");
         return caretRect;
     }
 
@@ -3270,7 +2991,7 @@ bool WebViewCore::getSelectionNone()
 
 void WebViewCore::setComposingSelectionNone()
 {
-      LOGD("setComposingSelectionNone enter");
+      ALOGV("setComposingSelectionNone enter");
       m_mainFrame->editor()->confirmCompositionWithoutDisturbingSelection();
       m_mainFrame->editor()->setUnderLineUpdateFlag(false);
       //undelineVec.clear();
@@ -3278,7 +2999,7 @@ void WebViewCore::setComposingSelectionNone()
 
 void WebViewCore::deleteSurroundingText(int left , int right)
 {
-    LOGD("deleteSurroundingText enter");
+    ALOGV("deleteSurroundingText enter");
     int cnt;
     if(left > 0)
     {
@@ -3295,13 +3016,15 @@ void WebViewCore::deleteSurroundingText(int left , int right)
         {
             m_mainFrame->selection()->modify(SelectionController::AlterationExtend, DirectionForward, CharacterGranularity);
         }
+
+        if ( NULL != m_mainFrame->selection() && m_mainFrame->selection()->isRange() )
         simulateDelKeyForCount(1);
     }
-    LOGD("deleteSurroundingText exit");
+    ALOGV("deleteSurroundingText exit");
 
 }
 
-void  WebViewCore::getSelectionOffsetImage(int x1 , int y1,int x2 , int y2)
+void  WebViewCore::getSelectionOffsetImage()
 {
     SelectionController* selectionContrler = m_mainFrame->selection();
     if(selectionContrler != NULL && !(selectionContrler->isNone()))
@@ -3346,7 +3069,7 @@ void WebViewCore::getSelectionOffset(int& startOffset , int& endOffset)
                   WTF::String plainText = range->text();
                   //plainText.replace(NonBreakingSpaceCharacter, SpaceCharacter);
 
-                  DEBUG_NAV_UI_LOGD("getSelectionOffset %s len %d" , plainText.utf8().data() , plainText.length());
+                  //DEBUG_NAV_UI_LOGD("getSelectionOffset %s len %d" , plainText.utf8().data() , plainText.length());
 
                   //return plainText.length();
                   startOffset = plainText.length();
@@ -3358,7 +3081,7 @@ void WebViewCore::getSelectionOffset(int& startOffset , int& endOffset)
             {
                 endOffset = startOffset;
             }
-            LOGD("getSelectionOffset str %d end %d" , startOffset ,endOffset);
+            ALOGV("getSelectionOffset str %d end %d" , startOffset ,endOffset);
     }
       }
 
@@ -3369,25 +3092,34 @@ void WebViewCore::getSelectionOffset(int& startOffset , int& endOffset)
 bool WebViewCore::execCommand(WTF::String& commandName ,  WTF::String& value)
 {
     //ANDROID_LOG_PRINT(ANDROID_LOG_DEBUG, "HTML_EDIT", " WebViewCore.cpp ::execCommand command: dfgdsf sdgfgs:%s", commandName.utf8().data());
-    //LOGD("execCommand entered %s value %s " , commandName.utf8().data() , value.utf8().data());
+    //ALOGV("execCommand entered %s value %s " , commandName.utf8().data() , value.utf8().data());
     bool retval = false;
+	WebCore::Frame* frame = NULL;
+	if(m_mainFrame == focusedFrame()){
+		frame = m_mainFrame;
+	}else{
+		frame = focusedFrame();
+	}
+	if(frame == NULL)
+		return false;
+	
     if(commandName == "MoveToBeginningOfDocument" || commandName == "MoveToEndOfDocument")
     {
-        SelectionController* selectionContrler = m_mainFrame->selection();
+		SelectionController* selectionContrler = frame->selection();
         if(selectionContrler->isNone())
         {
-            LOGD("execCommand selection none");
+            ALOGV("execCommand selection none");
             //VisiblePosition vPos = VisiblePosition(m_mainFrame->document()->body() , 0 );
-            Position startPos = Position(m_mainFrame->document()->body() , 0 );//vPos.deepEquivalent();
+            Position startPos = Position(frame->document()->body() , 0 );//vPos.deepEquivalent();
 
             VisibleSelection newSelection;
             newSelection = VisibleSelection(startPos);
             selectionContrler->setSelection(newSelection);
         }
         else
-            LOGD("execCommand selection is Not none");
+            ALOGV("execCommand selection is Not none");
     }
-    retval = m_mainFrame->editor()->command(commandName).execute(value);
+    retval = frame->editor()->command(commandName).execute(value);
     return retval;
 }
 
@@ -3416,11 +3148,6 @@ bool WebViewCore::copyAndSaveImage(WTF::String& imageUrl)
     WebCore::copyImagePathToClipboard(filePath);
     return true;
     //return false;
-}
-
-bool WebViewCore::saveCachedImageToFile(WTF::String& imageUrl, WTF::String& filePath)
-{
-    return WebCore::saveCachedImageToFile( m_mainFrame, imageUrl, filePath );
 }
 
 WebHTMLMarkupData* WebViewCore::getFullMarkupData(){
@@ -3455,6 +3182,11 @@ void WebViewCore::setComposingRegion(int start, int end)
             int endOffset = -1;
             Vector<CompositionUnderline> undVec;
             CompositionUnderline compositionDeco;
+// selected text for setting composition should not contain the \n character so we are eleminating  this character when
+// we are inserting selected text for composing
+            if(selectedText.find('\n') != -1) {
+                selectedText.replace('\n',"");
+            }
             compositionDeco.startOffset = 0;
            compositionDeco.endOffset = selectedText.length();
             compositionDeco.isHighlightColor = false;
@@ -3466,25 +3198,28 @@ void WebViewCore::setComposingRegion(int start, int end)
     }
       }
 }
-
-
-
+void WebViewCore::setPageZoomFact(float factor){
+    if(factor > 0){
+    float zoom_factor = (float)factor/100;
+    m_mainFrame->setPageZoomFactor(zoom_factor);	
+    }
+}
 VisibleSelection WebViewCore::setSelectionInVisibleSelection(int start, int end)
 {
 
     int tempStart = start - m_imStr;
     int tempEnd = end - m_imEnd;
 
-    LOGD("setSelectionInVisibleSelection Enter - start = %d , end= %d  , m_imStr =%d , m_imEnd=%d " , start, end,m_imStr,m_imEnd);
+    ALOGV("setSelectionInVisibleSelection Enter - start = %d , end= %d  , m_imStr =%d , m_imEnd=%d " , start, end,m_imStr,m_imEnd);
 
     SelectionController* selectionContrler = m_mainFrame->selection();
     if(selectionContrler != NULL)
     {
-        LOGD("setSelectionInVisibleSelection Enter 1");
+        ALOGV("setSelectionInVisibleSelection Enter 1");
 
         if(selectionContrler->isNone())
             {
-                LOGD("setSelectionInVisibleSelection Enter 2");
+                ALOGV("setSelectionInVisibleSelection Enter 2");
 
             Position startPos = Position(m_mainFrame->document()->body() , 0 );//vPos.deepEquivalent();
             VisibleSelection newSelection;
@@ -3496,20 +3231,20 @@ VisibleSelection WebViewCore::setSelectionInVisibleSelection(int start, int end)
 
         if(newSelectionControler.isRange())
         {
-            LOGD("newSelectionControler.isRange() moving backward once");
+            ALOGV("newSelectionControler.isRange() moving backward once");
                   newSelectionControler.modify(SelectionController::AlterationMove, DirectionBackward, CharacterGranularity);
         }
 
         int uTempStart  = tempStart >= 0 ? tempStart  : -tempStart;
         int cnt;
-        LOGD("setSelectionInVisibleSelection tempStart =%d ",tempStart);
+        ALOGV("setSelectionInVisibleSelection tempStart =%d ",tempStart);
 
         if(tempStart >= 0)
         {
 
             for(cnt = 0 ; cnt < uTempStart ; cnt++)
             {
-                LOGD("setSelectionInVisibleSelection (Move-forward) cnt =%d ",cnt);
+                ALOGV("setSelectionInVisibleSelection (Move-forward) cnt =%d ",cnt);
                 newSelectionControler.modify(SelectionController::AlterationMove, DirectionForward, CharacterGranularity);
             }
         }
@@ -3517,19 +3252,19 @@ VisibleSelection WebViewCore::setSelectionInVisibleSelection(int start, int end)
         {
             for(cnt = 0 ; cnt < uTempStart ; cnt++)
             {
-                LOGD("setSelectionInVisibleSelection (Move-backward) cnt =%d ",cnt);
+                ALOGV("setSelectionInVisibleSelection (Move-backward) cnt =%d ",cnt);
                 newSelectionControler.modify(SelectionController::AlterationMove, DirectionBackward, CharacterGranularity);
             }
         }
         for(cnt = 0 ; cnt < (end - start) ; cnt++)
         {
-            LOGD("setSelectionInVisibleSelection (extend forward) cnt =%d ",cnt);
+            ALOGV("setSelectionInVisibleSelection (extend forward) cnt =%d ",cnt);
             newSelectionControler.modify(SelectionController::AlterationExtend, DirectionForward, CharacterGranularity);
         }
         //selectionContrler->setSelection(newSelectionControler.selection());
         return newSelectionControler.selection();
     }
-    LOGD("setSelectionInVisibleSelection return VisibleSelection ");
+    ALOGV("setSelectionInVisibleSelection return VisibleSelection ");
     return VisibleSelection();
 }
 
@@ -3588,13 +3323,21 @@ bool WebViewCore::isEditableSupport()
 
 void WebViewCore::moveSingleCursorHandler(int x,int y){
 
-    LOGD("moveSingleCursorHandler Enter - x = %d , y= %d" , x, y);
+    ALOGV("moveSingleCursorHandler Enter - x = %d , y= %d" , x, y);
 
     SelectionController* frameSelectionContrler = m_mainFrame->selection();
     if(frameSelectionContrler == NULL)
         return ;
 //    y=y-20;
     IntPoint pt = IntPoint(x, y);
+    WebCore::HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(pt, true);
+    WebCore::Node* node = hitTestResult.innerNode();
+
+    if(node && node->isElementNode() && ( node->nodeName().lower() == "html" )) {
+        __android_log_print(ANDROID_LOG_DEBUG,"jaesung", "moveSingleCursorHandler Outer Position");
+        return;
+    }
+
     VisiblePosition startPos = m_mainFrame->visiblePositionForPoint(pt);
     VisibleSelection newSelection;
     newSelection = VisibleSelection(startPos);
@@ -3609,7 +3352,7 @@ void WebViewCore::moveSingleCursorHandler(int x,int y){
         imageCanMove= false;
     }
 
-    LOGD("moveSingleCursorHandler Leave ");
+    ALOGV("moveSingleCursorHandler Leave ");
 
     return;
 }
@@ -3619,7 +3362,7 @@ void WebViewCore::moveSingleCursorHandler(int x,int y){
 //+ by jaesung.yi 110802
 int WebViewCore::getStateInRichlyEditableText()
 {
-    LOGD("getStateInRichlyEditableText()"); 
+    ALOGV("getStateInRichlyEditableText()"); 
 
     int totalResult = 0x0;
     int result = 0;
@@ -3639,7 +3382,7 @@ int WebViewCore::getStateInRichlyEditableText()
     } else if( MixedTriState == result ) {
         totalResult |= 0x0008;
     }
-
+/*
     result = m_mainFrame->editor()->command("Underline").state();
 
     if( TrueTriState == result ) {
@@ -3663,21 +3406,29 @@ int WebViewCore::getStateInRichlyEditableText()
     } else if( MixedTriState == result ) {
         totalResult |= 0x0200;
     }
-
+*/
     return totalResult;
 }
 //- by jaesung.yi 110802
 
-bool WebViewCore::checkEndofWordAtPosition(int x, int y)
+// 0: etc, 1: The end of a word, 2: The boundary of the document or Image node. 
+int WebViewCore::checkEndofWordAtPosition(int x, int y)
 {
     //SAMSUNG CHANGE, yeonju.ann : Remove security logs
-    //LOGD("isTouchedPositionAtEndOfWord Enter - x = %d , y= %d" , x, y);
+    //ALOGV("isTouchedPositionAtEndOfWord Enter - x = %d , y= %d" , x, y);
 
     SelectionController* frameSelectionContrler = m_mainFrame->selection();
     if(frameSelectionContrler == NULL)
-        return false;
+        return 0;
 
     IntPoint pt = IntPoint(x, y);
+    WebCore::HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(pt, false, true);
+    WebCore::Node* node = hitTestResult.innerNode();  
+
+    if(node && node->isElementNode() && ( node->nodeName().lower() == "html" || node->nodeName().lower() == "img" )) {
+        return 2;
+    }
+
     VisiblePosition startPos = m_mainFrame->visiblePositionForPoint(pt);
     VisibleSelection newSelection;
     newSelection = VisibleSelection(startPos);
@@ -3693,53 +3444,309 @@ bool WebViewCore::checkEndofWordAtPosition(int x, int y)
     {
         WTF::String plainText = range->text();
         if( 1 < plainText.length() ) {
-            LOGD("isTouchedPositionAtEndOfWord The selected character to check the end of word is more than one character. ");
-            return false;
+            ALOGV("isTouchedPositionAtEndOfWord The selected character to check the end of word is more than one character. ");
+            return 0;
         } else {
             if( 0 == plainText.length() ) {
-                LOGD("isTouchedPositionAtEndOfWord A touched position is the end of a document.");
+                ALOGV("isTouchedPositionAtEndOfWord A touched position is the end of a document.");
                 newSelectionControler.modify(SelectionController::AlterationMove, DirectionForward, DocumentBoundary);
                 frameSelectionContrler->setSelection(newSelectionControler.selection());
-                return true;
+                return 1;
             }
             else if( 1 == plainText.length() && ( plainText.contains(NonBreakingSpaceCharacter) || plainText == WTF::String("\n") ) ) {
-                LOGD("isTouchedPositionAtEndOfWord A touched position is the end of a word.");
+                ALOGV("isTouchedPositionAtEndOfWord A touched position is the end of a word.");
                 frameSelectionContrler->setSelection(newSelection);
-                return true;
+                return 1;
             }
         }
     }
 
-    return false;
+    return 0;
 }
+
+//+Feature_Support_SPen
+WTF::String WebViewCore::getSelectedImageUri()
+{
+    return m_SelectedImageUri;
+}
+//-Feature_Support_SPen
+
+//+Feature_SPen_Gesture_TextSelection
+void WebViewCore::selectBWStartAndEnd( int startX, int startY, int endX, int endY )
+{
+    SelectionController* frameSelectionContrler = m_mainFrame->selection();
+    if(frameSelectionContrler == NULL)
+        return;
+
+    VisiblePosition startPos = m_mainFrame->visiblePositionForPoint(IntPoint(startX, startY));
+    VisiblePosition endPos = m_mainFrame->visiblePositionForPoint(IntPoint(endX, endY));
+
+    VisibleSelection newSelection = VisibleSelection( startPos, endPos );
+
+    SelectionController newSelectionController;
+    newSelectionController.setSelection(newSelection);
+
+    PassRefPtr<Range> rangePtr = newSelectionController.toNormalizedRange();
+    WebCore::Range* range = rangePtr.get();
+    if(range != NULL) {
+        IntRect startRect, endRect;
+        startRect = m_mainFrame->editor()->firstRectForRange(range);
+        endRect = m_mainFrame->editor()->lastRectForRange(range);
+
+//        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore", "selectBWStartAndEnd startRect x=[%d], y=[%d], maxX=[%d], maxY=[%d]", startRect.x(), startRect.y(), startRect.maxX(), startRect.maxY() );
+//        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore", "selectBWStartAndEnd endRect x=[%d], y=[%d], maxX=[%d], maxY=[%d]", endRect.x(), endRect.y(), endRect.maxX(), endRect.maxY() );
+
+        if( startRect.maxY() != endRect.maxY() ) {
+            __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore", "selectBWStartAndEnd startRect and endRect are not on the same line");
+            return;
+        }
+
+        WTF::String plainText = range->text();
+        if( 0 < plainText.length() ) {
+ //           __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore", "selectBWStartAndEnd selected text = [%s]", plainText.utf8().data() );
+            frameSelectionContrler->setSelection(newSelection);
+            //SAMSUNG changes <S-PEN Text Selection>
+            //Adding condition to bypass the startActionMode() call for HTMLComposer
+            if(!(m_mainFrame->page()->settings()->editableSupportEnabled())) {
+                startActionMode(true);
+            }
+            //SAMSUNG changes <S-PEN Text Selection>
+            m_mainFrame->eventHandler()->setMouseDownMayStartSelect(true);
+        } else {
+            __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore", "selectBWStartAndEnd selected text is a empty string" );
+        }
+    } else {
+        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore", "selectBWStartAndEnd range == NULL" );
+    }
+}
+//-Feature_SPen_Gesture_TextSelection
+
+void WebViewCore::setCursorFromRangeSelectionController()
+{
+    ALOGV("VIN setCursorFromRangeSelectionController called here");
+
+    SelectionController* selectionContrler = m_mainFrame->selection();
+    Position endSelPos = selectionContrler->selection().visibleEnd().deepEquivalent();
+
+    if(selectionContrler != NULL)
+    {
+        ALOGV("VIN selectionContrler->setSelection called here");
+        selectionContrler->setSelection(VisibleSelection(endSelPos));
+
+        WebCore::Node* focus = currentFocus();
+        if (!focus) {
+           ALOGV("!focus");
+           return;
+        }
+
+        setFocusControllerActive(true);
+    }
+}
+
+int WebViewCore::isAtBoundary(int x, int y)
+{
+    SelectionController* frameSelectionContrler = m_mainFrame->selection();
+    if(frameSelectionContrler == NULL)
+        return 0;
+
+    IntPoint pt = IntPoint(x, y);
+    WebCore::HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(pt, false, true);
+    WebCore::Node* node = hitTestResult.innerNode();
+
+    if(node && node->isElementNode() && ( node->nodeName().lower() == "html" )) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static WebCore::IntRect toContainingView(const WebCore::RenderObject* renderer, const WebCore::IntRect& rendererRect)
+{
+    WebCore::IntRect result = rendererRect;
+    WebCore::RenderView *view = renderer->view() ;
+    ALOGV("toContainingView: rendererRect(%d, %d, %d, %d)", result.x(), result.y(), result.width(), result.height());
+
+    if (view && view->frameView() ) {
+        WebCore::FrameView * frameView = view->frameView() ;
+        if (const WebCore::ScrollView* parentScrollView = frameView->parent()) {
+            if (parentScrollView->isFrameView()) {
+
+                const FrameView* parentView = static_cast<const WebCore::FrameView*>(parentScrollView);
+
+                // Get our renderer in the parent view
+                WebCore::RenderPart* renderer = frameView->frame()->ownerRenderer();
+                if (renderer) {
+                    WebCore::IntPoint point(rendererRect.location());
+
+                    // Add borders and padding
+                    point.move(renderer->borderLeft() + renderer->paddingLeft(),
+                        renderer->borderTop() + renderer->paddingTop());
+                    WebCore::IntPoint pt = WebCore::roundedIntPoint(renderer->localToAbsolute(point, false, true /* use transforms */));
+                    result.setLocation(pt);
+                }
+
+                //Let us verify the calculated location
+                WebCore::IntPoint test(rendererRect.location());
+                ALOGV("toContainingView: test(%d, %d)", test.x(), test.y());
+                ScrollView* view = frameView;
+                //while (view) {
+                    ALOGV("toContainingView: frame position(%d, %d)", view->x(), view->y());
+                    //test.move(view->x(), view->y());
+                    //test = _convertToContainingWindow(frameView, test) ;
+                    test = view->convertToContainingWindow(test);
+                    //view = view->parent();
+                //}
+                IntPoint scroll ;
+                while (view) {
+                    scroll.move(view->scrollX(), view->scrollY());
+                    view = view->parent();
+                }
+                test.move(scroll.x(), scroll.y()) ;
+
+                if (test.x() > result.x() || test.y() > result.y()) {
+                    ALOGV("toContainingView: Inconsistant result(%d, %d, %d, %d), recalculating using frame positions...", result.x(), result.y(), result.width(), result.height());
+                    result.setLocation(test);
+                }
+            }
+            else {
+                result = frameView->Widget::convertToContainingView(result);
+            }
+        }
+    }
+
+    ALOGV("toContainingView: result(%d, %d, %d, %d)", result.x(), result.y(), result.width(), result.height());
+    return result ;
+}
+
+WebCore::IntRect WebViewCore::getBlockBounds(WebCore::Node* node)
+{
+    WebCore::IntRect result;
+    if (!node) {
+        ALOGV("getRenderBlockBounds : HitTest Result Node is NULL!");
+        return result;
+    }
+    WTF::String nodeName = node->nodeName() ;
+    WTF::CString nodeNameLatin1 = nodeName.latin1() ;
+    ALOGV("getRenderBlockBounds: node name = %s", nodeNameLatin1.data());
+
+
+    WebCore::RenderObject *renderer = NULL ;
+    WebCore::RenderObject* nodeRenderer = node->renderer();
+    if (nodeRenderer != NULL) {
+        ALOGV("getRenderBlockBounds: nodeRenderer = %s", nodeRenderer->renderName());
+        if (nodeRenderer->isRenderPart()){
+            renderer = nodeRenderer ;
+        }
+        else if (!nodeRenderer->isRenderBlock() && !nodeRenderer->isRenderImage()) {
+            WebCore::RenderBlock *block = nodeRenderer->containingBlock() ;
+            if (block) {
+                renderer = block ;
+            }
+        }
+        else {
+            renderer = nodeRenderer ;
+        }
+    }
+    else if (node->hasTagName(HTMLNames::areaTag) ){
+        HTMLAreaElement *area = static_cast<HTMLAreaElement*>(node) ;
+
+        if (area->shape() == HTMLAreaElement::Rect
+            && node->parentNode()
+            && node->parentNode()->hasTagName(HTMLNames::mapTag)) {
+
+            Node *map = node->parentNode() ;
+            if ( map->parentNode()) {
+                WebCore::RenderObject *r = map->parentNode()->renderer() ;
+                if (r->isRenderBlock()) {
+                    IntRect parentRect = r->absoluteBoundingBoxRect() ;
+                    result = area->rect() ;
+                    result.move(parentRect.x(), parentRect.y()) ;
+
+                    if (r->view() && r->view()->frameView())
+                        result = toContainingView(r, result) ;
+                }
+            }
+        }
+    }
+
+    if (renderer) {
+        result = renderer->absoluteBoundingBoxRect() ;
+        result = toContainingView(renderer, result) ;
+    }
+
+    if ( renderer == NULL)
+      ALOGV("getRenderBlockBounds: No render block found!");
+    else
+        ALOGV("getRenderBlockBounds: node=%p result(%d, %d, %d, %d)", node, result.x(), result.y(), result.width(), result.height());
+
+    return result;
+
+}
+
+WebCore::IntRect WebViewCore::getBlockBounds(const WebCore::IntPoint &pt)
+{
+    WebCore::IntRect result;
+    ALOGV("getRenderBlockBounds: point=(%d, %d)", pt.x(), pt.y() );
+
+    WebCore::HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(pt, false, true);
+
+    WebCore::Node* node = hitTestResult.innerNode();
+    if (!node) {
+        ALOGV("getRenderBlockBounds : HitTest Result Node is NULL!");
+        return result;
+    }else{
+        return getBlockBounds(node);
+    }
+}
+
 //SISO_HTMLCOMPOSER end
+
+Position WebViewCore::getPositionForOffset(Node* node, int offset)
+{
+    Position start = firstPositionInNode(node);
+    Position end = lastPositionInNode(node);
+    Document* document = node->document();
+    PassRefPtr<Range> range = Range::create(document, start, end);
+    WebCore::CharacterIterator iterator(range.get());
+    iterator.advance(offset);
+    return iterator.range()->startPosition();
+}
+
+void WebViewCore::setSelection(Node* node, int start, int end)
+{
+    RenderTextControl* control = toRenderTextControl(node);
+    if (control)
+        setSelectionRange(node, start, end);
+    else {
+        Position startPosition = getPositionForOffset(node, start);
+        Position endPosition = getPositionForOffset(node, end);
+        VisibleSelection selection(startPosition, endPosition);
+        SelectionController* selector = node->document()->frame()->selection();
+        selector->setSelection(selection);
+    }
+}
 
 //SAMSUNG_THAI_EDITOR_FIX ++
 void WebViewCore::setSelectionWithoutValidation(int start, int end)
 {
-    WebCore::Node* focus = currentFocus();
-    if (!focus)
-        return;
-    WebCore::RenderObject* renderer = focus->renderer();
-    if (!renderer || (!renderer->isTextField() && !renderer->isTextArea()))
-        return;
-    if (start > end) {
-        int temp = start;
-        start = end;
-        end = temp;
-    }
-    // Tell our EditorClient that this change was generated from the UI, so it
-    // does not need to echo it to the UI.
-    EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
-            m_mainFrame->editor()->client());
-    client->setUiGeneratedSelectionChange(true);
-    setSelectionRange(focus, start, end);
-    if (start != end) {
-        // Fire a select event. No event is sent when the selection reduces to
-        // an insertion point
-        RenderTextControl* control = toRenderTextControl(renderer);
-        control->selectionChanged(true);
-    }
+	WebCore::Node* focus = currentFocus();
+	if (!focus)
+		return;
+	if (start > end)
+		swap(start, end);
+
+	// Tell our EditorClient that this change was generated from the UI, so it
+	// does not need to echo it to the UI.
+	EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
+			m_mainFrame->editor()->client());
+	client->setUiGeneratedSelectionChange(true);
+	setSelection(focus, start, end);
+	RenderTextControl* control = toRenderTextControl(focus);
+	if (start != end && control) {
+		// Fire a select event. No event is sent when the selection reduces to
+		// an insertion point
+		control->selectionChanged(true);
+	}
     client->setUiGeneratedSelectionChange(false);
     WebCore::Frame* focusedFrame = focus->document()->frame();
     VisibleSelection selection = focusedFrame->selection()->selection();
@@ -3772,7 +3779,7 @@ void WebViewCore::setSelectionWithoutValidation(int start, int end)
     }
     // For password fields, this is done in the UI side via
     // bringPointIntoView, since the UI does the drawing.
-    if (renderer->isTextArea() || !isPasswordField)
+	if ((control && control->isTextArea()) || !isPasswordField)
         revealSelection();
 }
 //SAMSUNG_THAI_EDITOR_FIX --
@@ -3782,46 +3789,39 @@ void WebViewCore::setSelection(int start, int end)
     WebCore::Node* focus = currentFocus();
     if (!focus)
         return;
-    WebCore::RenderObject* renderer = focus->renderer();
-    if (!renderer || (!renderer->isTextField() && !renderer->isTextArea()))
-        return;
-    if (start > end) {
-        int temp = start;
-        start = end;
-        end = temp;
-    }
+    if (start > end)
+        swap(start, end);
+
     // Tell our EditorClient that this change was generated from the UI, so it
     // does not need to echo it to the UI.
     EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
             m_mainFrame->editor()->client());
     client->setUiGeneratedSelectionChange(true);
-    setSelectionRange(focus, start, end);
-    if (start != end) {
+    setSelection(focus, start, end);
+    RenderTextControl* control = toRenderTextControl(focus);
+    if (start != end && control) {
         // Fire a select event. No event is sent when the selection reduces to
         // an insertion point
-        RenderTextControl* control = toRenderTextControl(renderer);
         control->selectionChanged(true);
     }
     client->setUiGeneratedSelectionChange(false);
-    WebCore::Frame* focusedFrame = focus->document()->frame();
     bool isPasswordField = false;
-    if (focus->isElementNode()) {
+    if (focus->isElementNode()) 
+   {
         WebCore::Element* element = static_cast<WebCore::Element*>(focus);
         if (WebCore::InputElement* inputElement = element->toInputElement())
-    //SAMSUNG WML CHANGES >>
-    {
-    #if ENABLE(WML)
-        if(focus->isWMLElement())
+        {
+         #if ENABLE(WML)
+	        if(focus->isWMLElement())
                     isPasswordField = static_cast<WebCore::WMLInputElement*>(inputElement)->isPasswordField();
-        else
-            isPasswordField = static_cast<WebCore::HTMLInputElement*>(inputElement)->isPasswordField();
-    #endif
-    }
-    //SAMSUNG WML CHANGES <<
+	        else
+	            isPasswordField = static_cast<WebCore::HTMLInputElement*>(inputElement)->isPasswordField();
+        #endif
+        }
     }
     // For password fields, this is done in the UI side via
     // bringPointIntoView, since the UI does the drawing.
-    if (renderer->isTextArea() || !isPasswordField)
+    if ((control && control->isTextArea()) || !isPasswordField)
         revealSelection();
 }
 
@@ -3846,7 +3846,7 @@ String WebViewCore::modifySelection(const int direction, const int axis)
         case AXIS_DOCUMENT:
             return modifySelectionDomNavigationAxis(selection, direction, axis);
         default:
-            LOGE("Invalid navigation axis: %d", axis);
+            ALOGE("Invalid navigation axis: %d", axis);
             return String();
     }
 }
@@ -3887,9 +3887,9 @@ String WebViewCore::modifySelectionTextNavigationAxis(DOMSelection* selection, i
     // initialize the selection if necessary
     if (selection->rangeCount() == 0) {
         if (m_currentNodeDomNavigationAxis
-                && CacheBuilder::validNode(m_mainFrame,
+                && validNode(m_mainFrame,
                 m_mainFrame, m_currentNodeDomNavigationAxis)) {
-            PassRefPtr<Range> rangeRef =
+            RefPtr<Range> rangeRef =
                 selection->frame()->document()->createRange();
             rangeRef->selectNode(m_currentNodeDomNavigationAxis, ec);
             m_currentNodeDomNavigationAxis = 0;
@@ -3898,15 +3898,6 @@ String WebViewCore::modifySelectionTextNavigationAxis(DOMSelection* selection, i
             selection->addRange(rangeRef.get());
         } else if (currentFocus()) {
             selection->setPosition(currentFocus(), 0, ec);
-        } else if (m_cursorNode
-                && CacheBuilder::validNode(m_mainFrame,
-                m_mainFrame, m_cursorNode)) {
-            PassRefPtr<Range> rangeRef =
-                selection->frame()->document()->createRange();
-            rangeRef->selectNode(reinterpret_cast<Node*>(m_cursorNode), ec);
-            if (ec)
-                return String();
-            selection->addRange(rangeRef.get());
         } else {
             selection->setPosition(body, 0, ec);
         }
@@ -4105,13 +4096,13 @@ String WebViewCore::modifySelectionTextNavigationAxis(DOMSelection* selection, i
         scrollNodeIntoView(m_mainFrame, selection->anchorNode());
 
     // format markup for the visible content
-    PassRefPtr<Range> range = selection->getRangeAt(0, ec);
+    RefPtr<Range> range = selection->getRangeAt(0, ec);
     if (ec)
         return String();
     IntRect bounds = range->boundingBox();
     selectAt(bounds.center().x(), bounds.center().y());
     markup = formatMarkup(selection);
-    LOGV("Selection markup: %s", markup.utf8().data());
+    ALOGV("Selection markup: %s", markup.utf8().data());
 
     return markup;
 }
@@ -4319,7 +4310,7 @@ String WebViewCore::modifySelectionDomNavigationAxis(DOMSelection* selection, in
     if (!m_currentNodeDomNavigationAxis)
         m_currentNodeDomNavigationAxis = currentFocus();
     if (!m_currentNodeDomNavigationAxis
-            || !CacheBuilder::validNode(m_mainFrame, m_mainFrame,
+            || !validNode(m_mainFrame, m_mainFrame,
                                         m_currentNodeDomNavigationAxis))
         m_currentNodeDomNavigationAxis = body;
     Node* currentNode = m_currentNodeDomNavigationAxis;
@@ -4363,14 +4354,14 @@ String WebViewCore::modifySelectionDomNavigationAxis(DOMSelection* selection, in
         if (direction == DIRECTION_FORWARD)
             currentNode = currentNode->lastDescendant();
     } else {
-        LOGE("Invalid axis: %d", axis);
+        ALOGE("Invalid axis: %d", axis);
         return String();
     }
     if (currentNode) {
         m_currentNodeDomNavigationAxis = currentNode;
         scrollNodeIntoView(m_mainFrame, currentNode);
         String selectionString = createMarkup(currentNode);
-        LOGV("Selection markup: %s", selectionString.utf8().data());
+        ALOGV("Selection markup: %s", selectionString.utf8().data());
         return selectionString;
     }
     return String();
@@ -4420,7 +4411,7 @@ bool WebViewCore::isVisible(Node* node)
     while (currentNode && currentNode != body) {
         RenderStyle* style = currentNode->computedStyle();
         if (style &&
-                (style->display() == NONE || style->visibility() == HIDDEN)) {
+                (style->display() == WebCore::NONE || style->visibility() == WebCore::HIDDEN)) {
             return false;
         }
         currentNode = currentNode->parentNode();
@@ -4432,7 +4423,7 @@ String WebViewCore::formatMarkup(DOMSelection* selection)
 {
     ExceptionCode ec = 0;
     String markup = String();
-    PassRefPtr<Range> wholeRange = selection->getRangeAt(0, ec);
+    RefPtr<Range> wholeRange = selection->getRangeAt(0, ec);
     if (ec)
         return String();
     if (!wholeRange->startContainer() || !wholeRange->startContainer())
@@ -4442,7 +4433,7 @@ String WebViewCore::formatMarkup(DOMSelection* selection)
     Node* firstNode = wholeRange->firstNode();
     Node* pastLastNode = wholeRange->pastLastNode();
     Node* currentNode = firstNode;
-    PassRefPtr<Range> currentRange;
+    RefPtr<Range> currentRange;
 
     while (currentNode != pastLastNode) {
         Node* nextNode = currentNode->traverseNextNode();
@@ -4519,7 +4510,6 @@ void WebViewCore::deleteSelection(int start, int end, int textGeneration)
     key(up);
     client->setUiGeneratedSelectionChange(false);
     m_textGeneration = textGeneration;
-    m_shouldPaintCaret = true;
 }
 
 void WebViewCore::replaceTextfieldText(int oldStart,
@@ -4529,37 +4519,35 @@ void WebViewCore::replaceTextfieldText(int oldStart,
     WebCore::Node* focus = currentFocus();
     if (!focus)
         return;
-    //SAMSUNG_THAI_EDITOR_FIX ++
-    //setSelection(oldStart, oldEnd);
-    setSelectionWithoutValidation(oldStart, oldEnd);
-    //SAMSUNG_THAI_EDITOR_FIX --
+	if (isDateTime(focus))
+	{
+	    setSelection(oldStart, oldEnd);
+	}
+	else
+	{
+	    setSelectionWithoutValidation(oldStart, oldEnd);
+	}
     // Prevent our editor client from passing a message to change the
     // selection.
     EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
             m_mainFrame->editor()->client());
     client->setUiGeneratedSelectionChange(true);
-    WebCore::TypingCommand::insertText(focus->document(), replace,
-        false);
+    if (replace.length())
+        WebCore::TypingCommand::insertText(focus->document(), replace,
+                false);
+    else
+        WebCore::TypingCommand::deleteSelection(focus->document());
     client->setUiGeneratedSelectionChange(false);
     // setSelection calls revealSelection, so there is no need to do it here.
     setSelection(start, end);
     m_textGeneration = textGeneration;
-    m_shouldPaintCaret = true;
 }
 
 void WebViewCore::passToJs(int generation, const WTF::String& current,
     const PlatformKeyboardEvent& event)
 {
     WebCore::Node* focus = currentFocus();
-    m_textGeneration = generation;
     if (!focus) {
-        DBG_NAV_LOG("!focus");
-        clearTextEntry();
-        return;
-    }
-    WebCore::RenderObject* renderer = focus->renderer();
-    if (!renderer || (!renderer->isTextField() && !renderer->isTextArea())) {
-        DBG_NAV_LOGD("renderer==%p || not text", renderer);
         clearTextEntry();
         return;
     }
@@ -4573,64 +4561,40 @@ void WebViewCore::passToJs(int generation, const WTF::String& current,
     key(event);
     client->setUiGeneratedSelectionChange(false);
     m_blockTextfieldUpdates = false;
-    WebCore::RenderTextControl* renderText =
-        static_cast<WebCore::RenderTextControl*>(renderer);
-    WTF::String test = renderText->text();
+    m_textGeneration = generation;
+    WTF::String test = getInputText(focus);
     if (test != current) {
         // If the text changed during the key event, update the UI text field.
         updateTextfield(focus, false, test);
-    } else {
-        DBG_NAV_LOG("test == current");
     }
     // Now that the selection has settled down, send it.
     updateTextSelection();
-    m_shouldPaintCaret = true;
 }
 
-//SAMSUNG CHANGES: MPSG100004155 - input background color is not displayed >>
-int WebViewCore::getInputTextBackgroundColor(WebCore::Node* inputNodePtr)
-{
-    if (inputNodePtr) {
-        WebCore::RenderObject* renderer = inputNodePtr->renderer();
-        if (renderer && renderer->style()) {
-            Color color = renderer->style()->backgroundStyleColor();
-            if (color.isValid()) {
-                return SkColorSetARGB(color.alpha(), color.red(),color.green(), color.blue());				
-            }
-        }
-    }
-    return SK_ColorWHITE;	
-}
-//SAMSUNG CHANGES: MPSG100004155 - input background color is not displayed <<
-//SISO change for hotmail cursor issue >>
-bool WebViewCore::currentFocusNodeIsContentEditable()
-{
-    WebCore::Node* focusNode = currentFocus();
-	return isContentEditable(focusNode);
-}
-//SISO change for hotmail cursor issue <<
-void WebViewCore::scrollFocusedTextInput(float xPercent, int y)
+WebCore::IntRect WebViewCore::scrollFocusedTextInput(float xPercent, int y)
 {
     WebCore::Node* focus = currentFocus();
     if (!focus) {
-        DBG_NAV_LOG("!focus");
         clearTextEntry();
-        return;
+        return WebCore::IntRect();
     }
-    WebCore::RenderObject* renderer = focus->renderer();
-    if (!renderer || (!renderer->isTextField() && !renderer->isTextArea())) {
-        DBG_NAV_LOGD("renderer==%p || not text", renderer);
+    WebCore::RenderTextControl* renderText = toRenderTextControl(focus);
+    if (!renderText) {
         clearTextEntry();
-        return;
+        return WebCore::IntRect();
     }
-    WebCore::RenderTextControl* renderText =
-        static_cast<WebCore::RenderTextControl*>(renderer);
+
     int x = (int) (xPercent * (renderText->scrollWidth() -
-        renderText->clientWidth()));
-    DBG_NAV_LOGD("x=%d y=%d xPercent=%g scrollW=%d clientW=%d", x, y,
-        xPercent, renderText->scrollWidth(), renderText->clientWidth());
+//SAMSUNG CHANGES: MPSG100006060, MPSG100005931
+        //WAS: renderText->clientWidth()));
+        renderText->contentWidth())); //Use content width instead of client width to calculate scroll
+//SAMSUNG CHANGES <<
     renderText->setScrollLeft(x);
     renderText->setScrollTop(y);
+    focus->document()->frame()->selection()->recomputeCaretRect();
+    LayerAndroid* layer = 0;
+    platformLayerIdFromNode(focus, &layer);
+    return absoluteContentRect(focus, layer);
 }
 
 void WebViewCore::setFocusControllerActive(bool active)
@@ -4640,7 +4604,7 @@ void WebViewCore::setFocusControllerActive(bool active)
 
 void WebViewCore::saveDocumentState(WebCore::Frame* frame)
 {
-    if (!CacheBuilder::validNode(m_mainFrame, frame, 0))
+    if (!validNode(m_mainFrame, frame, 0))
         frame = m_mainFrame;
     WebCore::HistoryItem *item = frame->loader()->history()->currentItem();
 
@@ -4656,9 +4620,9 @@ void WebViewCore::saveDocumentState(WebCore::Frame* frame)
 static jobjectArray makeLabelArray(JNIEnv* env, const uint16_t** labels, size_t count)
 {
     jclass stringClass = env->FindClass("java/lang/String");
-    LOG_ASSERT(stringClass, "Could not find java/lang/String");
+    ALOG_ASSERT(stringClass, "Could not find java/lang/String");
     jobjectArray array = env->NewObjectArray(count, stringClass, 0);
-    LOG_ASSERT(array, "Could not create new string array");
+    ALOG_ASSERT(array, "Could not create new string array");
 
     for (size_t i = 0; i < count; i++) {
         jobject newString = env->NewString(&labels[i][1], labels[i][0]);
@@ -4681,11 +4645,19 @@ void WebViewCore::openFileChooser(PassRefPtr<WebCore::FileChooser> chooser)
         return;
 
     WTF::String acceptType = chooser->acceptTypes();
+    WTF::String capture;
+
+#if ENABLE(MEDIA_CAPTURE)
+    capture = chooser->capture();
+#endif
+
     jstring jAcceptType = wtfStringToJstring(env, acceptType, true);
+    jstring jCapture = wtfStringToJstring(env, capture, true);
     jstring jName = (jstring) env->CallObjectMethod(
-            javaObject.get(), m_javaGlue->m_openFileChooser, jAcceptType);
+            javaObject.get(), m_javaGlue->m_openFileChooser, jAcceptType, jCapture);
     checkException(env);
     env->DeleteLocalRef(jAcceptType);
+    env->DeleteLocalRef(jCapture);
 
     WTF::String wtfString = jstringToWtfString(env, jName);
     env->DeleteLocalRef(jName);
@@ -4695,151 +4667,12 @@ void WebViewCore::openFileChooser(PassRefPtr<WebCore::FileChooser> chooser)
         std::string filename = wtfString.utf8().data();
         if (filename.find("file://") == 0) {// starts with file://
             wtfString = decodeURLEscapeSequences(wtfString);
-            DBG_NAV_LOG("file: escaped");
+            //DBG_NAV_LOG("file: escaped");
     	}
 	// SAMSUNG CHANGE -
         chooser->chooseFile(wtfString);
     }
 }
-
-// SAMSUNG CHANGE - FORM NAVIGATION >>
-Node* WebViewCore::getCurrentCursor()
-{
-    gCursorBoundsMutex.lock();
-//SAMSUNG CHANGE - MPSG100005222 >>	
-    Frame* currentFrame = (Frame*) m_cursorFrame;
-    Node* node= (Node*) m_cursorNode;
-    gCursorBoundsMutex.unlock();
-    //Check for validity of the node	
-    if(!node || !CacheBuilder::validNode(m_mainFrame, currentFrame, node)) {
-        DBG_NAV_LOG("Current cursor is null or not valid");		
-        return 0;
-    }
-//SAMSUNG CHANGE <<	
-    return node;
-}
-
-// Convert a WTF::String into an array of characters where the first
-// character represents the length, for easy conversion to java.
-static uint16_t* stringConverter(const WTF::String& text)
-{
-    size_t length = text.length();
-    uint16_t* itemName = new uint16_t[length+1];
-    itemName[0] = (uint16_t)length;
-    uint16_t* firstChar = &(itemName[1]);
-    memcpy((void*)firstChar, text.characters(), sizeof(UChar)*length);
-    return itemName;
-}
-
-// Response to dropdown created for a listbox.
-class ListBoxReply : public WebCoreReply {
-public:
-#if ENABLE(WML)
-    ListBoxReply(WebCore::Element* select, WebCore::Frame* frame, WebViewCore* view)
-#else
-    ListBoxReply(WebCore::HTMLSelectElement* select, WebCore::Frame* frame, WebViewCore* view)
-#endif
-        : m_select(select)
-        , m_frame(frame)
-        , m_viewImpl(view)
-    {}
-
-    // Response used if the listbox only allows single selection.
-    // index is listIndex of the selected item, or -1 if nothing is selected.
-    virtual void replyInt(int index)
-    {
-        if (-2 == index) {
-            // Special value for cancel. Do nothing.
-            return;
-        }
-        // If the select element no longer exists, due to a page change, etc,
-        // silently return.
-        if (!m_select || !CacheBuilder::validNode(m_viewImpl->m_mainFrame,
-                m_frame, m_select))
-            return;
-        // Use a pointer to HTMLSelectElement's superclass, where
-        // listToOptionIndex is public.
-#if ENABLE(WML)
-        WebCore::SelectElement* selectElement = WebCore::toSelectElement(m_select);
-        int optionIndex = selectElement->listToOptionIndex(index);
-        selectElement->setSelectedIndex(optionIndex, true);
-#else
-        SelectElement* selectElement = m_select;
-        int optionIndex = selectElement->listToOptionIndex(index);
-        m_select->setSelectedIndex(optionIndex, true);
-#endif
-        m_select->dispatchFormControlChangeEvent();
-        m_viewImpl->contentInvalidate(m_select->getRect());
-    }
-
-    // Response if the listbox allows multiple selection.  array stores the listIndices
-    // of selected positions.
-    virtual void replyIntArray(const int* array, int count)
-    {
-        // If the select element no longer exists, due to a page change, etc,
-        // silently return.
-        if (!m_select || !CacheBuilder::validNode(m_viewImpl->m_mainFrame,
-                m_frame, m_select))
-            return;
-
-        // If count is 1 or 0, use replyInt.
-        SkASSERT(count > 1);
-#if ENABLE(WML)
-        const WTF::Vector<Element*>& items = WebCore::toSelectElement(m_select)->listItems();
-#else
-        const WTF::Vector<Element*>& items = m_select->listItems();
-#endif
-        int totalItems = static_cast<int>(items.size());
-        // Keep track of the position of the value we are comparing against.
-        int arrayIndex = 0;
-        // The value we are comparing against.
-        int selection = array[arrayIndex];
-#if ENABLE(WML)
-        // SAMSUNG_WML_FIXES+
-        // http://spe.mobilephone.net/wit/wmlv2/formsubpost.wml
-        // http://spe.mobilephone.net/wit/wmlv2/formselect.wml
-        WebCore::OptionElement* option   = NULL;
-        // SAMSUNG_WML_FIXES-
-#else
-        WebCore::HTMLOptionElement* option;
-#endif
-        for (int listIndex = 0; listIndex < totalItems; listIndex++) {
-            if (items[listIndex]->hasLocalName(WebCore::HTMLNames::optionTag)) {
-#if ENABLE(WML)
-                // SAMSUNG_WML_FIXES+
-                option = WebCore::toOptionElement(items[listIndex]);
-                // SAMSUNG_WML_FIXES-
-#else
-                option = static_cast<WebCore::HTMLOptionElement*>(
-                        items[listIndex]);
-#endif
-                if (listIndex == selection) {
-                    option->setSelectedState(true);
-                    arrayIndex++;
-                    if (arrayIndex == count)
-                        selection = -1;
-                    else
-                        selection = array[arrayIndex];
-                } else
-                    option->setSelectedState(false);
-            }
-        }
-        m_select->dispatchFormControlChangeEvent();
-        m_viewImpl->contentInvalidate(m_select->getRect());
-    }
-private:
-    // The select element associated with this listbox.
-#if ENABLE(WML)
-    WebCore::Element* m_select;
-#else
-    WebCore::HTMLSelectElement* m_select;
-#endif
-    // The frame of this select element, to verify that it is valid.
-    WebCore::Frame* m_frame;
-    // For calling invalidate and checking the select element's validity
-    WebViewCore* m_viewImpl;
-};
-// SAMSUNG CHANGE - FORM NAVIGATION <<
 
 //SAMSUNG CHANGE HTML5 COLOR <<
 void WebViewCore::openColorChooser(WebCore::ColorChooserClientAndroid* chooserclient)
@@ -4859,10 +4692,30 @@ void WebViewCore::openColorChooser(WebCore::ColorChooserClientAndroid* choosercl
 
 }
 //SAMSUNG CHANGE HTML5 COLOR <<
-void WebViewCore::listBoxRequest(WebCoreReply* reply, const uint16_t** labels, size_t count, const int enabled[], size_t enabledCount,
-        bool multiple, const int selected[], size_t selectedCountOrSelection, const WebCore::Element *select/*SAMSUNG CHANGE - Form Navigation*/)
+
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
+void WebViewCore::requestDateTimePickers(const WTF::String& type , const WTF::String& value)
 {
-    LOG_ASSERT(m_javaGlue->m_obj, "No java widget associated with this view!");
+    ALOG_ASSERT(m_javaGlue->m_obj, "A Java widget was not associated with this view bridge!");
+
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    jstring jinputStr = wtfStringToJstring(env, type);	
+    jstring jvalueStr = NULL;
+    if(value != NULL)
+        jvalueStr = wtfStringToJstring(env, value);	
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_requestDateTimePickers,jinputStr, jvalueStr);
+    checkException(env);
+}
+
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+
+void WebViewCore::listBoxRequest(WebCoreReply* reply, const uint16_t** labels, size_t count, const int enabled[], size_t enabledCount,
+        bool multiple, const int selected[], size_t selectedCountOrSelection)
+{
+    ALOG_ASSERT(m_javaGlue->m_obj, "No java widget associated with this view!");
 
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
@@ -4873,13 +4726,17 @@ void WebViewCore::listBoxRequest(WebCoreReply* reply, const uint16_t** labels, s
     if (m_popupReply != 0)
         return;
 
-    //SAMSUNG CHANGE NULL CHECK MPSG4574 >>
-    if (!select) {
-        DBG_NAV_LOG("Select element is null");		
+    //SAMSUNG_CHANGE Form navigation >>
+    WebCore::Node* focusNode = currentFocus();
+    if(isSelectInput(focusNode)) {
+        initSelectField(focusNode);
+    } else {
+        ALOGD("Focused Node is not Select Input. Focused node name is <%s> and tag name is <%s>", 
+            focusNode->nodeName().utf8().data(), 
+            ((Element*) focusNode)->tagName().utf8().data());
         return;
     }
-    //SAMSUNG CHANGE NULL CHECK MPSG4574 <<
-
+    //SAMSUNG_CHANGE Form navigation <<
     // Create an array of java Strings for the drop down.
     jobjectArray labelArray = makeLabelArray(env, labels, count);
 
@@ -4894,11 +4751,6 @@ void WebViewCore::listBoxRequest(WebCoreReply* reply, const uint16_t** labels, s
     env->ReleaseIntArrayElements(enabledArray, ptrArray, 0);
     checkException(env);
 
-	//SAMSUNG CHANGE Form Navigation>>
-    String nodeName = select->formControlName() ;
-    jstring jName = env->NewString((jchar*) nodeName.characters(), nodeName.length());
-	//SAMSUNG CHANGE Form Navigation<<
-
     if (multiple) {
         // Pass up an array representing which items are selected.
         jintArray selectedArray = env->NewIntArray(selectedCountOrSelection);
@@ -4911,14 +4763,14 @@ void WebViewCore::listBoxRequest(WebCoreReply* reply, const uint16_t** labels, s
         env->ReleaseIntArrayElements(selectedArray, selArray, 0);
 
         env->CallVoidMethod(javaObject.get(),
-                        m_javaGlue->m_requestListBox, labelArray, jName, enabledArray,
-                        selectedArray, (jint) select /*SAMSUNG CHANGE Form Navigation*/);
+                m_javaGlue->m_requestListBox, labelArray, enabledArray,
+                selectedArray);
         env->DeleteLocalRef(selectedArray);
     } else {
         // Pass up the single selection.
         env->CallVoidMethod(javaObject.get(),
-                m_javaGlue->m_requestSingleListBox, labelArray, jName, enabledArray,
-                selectedCountOrSelection, (jint) select/*SAMSUNG CHANGE Form Navigation*/);
+                m_javaGlue->m_requestSingleListBox, labelArray, enabledArray,
+                selectedCountOrSelection);
     }
 
     env->DeleteLocalRef(labelArray);
@@ -4933,14 +4785,15 @@ bool WebViewCore::key(const PlatformKeyboardEvent& event)
 {
     WebCore::EventHandler* eventHandler;
     WebCore::Node* focusNode = currentFocus();
-    DBG_NAV_LOGD("keyCode=%s unichar=%d focusNode=%p",
-        event.keyIdentifier().utf8().data(), event.unichar(), focusNode);
     if (focusNode) {
         WebCore::Frame* frame = focusNode->document()->frame();
-        WebFrame* webFrame = WebFrame::getWebFrame(frame);
         eventHandler = frame->eventHandler();
         VisibleSelection old = frame->selection()->selection();
+        EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
+                m_mainFrame->editor()->client());
+        client->setUiGeneratedSelectionChange(true);
         bool handled = eventHandler->keyEvent(event);
+        client->setUiGeneratedSelectionChange(false);
         if (isContentEditable(focusNode)) {
             // keyEvent will return true even if the contentEditable did not
             // change its selection.  In the case that it does not, we want to
@@ -4948,35 +4801,66 @@ bool WebViewCore::key(const PlatformKeyboardEvent& event)
             // system.
             handled |= frame->selection()->selection() != old;
         }
+        //SAMSUNG_SHANGE [MPSG100005849] [P120801-5124] ++
+        else if (isSelectInput(focusNode)) {
+            if (AKEYCODE_ENTER == event.nativeVirtualKeyCode()) { 
+                if(PlatformKeyboardEvent::KeyUp == event.type()) {
+                    RenderMenuList* menuList = toRenderMenuList(focusNode->renderer());
+                    menuList->showPopup();      
+                }
+                handled = true;
+            }
+        }
+        //SAMSUNG_SHANGE [MPSG100005849] [P120801-5124] --
         return handled;
     } else {
-        eventHandler = m_mainFrame->eventHandler();
+        eventHandler = focusedFrame()->eventHandler();
     }
     return eventHandler->keyEvent(event);
 }
 
-// For when the user clicks the trackball, presses dpad center, or types into an
-// unfocused textfield.  In the latter case, 'fake' will be true
-void WebViewCore::click(WebCore::Frame* frame, WebCore::Node* node, bool fake) {
-    if (!node) {
-        WebCore::IntPoint pt = m_mousePos;
-        pt.move(m_scrollOffsetX, m_scrollOffsetY);
-        WebCore::HitTestResult hitTestResult = m_mainFrame->eventHandler()->
-                hitTestResultAtPoint(pt, false);
-        node = hitTestResult.innerNode();
-        frame = node->document()->frame();
-        DBG_NAV_LOGD("m_mousePos=(%d,%d) m_scrollOffset=(%d,%d) pt=(%d,%d)"
-            " node=%p", m_mousePos.x(), m_mousePos.y(),
-            m_scrollOffsetX, m_scrollOffsetY, pt.x(), pt.y(), node);
+bool WebViewCore::chromeCanTakeFocus(FocusDirection direction)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return false;
+    return env->CallBooleanMethod(javaObject.get(), m_javaGlue->m_chromeCanTakeFocus, direction);
+}
+
+void WebViewCore::chromeTakeFocus(FocusDirection direction)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_chromeTakeFocus, direction);
+}
+
+void WebViewCore::setInitialFocus(const WebCore::PlatformKeyboardEvent& platformEvent)
+{
+    Frame* frame = focusedFrame();
+    Document* document = frame->document();
+    if (document)
+        document->setFocusedNode(0);
+    FocusDirection direction;
+    switch (platformEvent.nativeVirtualKeyCode()) {
+    case AKEYCODE_DPAD_LEFT:
+        direction = FocusDirectionLeft;
+        break;
+    case AKEYCODE_DPAD_RIGHT:
+        direction = FocusDirectionRight;
+        break;
+    case AKEYCODE_DPAD_UP:
+        direction = FocusDirectionUp;
+        break;
+    default:
+        direction = FocusDirectionDown;
+        break;
     }
-    if (node) {
-        EditorClientAndroid* client
-                = static_cast<EditorClientAndroid*>(
-                m_mainFrame->editor()->client());
-        client->setShouldChangeSelectedRange(false);
-        handleMouseClick(frame, node, fake);
-        client->setShouldChangeSelectedRange(true);
-    }
+    RefPtr<KeyboardEvent> webkitEvent = KeyboardEvent::create(platformEvent, 0);
+    m_mainFrame->page()->focusController()->setInitialFocus(direction,
+            webkitEvent.get());
 }
 
 #if USE(ACCELERATED_COMPOSITING)
@@ -4990,9 +4874,9 @@ GraphicsLayerAndroid* WebViewCore::graphicsRootLayer() const
 }
 #endif
 
-bool WebViewCore::handleTouchEvent(int action, Vector<int>& ids, Vector<IntPoint>& points, int actionIndex, int metaState)
+int WebViewCore::handleTouchEvent(int action, Vector<int>& ids, Vector<IntPoint>& points, int actionIndex, int metaState)
 {
-    bool preventDefault = false;
+    int flags = 0;
 
 #if USE(ACCELERATED_COMPOSITING)
     GraphicsLayerAndroid* rootLayer = graphicsRootLayer();
@@ -5033,18 +4917,10 @@ bool WebViewCore::handleTouchEvent(int action, Vector<int>& ids, Vector<IntPoint
         type = WebCore::TouchEnd;
         defaultTouchState = WebCore::PlatformTouchPoint::TouchStationary;
         break;
-    case 0x100: // WebViewCore.ACTION_LONGPRESS
-        type = WebCore::TouchLongPress;
-        defaultTouchState = WebCore::PlatformTouchPoint::TouchPressed;
-        break;
-    case 0x200: // WebViewCore.ACTION_DOUBLETAP
-        type = WebCore::TouchDoubleTap;
-        defaultTouchState = WebCore::PlatformTouchPoint::TouchPressed;
-        break;
     default:
         // We do not support other kinds of touch event inside WebCore
         // at the moment.
-        LOGW("Java passed a touch event type that we do not support in WebCore: %d", action);
+        ALOGW("Java passed a touch event type that we do not support in WebCore: %d", action);
         return 0;
     }
 
@@ -5064,69 +4940,72 @@ bool WebViewCore::handleTouchEvent(int action, Vector<int>& ids, Vector<IntPoint
     }
 
     WebCore::PlatformTouchEvent te(ids, points, type, touchStates, metaState);
-    preventDefault = m_mainFrame->eventHandler()->handleTouchEvent(te);
+    if (m_mainFrame->eventHandler()->handleTouchEvent(te))
+        flags |= TOUCH_FLAG_PREVENT_DEFAULT;
+    if (te.hitTouchHandler())
+        flags |= TOUCH_FLAG_HIT_HANDLER;
 #endif
 
 #if USE(ACCELERATED_COMPOSITING)
     if (rootLayer)
       rootLayer->pauseDisplay(false);
 #endif
-    return preventDefault;
+    return flags;
 }
 
-void WebViewCore::touchUp(int touchGeneration,
-    WebCore::Frame* frame, WebCore::Node* node, int x, int y
-//LIGHT TOUCH
-    , bool useLT)
-//LIGHT TOUCH    
+bool WebViewCore::performMouseClick()
 {
-// LIGHT TOUCH
-    if (useLT) {
-        // m_mousePos should be set in getTouchHighlightRects()
-    	IntPoint xy(m_mousePosLT.x() + m_scrollOffsetX, m_mousePosLT.y() + m_scrollOffsetY);
-        WebCore::HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(xy, false); //changes for MPSG100004590
-        node = hitTestResult.innerNode();
-        if (node)
-            frame = node->document()->frame();
-        else
-            frame = 0;
-//LIGHT TOUCH
-        // This moves m_mousePos to the correct place, and handleMouseClick uses
-        // m_mousePos to determine where the click happens.
-        moveMouse(frame, m_mousePosLT.x() + m_scrollOffsetX, m_mousePosLT.y() + m_scrollOffsetY);
-//LIGHT TOUCH
-        DBG_NAV_LOGD("touch up on (%d, %d), scrollOffset is (%d, %d), node:%p, frame:%p", m_mousePos.x() + m_scrollOffsetX, m_mousePos.y() + m_scrollOffsetY, m_scrollOffsetX, m_scrollOffsetY, node, frame);
+    WebCore::PlatformMouseEvent mouseDown(m_mouseClickPos, m_mouseClickPos, WebCore::LeftButton,
+            WebCore::MouseEventPressed, 1, false, false, false, false,
+            WTF::currentTime());
+    // ignore the return from as it will return true if the hit point can trigger selection change
+    m_mainFrame->eventHandler()->handleMousePressEvent(mouseDown);
+    WebCore::PlatformMouseEvent mouseUp(m_mouseClickPos, m_mouseClickPos, WebCore::LeftButton,
+            WebCore::MouseEventReleased, 1, false, false, false, false,
+            WTF::currentTime());
+    bool handled = m_mainFrame->eventHandler()->handleMouseReleaseEvent(mouseUp);
 
-    } else {
-        if (m_touchGeneration > touchGeneration) {
-            DBG_NAV_LOGD("m_touchGeneration=%d > touchGeneration=%d"
-                " x=%d y=%d", m_touchGeneration, touchGeneration, x, y);
-            return; // short circuit if a newer touch has been generated
-        }
-        // This moves m_mousePos to the correct place, and handleMouseClick uses
-        // m_mousePos to determine where the click happens.
-        moveMouse(frame, x, y);
-    }
-//LIGHT TOUCH
-    /* Light touch did not update this variable causing some Nav Cache updates to be skipped. Though Nav Cahce would
-    be updated through New Picture message later, the delayed update could cause a few issues. So now we keep this 
-    updated for an updated Nav Cache! */
-    m_lastGeneration = touchGeneration;
-//LIGHT TOUCH
+    WebCore::Node* focusNode = currentFocus();
 
-    if (frame && CacheBuilder::validNode(m_mainFrame, frame, 0)) {
-        frame->loader()->resetMultipleFormSubmissionProtection();
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+   if(isDateTime(focusNode))
+   {
+	 WebCore::Element* ele = static_cast<Element*>(focusNode);
+	 const AtomicString &typestr = ele->getAttribute(HTMLNames::typeAttr);
+	 const WTF::String& typestring = typestr.string();
+         const AtomicString &valuestr = ele->getAttribute(HTMLNames::valueAttr);
+	 WebCore::RenderTextControl* rtc = toRenderTextControl(focusNode);		        	
+	 const WTF::String& text = rtc->text();
+	 if(!text){	
+	     if((valuestr.isNull()))			    		                   
+		requestDateTimePickers(typestring,"");
+	     else{
+		const WTF::String& valuestring = valuestr.string();
+		requestDateTimePickers(typestring,valuestring);	
+	     }
+	}
+	else{
+            requestDateTimePickers(typestring,text);	
+	}						
+    }//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
+    else {
+        initializeTextInput(focusNode, false);
+	if (isFormNavTextInput(focusNode)) {
+	    WebCore::Frame* focusedFrame = focusNode->document()->frame();
+	    if (focusedFrame) {
+                focusedFrame->page()->focusController()->setFocused(true);
+                focusedFrame->page()->focusController()->setActive(true);
+	    }
+	}
     }
-    DBG_NAV_LOGD("touchGeneration=%d handleMouseClick frame=%p node=%p"
-        " x=%d y=%d", touchGeneration, frame, node, x, y);
-    handleMouseClick(frame, node, false);
+    return handled;
 }
 
 // Check for the "x-webkit-soft-keyboard" attribute.  If it is there and
 // set to hidden, do not show the soft keyboard.  Node passed as a parameter
 // must not be null.
 static bool shouldSuppressKeyboard(const WebCore::Node* node) {
-    LOG_ASSERT(node, "node passed to shouldSuppressKeyboard cannot be null");
+    ALOG_ASSERT(node, "node passed to shouldSuppressKeyboard cannot be null");
     const NamedNodeMap* attributes = node->attributes();
     if (!attributes) return false;
     size_t length = attributes->length();
@@ -5138,221 +5017,199 @@ static bool shouldSuppressKeyboard(const WebCore::Node* node) {
     return false;
 }
 
-// Common code for both clicking with the trackball and touchUp
-// Also used when typing into a non-focused textfield to give the textfield focus,
-// in which case, 'fake' is set to true
-bool WebViewCore::handleMouseClick(WebCore::Frame* framePtr, WebCore::Node* nodePtr, bool fake)
+WebViewCore::InputType WebViewCore::getInputType(Node* node)
 {
-    bool valid = !framePtr || CacheBuilder::validNode(m_mainFrame, framePtr, nodePtr);
-    WebFrame* webFrame = WebFrame::getWebFrame(m_mainFrame);
-    if (valid && nodePtr) {
-    // Need to special case area tags because an image map could have an area element in the middle
-    // so when attempting to get the default, the point chosen would be follow the wrong link.
-        if (nodePtr->hasTagName(WebCore::HTMLNames::areaTag)) {
-            webFrame->setUserInitiatedAction(true);
-            nodePtr->dispatchSimulatedClick(0, true, true);
-            webFrame->setUserInitiatedAction(false);
-            DBG_NAV_LOG("area");
-            return true;
-        }
+    WebCore::RenderObject* renderer = node->renderer();
+    if (!renderer)
+        return WebViewCore::NONE;
+    if (renderer->isTextArea())
+        return WebViewCore::TEXT_AREA;
 
-        WebCore::RenderObject* renderer = nodePtr->renderer();
-        if (renderer && (renderer->isMenuList() || renderer->isListBox())) {
-#if ENABLE(WML)
-            WebCore::Element *elementPtr = static_cast<WebCore::Element*>(nodePtr) ;
-            WebCore::SelectElement* select = WebCore::toSelectElement(elementPtr);
-#else
-            WebCore::HTMLSelectElement* select = static_cast<WebCore::HTMLSelectElement*>(nodePtr);
-#endif
-            const WTF::Vector<WebCore::Element*>& listItems = select->listItems();
-            SkTDArray<const uint16_t*> names;
-            // Possible values for enabledArray.  Keep in Sync with values in
-            // InvokeListBox.Container in WebView.java
-            enum OptionStatus {
-                OPTGROUP = -1,
-                OPTION_DISABLED = 0,
-                OPTION_ENABLED = 1,
-            };
-            SkTDArray<int> enabledArray;
-            SkTDArray<int> selectedArray;
-            int size = listItems.size();
-            bool multiple = select->multiple();
-            for (int i = 0; i < size; i++) {
-#if ENABLE(WML)
-                if(WebCore::isOptionElement(listItems[i])){
-                    WebCore::OptionElement *op = WebCore::toOptionElement(listItems[i]);
-                    if(listItems[i]->isWMLElement()) {
-                        WebCore::WMLOptionElement* option = static_cast<WebCore::WMLOptionElement*>(listItems[i]);
-                        *enabledArray.append() = option->disabled() ? OPTION_DISABLED : OPTION_ENABLED;
-                    } else {
-                        WebCore::HTMLOptionElement* option = static_cast<WebCore::HTMLOptionElement*>(listItems[i]);
-                        *enabledArray.append() = option->disabled() ? OPTION_DISABLED : OPTION_ENABLED;
-                    }
-                    String label = op->textIndentedToRespectGroupLabel();
-                    *names.append() = stringConverter(label);
-                    if (multiple && op->selected())
-                        *selectedArray.append() = i;
-                } else if (WebCore::isOptionGroupElement(listItems[i])) {
-                    WebCore::OptionGroupElement* optGroup = WebCore::toOptionGroupElement(listItems[i]);
-                    *names.append() = stringConverter(optGroup->groupLabelText());
-                    *enabledArray.append() = OPTGROUP;
-                }
-#else
-                if (listItems[i]->hasTagName(WebCore::HTMLNames::optionTag)) {
-                    WebCore::HTMLOptionElement* option = static_cast<WebCore::HTMLOptionElement*>(listItems[i]);
-                    *names.append() = stringConverter(option->textIndentedToRespectGroupLabel());
-                    *enabledArray.append() = option->disabled() ? OPTION_DISABLED : OPTION_ENABLED;
-                    if (multiple && option->selected())
-                        *selectedArray.append() = i;
-                } else if (listItems[i]->hasTagName(WebCore::HTMLNames::optgroupTag)) {
-                    WebCore::HTMLOptGroupElement* optGroup = static_cast<WebCore::HTMLOptGroupElement*>(listItems[i]);
-                    *names.append() = stringConverter(optGroup->groupLabelText());
-                    *enabledArray.append() = OPTGROUP;
-                }
-#endif
-            }
-#if ENABLE(WML)
-            WebCoreReply* reply = new ListBoxReply(elementPtr, elementPtr->document()->frame(), this);
-#else
-            WebCoreReply* reply = new ListBoxReply(select, select->document()->frame(), this);
-#endif
-            // Use a pointer to HTMLSelectElement's superclass, where
-            // optionToListIndex is public.
-            SelectElement* selectElement = select;
-            listBoxRequest(reply, names.begin(), size, enabledArray.begin(), enabledArray.count(),
-                    multiple, selectedArray.begin(), multiple ? selectedArray.count() :
-                    selectElement->optionToListIndex(select->selectedIndex()), static_cast<WebCore::Element*>(nodePtr)/*SAMSUNG CHANGE*/);
-            DBG_NAV_LOG("menu list");
-            return true;
+    if (node->hasTagName(WebCore::HTMLNames::inputTag)) {
+        HTMLInputElement* htmlInput = static_cast<HTMLInputElement*>(node);
+        if (htmlInput->isPasswordField())
+            return WebViewCore::PASSWORD;
+        if (htmlInput->isSearchField())
+            return WebViewCore::SEARCH;
+        if (htmlInput->isEmailField())
+            return WebViewCore::EMAIL;
+        if (htmlInput->isNumberField())
+            return WebViewCore::NUMBER;
+        if (htmlInput->isTelephoneField())
+            return WebViewCore::TELEPHONE;
+        //SISO CHANGE [MPSG100006079] ++
+        if(htmlInput->isURLField())
+            return WebViewCore::URL;
+        //SISO CHANGE [MPSG100006079] --
+        if (htmlInput->isTextField())
+            return WebViewCore::NORMAL_TEXT_FIELD;
+    }
+
+    if (node->isContentEditable())
+        return WebViewCore::TEXT_AREA;
+
+    return WebViewCore::NONE;
+}
+
+int WebViewCore::getMaxLength(Node* node)
+{
+    int maxLength = -1;
+    if (node->hasTagName(WebCore::HTMLNames::inputTag)) {
+        HTMLInputElement* htmlInput = static_cast<HTMLInputElement*>(node);
+        maxLength = htmlInput->maxLength();
+    }
+    return maxLength;
+}
+
+String WebViewCore::getFieldName(Node* node)
+{
+    String name;
+    if (node->hasTagName(WebCore::HTMLNames::inputTag)) {
+        HTMLInputElement* htmlInput = static_cast<HTMLInputElement*>(node);
+        name = htmlInput->name();
+    }
+    return name;
+}
+
+bool WebViewCore::isSpellCheckEnabled(Node* node)
+{
+    bool isEnabled = true;
+    if (node->isElementNode()) {
+        WebCore::Element* element = static_cast<WebCore::Element*>(node);
+        isEnabled = element->isSpellCheckingEnabled();
+    }
+    return isEnabled;
+}
+
+bool WebViewCore::isAutoCompleteEnabled(Node* node)
+{
+    bool isEnabled = false;
+    if (node->hasTagName(WebCore::HTMLNames::inputTag)) {
+        HTMLInputElement* htmlInput = static_cast<HTMLInputElement*>(node);
+        isEnabled = htmlInput->autoComplete();
+    }
+    return isEnabled;
+}
+
+WebCore::IntRect WebViewCore::absoluteContentRect(WebCore::Node* node,
+        LayerAndroid* layer)
+{
+    IntRect contentRect;
+    if (node) {
+        RenderObject* render = node->renderer();
+        if (render && render->isBox() && !render->isBody()) {
+            IntPoint offset = convertGlobalContentToFrameContent(IntPoint(),
+                    node->document()->frame());
+            WebViewCore::layerToAbsoluteOffset(layer, offset);
+
+            RenderBox* renderBox = toRenderBox(render);
+            contentRect = renderBox->absoluteContentBox();
+            contentRect.move(-offset.x(), -offset.y());
         }
     }
-    if (!valid || !framePtr)
-        framePtr = m_mainFrame;
-    webFrame->setUserInitiatedAction(true);
-    WebCore::PlatformMouseEvent mouseDown(m_mousePos, m_mousePos, WebCore::LeftButton,
-            WebCore::MouseEventPressed, 1, false, false, false, false,
-            WTF::currentTime());
-    // ignore the return from as it will return true if the hit point can trigger selection change
-    framePtr->eventHandler()->handleMousePressEvent(mouseDown);
-    WebCore::PlatformMouseEvent mouseUp(m_mousePos, m_mousePos, WebCore::LeftButton,
-            WebCore::MouseEventReleased, 1, false, false, false, false,
-            WTF::currentTime());
-    bool handled = framePtr->eventHandler()->handleMouseReleaseEvent(mouseUp);
-    webFrame->setUserInitiatedAction(false);
+    return contentRect;
+}
 
-    // If the user clicked on a textfield, make the focusController active
-    // so we show the blinking cursor.
-    WebCore::Node* focusNode = currentFocus();
-    DBG_NAV_LOGD("m_mousePos={%d,%d} focusNode=%p handled=%s", m_mousePos.x(),
-        m_mousePos.y(), focusNode, handled ? "true" : "false");
-    if (focusNode) {
-        WebCore::RenderObject* renderer = focusNode->renderer();
-        if (renderer && (renderer->isTextField() || renderer->isTextArea())) {
-            bool ime = !shouldSuppressKeyboard(focusNode)
-                    && !(static_cast<WebCore::HTMLInputElement*>(focusNode))->readOnly();
-				//SAMSUNG FIX >>
-#if ENABLE(WML)
-				if (renderer->isTextArea()) {
-					ime = !(static_cast<WebCore::HTMLTextAreaElement*>(focusNode))->readOnly();
-				} else {
-					WebCore::Element* element = static_cast<WebCore::Element*>(focusNode);
-					WebCore::InputElement *ie = element->toInputElement();
-//SAMSUNG WML CHANGE
-//					ime = ie ? !ie->readOnly() : true ;
-//SAMSUNG WML CHANGE
-				}
-#else
-	if (renderer->isTextField()) {
-		ime = !(static_cast<WebCore::HTMLInputElement*>(focusNode))->readOnly();
-		//            bool ime = !(static_cast<WebCore::HTMLInputElement*>(focusNode))
-	} else {
-		ime = !(static_cast<WebCore::HTMLTextAreaElement*>(focusNode))->readOnly();
-	}
-#endif
-//SISO Changes Begin <Fix for issue: Text input box not invoking softkeypad in naver.com (Code merged from Victory)>
-	m_frameCacheOutOfDate = true;
-	updateFrameCache();
-	//SISO Changes End
-	//SAMSUNG FIX >>
-	//                    ->readOnly();
-            if (ime) {
-#if ENABLE(WEB_AUTOFILL)
-		//SAMSUNG WML CHANGES >>
-		if(!focusNode->isWMLElement()) {
-			//SAMSUNG WML CHANGES <<
-                if (renderer->isTextField()) {
-                    EditorClientAndroid* editorC = static_cast<EditorClientAndroid*>(framePtr->page()->editorClient());
-                    if(editorC)  // Preventive Fix for P120502-5578
-                    {
-                    	WebAutofill* autoFill = editorC->getAutofill();
-	                autoFill->formFieldFocused(static_cast<HTMLFormControlElement*>(focusNode));
-	            }
-                }
-			//SAMSUNG WML CHANGES >>
-		}
-		//SAMSUNG WML CHANGES <<
-#endif
-                if (!fake) {
-                    RenderTextControl* rtc
-                            = static_cast<RenderTextControl*> (renderer);
-                    // Force an update of the navcache as this will fire off a
-                    // message to WebView that *must* have an updated focus.
-                    m_frameCacheOutOfDate = true;
-                    updateFrameCache();
-				//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
-		 		    WebCore::Element* ele = static_cast<Element*>(focusNode);
-				    const AtomicString &typestr = ele->getAttribute(HTMLNames::typeAttr);		    
-				    const WTF::String& typestring = typestr.string();
-				    if((typestr == "date") || (typestr == "datetime") || (typestr == "datetime-local") || (typestr == "time")){
-						const AtomicString &valuestr = ele->getAttribute(HTMLNames::valueAttr);		        	
-						const WTF::String& text = rtc->text();
-						if(!text){	
-		        	    	if((valuestr.isNull()))			    		                   
-			        		requestDateTimePickers(typestring,"");
-				    		else{
-				        		const WTF::String& valuestring = valuestr.string();
-				        		requestDateTimePickers(typestring,valuestring);	
-				    		}
-						}
-			       		else{
-                           requestDateTimePickers(typestring,text);	
-			       		}						
-			    	}				
-				    else
-					//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
-                        requestKeyboardWithSelection(focusNode, rtc->selectionStart(),
-                            rtc->selectionEnd());
-                }
-            } else if (!fake) {
-                requestKeyboard(false);
-            }
-        } else if (!fake){
-            // If the selection is contentEditable, show the keyboard so the
-            // user can type.  Otherwise hide the keyboard because no text
-            // input is needed.
-            if (isContentEditable(focusNode)) {
-                requestKeyboard(true);
-            } else if (!nodeIsPlugin(focusNode)) {
-                clearTextEntry();
-            }
-        }
-    } else if (!fake) {
-        // There is no focusNode, so the keyboard is not needed.
-        clearTextEntry();
+jobject WebViewCore::createTextFieldInitData(Node* node)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    TextFieldInitDataGlue* classDef = m_textFieldInitDataGlue;
+    ScopedLocalRef<jclass> clazz(env,
+            env->FindClass("android/webkit/WebViewCore$TextFieldInitData"));
+    jobject initData = env->NewObject(clazz.get(), classDef->m_constructor);
+    env->SetIntField(initData, classDef->m_fieldPointer,
+            reinterpret_cast<int>(node));
+    ScopedLocalRef<jstring> inputText(env,
+            wtfStringToJstring(env, getInputText(node), true));
+    env->SetObjectField(initData, classDef->m_text, inputText.get());
+    env->SetIntField(initData, classDef->m_type, getInputType(node));
+    env->SetBooleanField(initData, classDef->m_isSpellCheckEnabled,
+            isSpellCheckEnabled(node));
+    Document* document = node->document();
+//SAMSUNG CHANGE Form Navigation >>
+    env->SetBooleanField(initData, classDef->m_isTextFieldNext,
+            isFormNavTextInput(nextTextOrSelectNode(node)) ? true : false);
+    env->SetBooleanField(initData, classDef->m_isTextFieldPrev,
+            isFormNavTextInput(previousTextOrSelectNode(node)) ? true : false);
+    env->SetBooleanField(initData, classDef->m_isSelectFieldNext,
+            isSelectInput(nextTextOrSelectNode(node)) ? true : false);
+    env->SetBooleanField(initData, classDef->m_isSelectFieldPrev,
+            isSelectInput(previousTextOrSelectNode(node)) ? true : false);
+//SAMSUNG CHANGE Form Navigation <<
+    env->SetBooleanField(initData, classDef->m_isAutoCompleteEnabled,
+            isAutoCompleteEnabled(node));
+    ScopedLocalRef<jstring> fieldName(env,
+            wtfStringToJstring(env, getFieldName(node), false));
+    env->SetObjectField(initData, classDef->m_name, fieldName.get());
+    ScopedLocalRef<jstring> label(env,
+            wtfStringToJstring(env, requestLabel(document->frame(), node), false));
+    env->SetObjectField(initData, classDef->m_label, label.get());
+    env->SetIntField(initData, classDef->m_maxLength, getMaxLength(node));
+    LayerAndroid* layer = 0;
+    int layerId = platformLayerIdFromNode(node, &layer);
+    IntRect bounds = absoluteContentRect(node, layer);
+    ScopedLocalRef<jobject> jbounds(env, intRectToRect(env, bounds));
+    env->SetObjectField(initData, classDef->m_contentBounds, jbounds.get());
+    env->SetIntField(initData, classDef->m_nodeLayerId, layerId);
+    IntRect contentRect;
+    RenderTextControl* rtc = toRenderTextControl(node);
+    if (rtc) {
+        contentRect.setWidth(rtc->scrollWidth());
+        contentRect.setHeight(rtc->scrollHeight());
+        contentRect.move(-rtc->scrollLeft(), -rtc->scrollTop());
     }
-    return handled;
+    ScopedLocalRef<jobject> jcontentRect(env, intRectToRect(env, contentRect));
+    env->SetObjectField(initData, classDef->m_contentRect, jcontentRect.get());
+    return initData;
+}
+
+void WebViewCore::initEditField(Node* node)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    m_textGeneration = 0;
+    int start = 0;
+    int end = 0;
+    getSelectionOffsets(node, start, end);
+    SelectText* selectText = createSelectText(focusedFrame()->selection()->selection());
+    ScopedLocalRef<jobject> initData(env, createTextFieldInitData(node));
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_initEditField,
+            start, end, reinterpret_cast<int>(selectText), initData.get());
+    checkException(env);
+    // SAMSUNG_CHANGE [MPSG100006223] ++
+    bool isPasswordField = false;
+    if (node->isElementNode()) 
+    {
+        WebCore::Element* element = static_cast<WebCore::Element*>(node);
+        if (WebCore::InputElement* inputElement = element->toInputElement())
+        {
+            if(node->isWMLElement())
+                isPasswordField = static_cast<WebCore::WMLInputElement*>(inputElement)->isPasswordField();
+            else
+                isPasswordField = static_cast<WebCore::HTMLInputElement*>(inputElement)->isPasswordField();
+        }
+    }
+    
+    HTMLInputElement* input = static_cast<HTMLInputElement*>(node);
+    Page* page = m_mainFrame->document()->page();
+    if (!isPasswordField && input->autoComplete() && page->settings()->autoFillEnabled()) {
+        setWebTextViewAutoFillableDefault();
+    }
+    // SAMSUNG_CHANGE [MPSG100006223] --
 }
 
 void WebViewCore::popupReply(int index)
 {
     if (m_popupReply) {
         m_popupReply->replyInt(index);
-        //SAMSUNG CHANGE Form Navigation >>
-        if (index == -2) {
-        	Release(m_popupReply);
-        	m_popupReply = 0;
+//SAMSUNG CHANGE Form Navigation >>
+        if(index == -2) {
+           Release(m_popupReply);
+           m_popupReply = 0;
         }
-        //SAMSUNG CHANGE Form Navigation <<
+//SAMSUNG CHANGE Form Navigation <<
     }
 }
 
@@ -5363,6 +5220,106 @@ void WebViewCore::popupReply(const int* array, int count)
         Release(m_popupReply);
         m_popupReply = 0;
     }
+}
+
+// This is a slightly modified Node::nextNodeConsideringAtomicNodes() with the
+// extra constraint of limiting the search to inside a containing parent
+WebCore::Node* nextNodeWithinParent(WebCore::Node* parent, WebCore::Node* start)
+{
+    if (!isAtomicNode(start) && start->firstChild())
+        return start->firstChild();
+    if (start->nextSibling())
+        return start->nextSibling();
+    const Node *n = start;
+    while (n && !n->nextSibling()) {
+        n = n->parentNode();
+        if (n == parent)
+            return 0;
+    }
+    if (n)
+        return n->nextSibling();
+    return 0;
+}
+
+void WebViewCore::initializeTextInput(WebCore::Node* node, bool fake)
+{
+    if (node) {
+        if (isTextInput(node)) {
+            bool showKeyboard = true;
+            initEditField(node);
+            WebCore::RenderTextControl* rtc = toRenderTextControl(node);
+            if (rtc && node->hasTagName(HTMLNames::inputTag)) {
+                HTMLInputElement* inputElement = static_cast<HTMLInputElement*>(node);
+                bool ime = !shouldSuppressKeyboard(node) && !inputElement->readOnly();
+                if (ime) {
+#if ENABLE(WEB_AUTOFILL)
+                    if (rtc->isTextField()) {
+                        Page* page = node->document()->page();
+                        EditorClient* editorClient = page->editorClient();
+                        EditorClientAndroid* androidEditor =
+                                static_cast<EditorClientAndroid*>(editorClient);
+                        WebAutofill* autoFill = androidEditor->getAutofill();
+                        autoFill->formFieldFocused(inputElement);
+                    }
+#endif
+                } else
+                    showKeyboard = false;
+            }
+            if (!fake)
+                requestKeyboard(showKeyboard);
+        } else if (!fake && !nodeIsPlugin(node)) {
+            // not a text entry field, put away the keyboard.
+            clearTextEntry();
+        }
+    } else if (!fake) {
+        // There is no focusNode, so the keyboard is not needed.
+        clearTextEntry();
+    }
+}
+
+void WebViewCore::focusNodeChanged(WebCore::Node* newFocus)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    if (isTextInput(newFocus))
+    {
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+        if(!(isDateTime(newFocus)))
+            initializeTextInput(newFocus, true);
+//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
+    }
+    HitTestResult focusHitResult;
+    focusHitResult.setInnerNode(newFocus);
+    focusHitResult.setInnerNonSharedNode(newFocus);
+    if (newFocus && newFocus->isLink() && newFocus->isElementNode()) {
+        focusHitResult.setURLElement(static_cast<Element*>(newFocus));
+        if (newFocus->hasChildNodes() && !newFocus->hasTagName(HTMLNames::imgTag)) {
+            // Check to see if any of the children are images, and if so
+            // set them as the innerNode and innerNonSharedNode
+            // This will stop when it hits the first image. I'm not sure what
+            // should be done in the case of multiple images inside one anchor...
+            Node* nextNode = newFocus->firstChild();
+            bool found = false;
+            while (nextNode) {
+                if (nextNode->hasTagName(HTMLNames::imgTag)) {
+                    found = true;
+                    break;
+                }
+                nextNode = nextNodeWithinParent(newFocus, nextNode);
+            }
+            if (found) {
+                focusHitResult.setInnerNode(nextNode);
+                focusHitResult.setInnerNonSharedNode(nextNode);
+            }
+        }
+    }
+    AndroidHitTestResult androidHitTest(this, focusHitResult);
+    jobject jHitTestObj = androidHitTest.createJavaObject(env);
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_focusNodeChanged,
+            reinterpret_cast<int>(newFocus), jHitTestObj);
+    env->DeleteLocalRef(jHitTestObj);
 }
 
 //SAMSUNG CHANGE HTML5 COLOR <<
@@ -5384,30 +5341,6 @@ void WebViewCore::ColorChooserReply(int color)
     }	  	
 }
 //SAMSUNG CHANGE HTML5 COLOR <<
-
-void WebViewCore::formDidBlur(const WebCore::Node* node)
-{
-    // If the blur is on a text input, keep track of the node so we can
-    // hide the soft keyboard when the new focus is set, if it is not a
-    // text input.
-    if (isTextInput(node))
-        m_blurringNodePointer = reinterpret_cast<int>(node);
-}
-
-void WebViewCore::focusNodeChanged(const WebCore::Node* newFocus)
-{
-    if (isTextInput(newFocus))
-        m_shouldPaintCaret = true;
-    else if (m_blurringNodePointer) {
-        JNIEnv* env = JSC::Bindings::getJNIEnv();
-        AutoJObject javaObject = m_javaGlue->object(env);
-        if (!javaObject.get())
-            return;
-        env->CallVoidMethod(javaObject.get(), m_javaGlue->m_formDidBlur, m_blurringNodePointer);
-        checkException(env);
-        m_blurringNodePointer = 0;
-    }
-}
 
 void WebViewCore::addMessageToConsole(const WTF::String& message, unsigned int lineNumber, const WTF::String& sourceID, int msgLevel) {
     JNIEnv* env = JSC::Bindings::getJNIEnv();
@@ -5503,7 +5436,7 @@ void WebViewCore::notificationPermissionsShowPrompt(const WTF::String& url)
     AutoJObject javaObject = m_javaGlue->object(env);
     if (!javaObject.get())
         return;
-    LOGV("WebViewCore::notificationPermissionsShowPrompt URL is %s",url.utf8().data());
+    ALOGV("WebViewCore::notificationPermissionsShowPrompt URL is %s",url.utf8().data());
     jstring jUrlStr = wtfStringToJstring(env, url);    
     env->CallVoidMethod(javaObject.get(),
                         m_javaGlue->m_notificationPermissionsShowPrompt,
@@ -5519,7 +5452,7 @@ void WebViewCore::notificationManagershow(const WTF::String& iconUrl, const WTF:
     #if ENABLE(NOTIFICATIONS)
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env); 
-    LOGV("Inside WebViewCore::notificationManagershow ");
+    ALOGV("Inside WebViewCore::notificationManagershow ");
     if (!javaObject.get())
         return;
     jstring jIconUrlStr = wtfStringToJstring(env, iconUrl);
@@ -5539,7 +5472,7 @@ void WebViewCore::notificationManagerCancel(int notificationID)
    #if ENABLE(NOTIFICATIONS)
    JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env); 
-    LOGV("Inside WebViewCore::notificationManagerCancel %d", notificationID);
+    ALOGV("Inside WebViewCore::notificationManagerCancel %d", notificationID);
     if (!javaObject.get())
         return;
    env->CallVoidMethod(javaObject.get(),m_javaGlue->m_notificationManagerCancel, notificationID);
@@ -5552,7 +5485,7 @@ void WebViewCore::notificationPermissionsHidePrompt()
    #if ENABLE(NOTIFICATIONS)
    JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env); 
-    LOGV("Inside WebViewCore::notificationPermissionsHidePrompt");
+    ALOGV("Inside WebViewCore::notificationPermissionsHidePrompt");
     if (!javaObject.get())
         return;
    env->CallVoidMethod(javaObject.get(),m_javaGlue->m_notificationPermissionsHidePrompt);
@@ -5560,7 +5493,6 @@ void WebViewCore::notificationPermissionsHidePrompt()
    #endif
 }
 // Samsung Change - HTML5 Web Notification	<<
-
 void WebViewCore::geolocationPermissionsHidePrompt()
 {
     JNIEnv* env = JSC::Bindings::getJNIEnv();
@@ -5632,6 +5564,17 @@ bool WebViewCore::jsPrompt(const WTF::String& url, const WTF::String& text, cons
     return true;
 }
 
+//	SAMSUNG CHANGE >> Print functionality support for JS content	
+void WebViewCore::printPage()
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_printPage);
+    checkException(env);
+}
+//	SAMSUNG CHANGE <<
 bool WebViewCore::jsUnload(const WTF::String& url, const WTF::String& message)
 {
     JNIEnv* env = JSC::Bindings::getJNIEnv();
@@ -5671,8 +5614,78 @@ WebViewCore::getWebViewJavaObject()
     AutoJObject javaObject = m_javaGlue->object(env);
     if (!javaObject.get())
         return 0;
-    return env->GetObjectField(javaObject.get(), gWebViewCoreFields.m_webView);
+    return env->CallObjectMethod(javaObject.get(), m_javaGlue->m_getWebView);
 }
+
+RenderTextControl* WebViewCore::toRenderTextControl(Node* node)
+{
+    RenderTextControl* rtc = 0;
+    RenderObject* renderer = node->renderer();
+    if (renderer && renderer->isTextControl()) {
+        rtc = WebCore::toRenderTextControl(renderer);
+    }
+    return rtc;
+}
+
+void WebViewCore::getSelectionOffsets(Node* node, int& start, int& end)
+{
+    RenderTextControl* rtc = toRenderTextControl(node);
+    if (rtc) {
+        start = rtc->selectionStart();
+        end = rtc->selectionEnd();
+    } else {
+        // It must be content editable field.
+        Document* document = node->document();
+        Frame* frame = document->frame();
+        SelectionController* selector = frame->selection();
+        Position selectionStart = selector->start();
+        Position selectionEnd = selector->end();
+        Position startOfNode = firstPositionInNode(node);
+        RefPtr<Range> startRange = Range::create(document, startOfNode,
+                selectionStart);
+        start = TextIterator::rangeLength(startRange.get(), true);
+        RefPtr<Range> endRange = Range::create(document, startOfNode,
+                selectionEnd);
+        end = TextIterator::rangeLength(endRange.get(), true);
+    }
+}
+
+String WebViewCore::getInputText(Node* node)
+{
+    String text;
+    WebCore::RenderTextControl* renderText = toRenderTextControl(node);
+    if (renderText)
+        text = renderText->text();
+    else {
+        // It must be content editable field.
+        Position start = firstPositionInNode(node);
+        Position end = lastPositionInNode(node);
+        VisibleSelection allEditableText(start, end);
+        if (allEditableText.isRange())
+            text = allEditableText.firstRange()->text();
+    }
+    return text;
+}
+
+//SAMSUNG CHANGES MPSG100006129 >>
+void WebViewCore::updateTextSelectionStartAndEnd()
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    VisibleSelection selection = focusedFrame()->selection()->selection();
+    int start = 0;
+    int end = 0;
+    if (selection.isCaretOrRange())
+        getSelectionOffsets(selection.start().anchorNode(), start, end);
+    SelectText* selectText = createSelectText(selection);
+    env->CallVoidMethod(javaObject.get(),
+            m_javaGlue->m_updateTextSelectionStartAndEnd, reinterpret_cast<int>(currentFocus()),
+            start, end, m_textGeneration, reinterpret_cast<int>(selectText));
+    checkException(env);
+}
+//SAMSUNG CHANGES MPSG100006129 <<
 
 void WebViewCore::updateTextSelection()
 {
@@ -5680,16 +5693,40 @@ void WebViewCore::updateTextSelection()
     AutoJObject javaObject = m_javaGlue->object(env);
     if (!javaObject.get())
         return;
-    WebCore::Node* focusNode = currentFocus();
-    if (!focusNode)
-        return;
-    RenderObject* renderer = focusNode->renderer();
-    if (!renderer || (!renderer->isTextArea() && !renderer->isTextField()))
-        return;
-    RenderTextControl* rtc = static_cast<RenderTextControl*>(renderer);
+    VisibleSelection selection = focusedFrame()->selection()->selection();
+    int start = 0;
+    int end = 0;
+    if (selection.isCaretOrRange())
+        getSelectionOffsets(selection.start().anchorNode(), start, end);
+    SelectText* selectText = createSelectText(selection);
     env->CallVoidMethod(javaObject.get(),
-            m_javaGlue->m_updateTextSelection, reinterpret_cast<int>(focusNode),
-            rtc->selectionStart(), rtc->selectionEnd(), m_textGeneration);
+            m_javaGlue->m_updateTextSelection, reinterpret_cast<int>(currentFocus()),
+            start, end, m_textGeneration, reinterpret_cast<int>(selectText));
+    checkException(env);
+}
+
+//SAMSUNG - Google Text Selection >>
+void WebViewCore::invokeUpdateTextSelection()
+{
+	updateTextSelection();
+	return;
+}
+//SAMSUNG - Google Text Selection <<
+void WebViewCore::updateTextSizeAndScroll(WebCore::Node* node)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    RenderTextControl* rtc = toRenderTextControl(node);
+    if (!rtc)
+        return;
+    int width = rtc->scrollWidth();
+    int height = rtc->contentHeight();
+    int scrollX = rtc->scrollLeft();
+    int scrollY = rtc->scrollTop();
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_updateTextSizeAndScroll,
+            reinterpret_cast<int>(node), width, height, scrollX, scrollY);
     checkException(env);
 }
 
@@ -5733,11 +5770,18 @@ void WebViewCore::setBackgroundColor(SkColor c)
     // need (int) cast to find the right constructor
     WebCore::Color bcolor((int)SkColorGetR(c), (int)SkColorGetG(c),
                           (int)SkColorGetB(c), (int)SkColorGetA(c));
+
+    if (view->baseBackgroundColor() == bcolor)
+        return;
+
     view->setBaseBackgroundColor(bcolor);
 
     // Background color of 0 indicates we want a transparent background
     if (c == 0)
         view->setTransparent(true);
+
+    //invalidate so the new color is shown
+    contentInvalidateAll();
 }
 
 jclass WebViewCore::getPluginClass(const WTF::String& libName, const char* className)
@@ -5863,21 +5907,6 @@ void WebViewCore::keepScreenOn(bool screenOn) {
         m_screenOnCounter--;
 }
 
-bool WebViewCore::validNodeAndBounds(Frame* frame, Node* node,
-    const IntRect& originalAbsoluteBounds)
-{
-    bool valid = CacheBuilder::validNode(m_mainFrame, frame, node);
-    if (!valid)
-        return false;
-    RenderObject* renderer = node->renderer();
-    if (!renderer)
-        return false;
-    IntRect absBounds = node->hasTagName(HTMLNames::areaTag)
-        ? CacheBuilder::getAreaRect(static_cast<HTMLAreaElement*>(node))
-        : renderer->absoluteBoundingBoxRect();
-    return absBounds == originalAbsoluteBounds;
-}
-
 void WebViewCore::showRect(int left, int top, int width, int height,
         int contentWidth, int contentHeight, float xPercentInDoc,
         float xPercentInView, float yPercentInDoc, float yPercentInView)
@@ -5931,21 +5960,24 @@ void WebViewCore::enterFullscreenForVideoLayer(int layerId, const WTF::String& u
         return;
     jstring jUrlStr = wtfStringToJstring(env, url);
     env->CallVoidMethod(javaObject.get(), m_javaGlue->m_enterFullscreenForVideoLayer, layerId, jUrlStr);
+    m_fullscreenVideoMode = true;
     checkException(env);
 }
-#endif
 
-//SAMSUNG CHANGE >> LIGHT TOUCH
-void WebViewCore::setNavType(int type)
+void WebViewCore::exitFullscreenVideo()
 {
     JNIEnv* env = JSC::Bindings::getJNIEnv();
     AutoJObject javaObject = m_javaGlue->object(env);
     if (!javaObject.get())
         return;
-    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_setNavType, type);
+    if (m_fullscreenVideoMode) {
+        env->CallVoidMethod(javaObject.get(), m_javaGlue->m_exitFullscreenVideo);
+        m_fullscreenVideoMode = false;
+    }
     checkException(env);
 }
-//SAMSUNG CHANGE << LIGHT TOUCH
+#endif
+
 void WebViewCore::setWebTextViewAutoFillable(int queryId, const string16& previewSummary)
 {
 #if ENABLE(WEB_AUTOFILL)
@@ -5959,6 +5991,21 @@ void WebViewCore::setWebTextViewAutoFillable(int queryId, const string16& previe
 #endif
 }
 
+// SAMSUNG_CHANGE [MPSG100006223] ++
+void WebViewCore::setWebTextViewAutoFillableDefault()
+{
+#if ENABLE(WEB_AUTOFILL)
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    jstring preview = NULL; 
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_setWebTextViewAutoFillable, -1, preview);
+    env->DeleteLocalRef(preview);
+#endif
+}
+// SAMSUNG_CHANGE [MPSG100006223] --
+
 bool WebViewCore::drawIsPaused() const
 {
     // returning true says scrollview should be offscreen, which pauses
@@ -5967,7 +6014,6 @@ bool WebViewCore::drawIsPaused() const
     return false;
 }
 
-#if USE(CHROME_NETWORK_STACK)
 void WebViewCore::setWebRequestContextUserAgent()
 {
     // We cannot create a WebRequestContext, because we might not know it this is a private tab or not yet
@@ -5988,33 +6034,34 @@ void WebViewCore::setWebRequestContextCacheMode(int cacheMode)
 WebRequestContext* WebViewCore::webRequestContext()
 {
     if (!m_webRequestContext) {
-        Settings* settings = mainFrame()->settings();
+        Settings* settings = NULL;
+	if(mainFrame())  // P120926-7247 Once Crash shows Null pointer access crash.
+          settings = mainFrame()->settings();
         m_webRequestContext = new WebRequestContext(settings && settings->privateBrowsingEnabled());
         setWebRequestContextUserAgent();
         setWebRequestContextCacheMode(m_cacheMode);
     }
     return m_webRequestContext.get();
 }
-#endif
 
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 void WebViewCore::webTextSelectionAll(int x1, int y1, int parma1, int param2)
 {
-	DEBUG_NAV_UI_LOGD("webTextSelectionAll : called  %d, %d",  x1, y1);
-
-	WebCore::Frame* frame = m_mainFrame;
-	if(frame->selection()){
+//	DEBUG_NAV_UI_LOGD("webTextSelectionAll : called  %d, %d",  x1, y1);
+	//WebCore::Frame* frame = m_mainFrame;
+	WebCore::Frame* frame = focusedFrame();
+	if (frame->selection()) {
 		//param1 Indicate  Falg for first selection need to do before select all.
 		//param2 is not used .
-		if(parma1 == 1){
+		if(parma1 == 1) {
 			// Select text First
 			selectClosestWord(x1,y1,1.0f,true);
-			DEBUG_NAV_UI_LOGD("%s: first Word Select  ", __FUNCTION__);
+	//		DEBUG_NAV_UI_LOGD("%s: first Word Select  ", __FUNCTION__);
 		}
 		frame->selection()->selectAll();
 		//frame->selection()->setGranularity(WebCore::ParagraphGranularity);
-	}else{
-		DEBUG_NAV_UI_LOGD("%s: Exception:  Frame Selection is null ", __FUNCTION__);
+	} else {
+//		DEBUG_NAV_UI_LOGD("%s: Exception:  Frame Selection is null ", __FUNCTION__);
 	}
 }
 
@@ -6022,27 +6069,26 @@ int mSelectionDirection = DirectionForward;
 
 void WebViewCore::copyMoveSelection(int x, int y,  int controller, bool smartGranularity, bool selectionMove, float zoomLevel , int granularity)
 {
-	DEBUG_NAV_UI_LOGD("%s: x,y position: %d, %d", __FUNCTION__, x, y);
-	WebCore::Frame* frame = m_mainFrame;
+//	DEBUG_NAV_UI_LOGD("%s: x,y position: %d, %d", __FUNCTION__, x, y);
+	WebCore::Frame* main_frame = m_mainFrame;
+	WebCore::Frame* frame = focusedFrame();
+
 	WebCore::IntPoint contentsPoint = WebCore::IntPoint(x, y);
-	WebCore::IntPoint wndPoint = frame->view()->contentsToWindow(contentsPoint);
-
-	DEBUG_NAV_UI_LOGD("%s: second time click", __FUNCTION__);
-
+	WebCore::IntPoint wndPoint = main_frame->view()->contentsToWindow(contentsPoint);
+//	DEBUG_NAV_UI_LOGD("%s: second time click", __FUNCTION__);
 	//Set Direction
 	VisibleSelection visSel = frame->selection()->selection();
-	if (selectionMove == false)
-	{
+	if (selectionMove == false) {
 		copySetSelectionDirection(controller);
 		if(frame->selection()->granularity() == WebCore::WordGranularity )
 		{
 			frame->selection()->setGranularity(WebCore::CharacterGranularity);
 			visSel.expandUsingGranularity(WebCore::CharacterGranularity);
-			DEBUG_NAV_UI_LOGD("Changed from Word to character Granularity");
+//			DEBUG_NAV_UI_LOGD("Changed from Word to character Granularity");
 		}else   if(frame->selection()->granularity() == WebCore::CharacterGranularity )
 		{
 			visSel.expandUsingGranularity(WebCore::CharacterGranularity);
-			LOGD("Set the character Granularity");
+//			LOGD("Set the character Granularity");
 		}
 		return;
 	}
@@ -6053,20 +6099,20 @@ void WebViewCore::copyMoveSelection(int x, int y,  int controller, bool smartGra
 			if (frame->selection()->granularity() != WebCore::ParagraphGranularity) {
 				frame->selection()->setGranularity(WebCore::ParagraphGranularity);
 				visSel.expandUsingGranularity(WebCore::ParagraphGranularity);
-				DEBUG_NAV_UI_LOGD("Set Paragraph Granularity");
+//				DEBUG_NAV_UI_LOGD("Set Paragraph Granularity");
 			}
 		} else {
 			if (frame->selection()->granularity() == WebCore::ParagraphGranularity) {
 				frame->selection()->setGranularity(WebCore::CharacterGranularity);
 				visSel.expandUsingGranularity(WebCore::CharacterGranularity);
-				DEBUG_NAV_UI_LOGD("Change from Paragraph to Character Granularity");
+//				DEBUG_NAV_UI_LOGD("Change from Paragraph to Character Granularity");
 			}
 		}
 		//Set In Paragraph mode when zoom level is less than 0.8
 		if (zoomLevel < 0.8 && frame->selection()->granularity() != WebCore::ParagraphGranularity) {
 			frame->selection()->setGranularity(WebCore::ParagraphGranularity);
 			visSel.expandUsingGranularity(WebCore::ParagraphGranularity);
-			DEBUG_NAV_UI_LOGD("Set Paragraph Granularity for Less Zoom Level");
+//			DEBUG_NAV_UI_LOGD("Set Paragraph Granularity for Less Zoom Level");
 		}
 	}
 
@@ -6075,7 +6121,7 @@ void WebViewCore::copyMoveSelection(int x, int y,  int controller, bool smartGra
 	//User Granularity Apply if Set
 	if(granularity != -1 && CurrGranulaity == WebCore::CharacterGranularity){
 		frame->selection()->setGranularity((WebCore::TextGranularity) granularity );
-		LOGD("Set  Granularity by client  %d",  granularity);
+//		LOGD("Set  Granularity by client  %d",  granularity);
 		webkitCopyMoveSelection(wndPoint, contentsPoint, controller);
 		frame->selection()->setGranularity((WebCore::TextGranularity) CurrGranulaity );
 	}  else{
@@ -6089,7 +6135,7 @@ void WebViewCore::copyMoveSelection(int x, int y,  int controller, bool smartGra
 	        if (frame->selection()->granularity() != WebCore::ParagraphGranularity) {
 	            frame->selection()->setGranularity(WebCore::ParagraphGranularity);
 	            visSel.expandUsingGranularity(WebCore::ParagraphGranularity);
-	            DEBUG_NAV_UI_LOGD("Correct granularity to Paragraph Granularity");
+//	            DEBUG_NAV_UI_LOGD("Correct granularity to Paragraph Granularity");
 	        }
 	    }
 	    else
@@ -6097,31 +6143,50 @@ void WebViewCore::copyMoveSelection(int x, int y,  int controller, bool smartGra
 	        if(frame->selection()->granularity() == WebCore::ParagraphGranularity) {
 	            frame->selection()->setGranularity(WebCore::CharacterGranularity);
 	            visSel.expandUsingGranularity(WebCore::CharacterGranularity);
-	            DEBUG_NAV_UI_LOGD("Correct granularity to Character Granularity");
+//	            DEBUG_NAV_UI_LOGD("Correct granularity to Character Granularity");
 	        }
 	    }
     }
     // End
 
-	DEBUG_NAV_UI_LOGD("%s: End", __FUNCTION__);
+//	DEBUG_NAV_UI_LOGD("%s: End", __FUNCTION__);
 }
 
 void WebViewCore::clearTextSelection(int contentX, int contentY)
 {
-	DEBUG_NAV_UI_LOGD("%s: x,y position: %d, %d", __FUNCTION__, contentX, contentY);
-	WebCore::Frame* frame = m_mainFrame;
-	if (frame->selection()){
-		frame->selection()->clear();
-	} else {
-		DEBUG_NAV_UI_LOGD("%s: Exception:  Frame Selection is null ", __FUNCTION__);
-	}
+//            DEBUG_NAV_UI_LOGD("%s: x,y position: %d, %d", __FUNCTION__, contentX, contentY);
+                WebCore::Frame* frame = focusedFrame();
+                       if (frame->selection()){
+                       		frame->selection()->clear();
+                       } else {
+//            DEBUG_NAV_UI_LOGD("%s: Exception:  Frame Selection is null ", __FUNCTION__);
+                                                   }
+}
+
+void WebViewCore::clearTextSelectionIframe()
+{
+                //            DEBUG_NAV_UI_LOGD("%s: x,y position: %d, %d", __FUNCTION__, contentX, contentY);
+                    WebCore::Frame* frame = focusedFrame();
+                    while (Frame* parent = frame->tree()->parent())
+                    frame = parent;
+                    for (Frame* child = frame; child; child = child->tree()->traverseNext()) 
+                         {
+                    if (child->selection() && child != focusedFrame()){
+                    	XLOGC("Rachit::clearing this child %u",child);
+                    	child->selection()->clear();
+                     } else {
+		//            DEBUG_NAV_UI_LOGD("%s: Exception:  Frame Selection is null ", __FUNCTION__);
+                	    }
+                            }
 }
 
 void WebViewCore::copySetSelectionDirection(int controller)
 {
-	DEBUG_NAV_UI_LOGD("%s: Set the Selection Direction: %d", __FUNCTION__, controller);
+//	DEBUG_NAV_UI_LOGD("%s: Set the Selection Direction: %d", __FUNCTION__, controller);
 
-	WebCore::Frame* frame = m_mainFrame;
+	WebCore::Frame* main_frame = m_mainFrame;
+	WebCore::Frame* frame = focusedFrame();
+
 	frame->eventHandler()->setMousePressed(true);
 	frame->selection()->setIsDirectional(false); // Need to set to make selection work in all directions
 	switch(controller)
@@ -6147,7 +6212,7 @@ void WebViewCore::copySetSelectionDirection(int controller)
 		frame->selection()->willBeModified(SelectionController::AlterationExtend, DirectionBackward);
 		break;
 	default:
-		DEBUG_NAV_UI_LOGD("%s: Invalid Direction: %d", __FUNCTION__, controller);
+//		DEBUG_NAV_UI_LOGD("%s: Invalid Direction: %d", __FUNCTION__, controller);
 		frame->eventHandler()->setMousePressed(false);
 		break;
 	}
@@ -6155,14 +6220,14 @@ void WebViewCore::copySetSelectionDirection(int controller)
 
 void WebViewCore::webkitCopyMoveSelection(WebCore::IntPoint wndPoint, WebCore::IntPoint contentPoint, int controller)
 {
-	DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
+//	DEBUG_NAV_UI_LOGD("%s", __FUNCTION__);
 	WebCore::Frame* frame = m_mainFrame;
-	DEBUG_NAV_UI_LOGD("%s: Frame=%s", __FUNCTION__, frame);
+//	DEBUG_NAV_UI_LOGD("%s: Frame=%s", __FUNCTION__, frame);
 	WebCore::FrameView *frameview = frame->view();
 
 	if(frame->selection()->granularity() == WebCore::ParagraphGranularity)
 	{
-		DEBUG_NAV_UI_LOGD("%s: Moving in Paragraph Granularity", __FUNCTION__);
+//		DEBUG_NAV_UI_LOGD("%s: Moving in Paragraph Granularity", __FUNCTION__);
 		WebCore::IntRect box = WebCore::IntRect(0,0,0,0);
 		int left = 0, top = 0, right = 0, bottom = 0;
 
@@ -6175,11 +6240,11 @@ void WebViewCore::webkitCopyMoveSelection(WebCore::IntPoint wndPoint, WebCore::I
 			top = box.y();
 			right = left + box.width();
 			bottom = top + box.height();
-			DEBUG_NAV_UI_LOGD("%s: BoundingRect:[%d, %d, %d, %d]", __FUNCTION__, box.x(), box.y(), box.width(), box.height());
+//			DEBUG_NAV_UI_LOGD("%s: BoundingRect:[%d, %d, %d, %d]", __FUNCTION__, box.x(), box.y(), box.width(), box.height());
 		}
 		else
 		{
-			DEBUG_NAV_UI_LOGD("%s: Exception in getting Selection Region", __FUNCTION__);
+//			DEBUG_NAV_UI_LOGD("%s: Exception in getting Selection Region", __FUNCTION__);
 			return;
 		}
 		switch(mSelectionDirection)
@@ -6210,18 +6275,18 @@ void WebViewCore::webkitCopyMoveSelection(WebCore::IntPoint wndPoint, WebCore::I
 	}
 	else
 	{
-		DEBUG_NAV_UI_LOGD("%s: Character Granularity", __FUNCTION__);
+//		DEBUG_NAV_UI_LOGD("%s: Character Granularity", __FUNCTION__);
 	}
 
-	DEBUG_NAV_UI_LOGD("%s: Point after expansion: %d, %d", __FUNCTION__, contentPoint.x(), contentPoint.y());
-	DEBUG_NAV_UI_LOGD("%s: WindowPoint: %d, %d", __FUNCTION__, wndPoint.x(), wndPoint.y());
+//	DEBUG_NAV_UI_LOGD("%s: Point after expansion: %d, %d", __FUNCTION__, contentPoint.x(), contentPoint.y());
+//	DEBUG_NAV_UI_LOGD("%s: WindowPoint: %d, %d", __FUNCTION__, wndPoint.x(), wndPoint.y());
 	WebCore::PlatformMouseEvent pme(wndPoint, contentPoint, LeftButton,
 			WebCore::MouseEventMoved, 0, false, true, false, false, 0);
 
 	frameview->frame()->eventHandler()->mouseMoved(pme);
 	frameview->frame()->eventHandler()->stopAutoscrollTimer();
 
-	DEBUG_NAV_UI_LOGD("%s: End", __FUNCTION__);
+//	DEBUG_NAV_UI_LOGD("%s: End", __FUNCTION__);
 	return;
 }
 
@@ -6229,8 +6294,9 @@ void WebViewCore::webkitCopyMoveSelection(WebCore::IntPoint wndPoint, WebCore::I
 bool WebViewCore::recordSelectionCopiedData(SkRegion* prev_region,SkRegion* region, SkIRect* startRect,
 		SkIRect* endRect, int granularity ){
 
-	DBG_SET_LOG("start");
-	WebCore::Frame* frame =  m_mainFrame;
+//	DBG_SET_LOG("start");
+	WebCore::Frame* frame =  focusedFrame();
+	WebCore::Frame* main_frame =  m_mainFrame;
 	WebCore::IntRect box, start, end;
     WTF::Vector<IntRect> boxVector;
 	int boxX, boxY, boxWidth, boxHeight, endX, endY, temp;
@@ -6255,16 +6321,18 @@ bool WebViewCore::recordSelectionCopiedData(SkRegion* prev_region,SkRegion* regi
 	for (size_t i = 1; i < boxVector.size(); ++i){
         	box.unite(boxVector[i]);
 	}
-	DEBUG_NAV_UI_LOGD("%s: BoundingRect:[%d, %d, %d, %d]", __FUNCTION__, box.x(), box.y(), box.width(), box.height());
+//	DEBUG_NAV_UI_LOGD("%s: BoundingRect:[%d, %d, %d, %d]", __FUNCTION__, box.x(), box.y(), box.width(), box.height());
            prev_region->setRect(box.x(), box.y(), box.x() + box.width(), box.y() + box.height());
-//arvind.maan RTL selection fix
+
 			start = frame->editor()->firstRectForRange(tempRange.get());
-			DEBUG_NAV_UI_LOGD("%s: StartRect:[%d, %d, %d, %d]", __FUNCTION__, start.x(), start.y(), start.width(), start.height());
-			startRect->set(start.x(), start.y(), start.x() + start.width(),  start.y() + start.height());
+			IntPoint frameOffset(-m_scrollOffsetX, -m_scrollOffsetY);
+   			frameOffset = frame->view()->windowToContents(frameOffset);
+//			DEBUG_NAV_UI_LOGD("%s: StartRect:[%d, %d, %d, %d]", __FUNCTION__, start.x(), start.y(), start.width(), start.height());
+			startRect->set((start.x() - frameOffset.x()), (start.y() - frameOffset.y()), (start.x() - frameOffset.x()) + start.width(),  (start.y() - frameOffset.y()) + start.height());
 
 			end = frame->editor()->lastRectForRange(tempRange.get());
-			DEBUG_NAV_UI_LOGD("%s: EndRect:[%d, %d, %d, %d]", __FUNCTION__, end.x(), end.y(), end.width(), end.height());
-			endRect->set(end.x(), end.y(), end.x() + end.width(),  end.y() + end.height());
+//			DEBUG_NAV_UI_LOGD("%s: EndRect:[%d, %d, %d, %d]", __FUNCTION__, end.x(), end.y(), end.width(), end.height());
+			endRect->set((end.x() - frameOffset.x()), (end.y() - frameOffset.y()), (end.x() - frameOffset.x()) + end.width(),  (end.y() - frameOffset.y()) + end.height());
 
 			// Validation of BOUND RECT X and Y
 			// Validate START and END RECTs assuming that BOUND RECT is correct
@@ -6284,17 +6352,21 @@ bool WebViewCore::recordSelectionCopiedData(SkRegion* prev_region,SkRegion* regi
 			{
 				region->setRect(boxX, boxY, boxX + boxWidth, boxY + boxHeight);
 			}
-			// SAMSUNG CHANGE : Fix for Email selection handle error >>
+// SAMSUNG CHANGE >>> MPSG 5974
+/*
+			// Fix for Email selection handle error >>
 			// Auto fit long text without wrap cases validate lastrect range selection.
 			if (frame->selection()->granularity() == WebCore::CharacterGranularity ||
 					frame->selection()->granularity() == WebCore::WordGranularity) {
 				int boxRight = boxX + boxWidth;
 				if ((box.y() == end.y()) && ((end.x() + end.width()) < boxRight)) {
 					endRect->set(boxRight - 1, end.y(), boxRight,  end.y() + end.height());
-					DEBUG_NAV_UI_LOGD("%s:Validated EndRect:[%d, %d, %d, %d]", __FUNCTION__, end.x(), end.y(), end.width(), end.height());
+//					DEBUG_NAV_UI_LOGD("%s:Validated EndRect:[%d, %d, %d, %d]", __FUNCTION__, end.x(), end.y(), end.width(), end.height());
 				}
 			}
-			// SAMSUNG CHANGE <<
+*/
+// SAMSUNG CHANGE <<< MPSG 5974
+			// Fix for Email selection handle error <<
 			// Remove the validation : have side effect in selection bound rect
 			/*
          // If START RECT is not within BOUND REC,T push the START RECT to LEFT TOP corner of BOUND RECT
@@ -6335,29 +6407,30 @@ bool WebViewCore::recordSelectionCopiedData(SkRegion* prev_region,SkRegion* regi
 			 */
 			//Validation : Text selection is not happend,though engine have selection region bound.
 			WTF::String str = getSelectedText();
-			if(NULL == str || str.isEmpty() || str == "\n"){
-				DEBUG_NAV_UI_LOGD("%s: text Selection is not happend", __FUNCTION__);
+			if(NULL == str || str.isEmpty() /*|| str == "\n"*/){
+//				DEBUG_NAV_UI_LOGD("%s: text Selection is not happend", __FUNCTION__);
 			}else{
 				result = true;
 			}
 		}
 		else
 		{
-			DEBUG_NAV_UI_LOGD("%s: Selection Bound Rect is Empty", __FUNCTION__);
+//			DEBUG_NAV_UI_LOGD("%s: Selection Bound Rect is Empty", __FUNCTION__);
 			startRect->set(0, 0, 0, 0);
 			endRect->set(0, 0, 0, 0);
+			frame->selection()->clear();
 		}
 	}
 	else{
-		DEBUG_NAV_UI_LOGD("%s: recordSelectionCopiedData  is false", __FUNCTION__);
+//		DEBUG_NAV_UI_LOGD("%s: recordSelectionCopiedData  is false", __FUNCTION__);
 	}
 
 	granularity = frame->selection()->granularity();
-	DEBUG_NAV_UI_LOGD("%s: Granularity: %d", __FUNCTION__, granularity);
+//	DEBUG_NAV_UI_LOGD("%s: Granularity: %d", __FUNCTION__, granularity);
 
 	//m_contentMutex.unlock();
 
-	DBG_SET_LOG("end");
+//	DBG_SET_LOG("end");
    boxVector.clear();//arvind.maan RTL selection fix
 	return result;
 
@@ -6365,11 +6438,10 @@ bool WebViewCore::recordSelectionCopiedData(SkRegion* prev_region,SkRegion* regi
 
 int WebViewCore::getSelectionGranularity()
 {
-	WebCore::Frame* frame =  m_mainFrame;
+	WebCore::Frame* frame =  focusedFrame();
 	return frame->selection()->granularity();
 }
 
-// Adding for Multicolumn text selection - Begin
 bool WebViewCore::getSelectionMultiColInfo()
 {
 	WebCore::Frame* frame =  m_mainFrame;
@@ -6383,36 +6455,31 @@ bool WebViewCore::getSelectionMultiColInfo()
 
 		isMultiColumn = frame->editor()->getMultiColinfoOfSelection(tempRange.get());
 
-		DEBUG_NAV_UI_LOGD("%s: MultiColumn info: %d", __FUNCTION__, isMultiColumn);
+//		DEBUG_NAV_UI_LOGD("%s: MultiColumn info: %d", __FUNCTION__, isMultiColumn);
 	}
 
 	return isMultiColumn;
 }
-// Adding for Multicolumn text selection - End
-
-//ADVANCED TEXT SELECTION - SAMSUNG + 
 
 bool  WebViewCore::getClosestWord(IntPoint m_globalpos, IntPoint& m_mousePos)
 {
     int slop =16;
-    Frame* frame = m_mainFrame ;
-
-//    m_mousePos = IntPoint(m_globalpos.x() - m_scrollOffsetX,m_globalpos.y() - m_scrollOffsetY);
-
-    HitTestResult hitTestResult = m_mainFrame->eventHandler()->hitTestResultAtPoint(m_globalpos,
+     //Frame* frame = m_mainFrame ;
+	Frame* frame = focusedFrame();
+	IntPoint frame_point = convertGlobalContentToFrameContent(IntPoint(m_globalpos.x(), m_globalpos.y()));
+    HitTestResult hitTestResult = frame->eventHandler()->hitTestResultAtPoint(frame_point,
             false, false, DontHitTestScrollbars, HitTestRequest::ReadOnly | HitTestRequest::Active, IntSize(slop, slop));
 
     bool found = false;
     TouchNodeData final ;
-//    m_mousePosFrame = frame->view()->windowToContents(m_mousePos);
 
-    IntRect testRect(m_globalpos.x() - slop, m_globalpos.y() - slop, 2 * slop + 1, 2 * slop + 1);
+    IntRect testRect(frame_point.x() - slop, frame_point.y() - slop, 2 * slop + 1, 2 * slop + 1);
 
      const ListHashSet<RefPtr<Node> >& list = hitTestResult.rectBasedTestResult();
 
         if (list.isEmpty()) 
 	{
-            DBG_NAV_LOG("Should not happen: no rect-based-test nodes found");
+//            DBG_NAV_LOG("Should not happen: no rect-based-test nodes found");
             return false;
         }
 
@@ -6420,25 +6487,21 @@ bool  WebViewCore::getClosestWord(IntPoint m_globalpos, IntPoint& m_mousePos)
         Vector<TouchNodeData> nodeDataList;
         ListHashSet<RefPtr<Node> >::const_iterator last = list.end();
 
-        for (ListHashSet<RefPtr<Node> >::const_iterator it = list.begin(); it != last; ++it) 
-	{
+        for (ListHashSet<RefPtr<Node> >::const_iterator it = list.begin(); it != last; ++it) {
 		Node* it_Node = it->get();
 
-		while (it_Node) 
-		{
-			if (it_Node->nodeType() == Node::TEXT_NODE)
-			{
+		while (it_Node) {
+			if (it_Node->nodeType() == Node::TEXT_NODE) {
 				found = true;
 				break;
-			}
-			else
+			} else {
 				it_Node = it_Node->parentNode();
 			}
+		}
 
-		if (found)
-		{
+		if (found) {
 			TouchNodeData newNode;
-			newNode.mNode = it_Node;
+			newNode.mInnerNode = it_Node;
 			IntRect rect = getAbsoluteBoundingBox(it_Node);
 			newNode.mBounds = rect;
 			nodeDataList.append(newNode);  
@@ -6447,11 +6510,9 @@ bool  WebViewCore::getClosestWord(IntPoint m_globalpos, IntPoint& m_mousePos)
 			continue;
         }
 
-        
      	//get best intersecting rect
-       final.mNode = 0;
-       DBG_NAV_LOGD("Test Rect (%d %d %d %d)", testRect.x(), testRect.y(), testRect.width(), testRect.height()) ;
-
+       final.mInnerNode = 0;
+//       DBG_NAV_LOGD("Test Rect (%d %d %d %d)", testRect.x(), testRect.y(), testRect.width(), testRect.height()) ;
 
        int area = 0;
        Vector<TouchNodeData>::const_iterator nlast = nodeDataList.end();
@@ -6467,101 +6528,124 @@ bool  WebViewCore::getClosestWord(IntPoint m_globalpos, IntPoint& m_mousePos)
             }
        }
 
-
      //Adjust mouse position
-
       IntPoint frameAdjust = IntPoint(0,0);
       if (frame != m_mainFrame) {
           frameAdjust = frame->view()->contentsToWindow(IntPoint());
           frameAdjust.move(m_scrollOffsetX, m_scrollOffsetY);
       }
 
-
-
       IntRect rect = final.mBounds;
-
-
        rect.move(frameAdjust.x(), frameAdjust.y());
-
-
      // adjust m_mousePos if it is not inside the returned highlight rectangle
-
       testRect.move(frameAdjust.x(), frameAdjust.y());
-
-
      IntPoint RectSample = IntPoint(testRect.x(), testRect.y());
-
      testRect.intersect(rect);
 
 // bounding rect of node is area which cover the surrounding area of the text.
-
 	if ((testRect.width()!=0) && (testRect.height()!=0))
 	{
 		m_mousePos = WebCore::IntPoint(testRect.x(), testRect.y()) ;
-
 		return true;
-	}
-	else
-	{
+	} else {
 		return false;
 	}
-
 }
 
-//ADVANCED TEXT SELECTION - SAMSUNG - 
-bool WebViewCore::selectClosestWord(int x , int y , float zoomLevel, bool flagGranularity){
-	DEBUG_NAV_UI_LOGD("%s: x,y position: %d, %d", __FUNCTION__, x, y);
-	WebCore::Frame* frame = m_mainFrame;
-	WebCore::IntPoint contentsPoint = WebCore::IntPoint(x, y);
-	WebCore::IntPoint wndPoint = frame->view()->contentsToWindow(contentsPoint);
+bool WebViewCore::selectClosestWord(int x , int y , float zoomLevel, bool flagGranularity) {
+	// Check edit filed selection
+	if (tryEditFieldSelection(x, y)) return false;
 
-	if (!frame->eventHandler())
-	{
-		DEBUG_NAV_UI_LOGD("%s: Eventhandler is NULL", __FUNCTION__);
+	WebCore::Frame* main_frame = m_mainFrame;
+	WebCore::Frame* frame = focusedFrame();
+	int no_of_frames = 0;
+	for (Frame* child = main_frame; child; child = child->tree()->traverseNext())
+		no_of_frames = no_of_frames + 1;
+
+	if(no_of_frames > 1)
+		clearTextSelectionIframe();
+
+	WebCore::IntPoint contentsPoint = WebCore::IntPoint(x, y);
+	WebCore::IntPoint wndPoint = main_frame->view()->contentsToWindow(contentsPoint);
+	
+	if (!frame->eventHandler()) {
 		return false;
 	}
-	DEBUG_NAV_UI_LOGD("First time selection: Zoom Level: %f", zoomLevel);
 
-	//if (zoomLevel >= 0.8)
-	{
+	if (true /*Disable paragraph mode*/ || zoomLevel >= 0.8)	{
 		WebCore::MouseEventType met1 = WebCore::MouseEventMoved;
 		WebCore::PlatformMouseEvent pme1(wndPoint, contentsPoint, NoButton, met1,
 				false, false, false, false, false, 0);
-// ADVANCED TEXT SELECTION - SAMSUNG +
 		bool bReturn;
 		bReturn = frame->eventHandler()->sendContextMenuEventForWordSelection(pme1, flagGranularity);
 
 		 SelectionController* selectionContrler = frame->selection();
-
-		if ((true  == bReturn) &&  !(selectionContrler->selection().isRange()))
-		{
-			IntPoint m_MousePos; 
-
-			if ( true == getClosestWord(contentsPoint,m_MousePos))
-			{
-
-				WebCore::IntPoint wndPoint = frame->view()->contentsToWindow(m_MousePos);
-
-
-				WebCore::PlatformMouseEvent pme2(wndPoint, m_MousePos, NoButton, met1,
-											  false, false, false, false, false, 0);
-
-
+		if (bReturn && !(selectionContrler->selection().isRange())) {
+			IntPoint mousePos;
+			if (getClosestWord(contentsPoint, mousePos)) {
+				WebCore::IntPoint wndPoint = main_frame->view()->contentsToWindow(mousePos);
+				WebCore::PlatformMouseEvent pme2(wndPoint, mousePos, NoButton, met1,
+					false, false, false, false, false, 0);
 				bReturn = frame->eventHandler()->sendContextMenuEventForWordSelection(pme2, flagGranularity);
 			}
 		}
-
 		return bReturn;
-// ADVANCED TEXT SELECTION - SAMSUNG -
-	}
-	/*else
-	{
+	} else {
 		WebCore::MouseEventType met = WebCore::MouseEventPressed;
 		WebCore::PlatformMouseEvent pme(wndPoint, contentsPoint, LeftButton, met, 3, false, false, false, false, 0);
 		return frame->eventHandler()->handleMousePressEvent(pme);
-	}*/
+	}
 }
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION <<
+
+bool WebViewCore::tryEditFieldSelection(int x , int y ) {
+    HitTestResult hoverResult;
+    moveMouse(x, y, &hoverResult);
+    if (hoverResult.innerNode()) {
+        Node* node = hoverResult.innerNode();
+        Frame* frame = node->document()->frame();
+        Page* page = m_mainFrame->document()->page();
+        page->focusController()->setFocusedFrame(frame);
+    }
+    
+    IntPoint point = convertGlobalContentToFrameContent(IntPoint(x, y));
+
+    // Hit test of this kind required for this to work inside input fields
+    HitTestRequest request(HitTestRequest::Active);
+    HitTestResult result(point);
+
+    focusedFrame()->document()->renderView()->layer()->hitTest(request, result);
+
+    // Matching the logic in MouseEventWithHitTestResults::targetNode()
+    Node* node = result.innerNode();
+    if (!node)
+        return false;
+    Element* element = node->parentElement();
+    if (!node->inDocument() && element && element->inDocument())
+        node = element;
+
+    SelectionController* sc = focusedFrame()->selection();
+    bool wordSelected = false;
+    if (!sc->contains(point) && (node->isContentEditable() || node->isTextNode()) && !result.isLiveLink()
+            && node->dispatchEvent(Event::create(eventNames().selectstartEvent, true, true))) {
+        VisiblePosition pos(node->renderer()->positionForPoint(result.localPoint()));
+        //wordSelected = selectWordAroundPosition(node->document()->frame(), pos);
+
+        // 
+        VisibleSelection selection(pos);
+        selection.expandUsingGranularity(WordGranularity);
+        SelectionController* selectionController = node->document()->frame()->selection();
+
+        if (selectionController->shouldChangeSelection(selection)) {
+            if (selection.start() == selection.end()) {
+                VisibleSelection emptySelection(pos);
+                selectionController->setSelection(emptySelection);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
 void WebViewCore::scrollRenderLayer(int layer, const SkRect& rect)
 {
@@ -6582,22 +6666,14 @@ void WebViewCore::scrollRenderLayer(int layer, const SkRect& rect)
     if (!owner)
         return;
 
-    if (owner->stackingContext())
+    if (owner->isRootLayer()) {
+        FrameView* view = owner->renderer()->frame()->view();
+        IntPoint pt(rect.fLeft, rect.fTop);
+        view->setScrollPosition(pt);
+    } else
         owner->scrollToOffset(rect.fLeft, rect.fTop);
 #endif
 }
-
-//SAMSUNG CHANGE +
-void WebViewCore::storeAnimationTimer(WebCore::Image* image)
-{
-    if(animatedImage){
-	animatedImage->deref();
-	animatedImage = NULL;
-    }
-    animatedImage = image;
-    animatedImage->ref();	
-}
-// SAMSUNG CHANGE -
 
 //SAMSUNG CHANGE +
 void WebViewCore::getWebFeedLinks ( Vector<WebFeedLink*>& out )
@@ -6609,7 +6685,7 @@ void WebViewCore::getWebFeedLinks ( Vector<WebFeedLink*>& out )
 
     WebCore::Frame* frame = m_mainFrame ;
 
-    LOGV ( "WebViewCore::getWebFeedLinks()" );
+    ALOGV( "WebViewCore::getWebFeedLinks()" );
 
     while ( frame != NULL )
     {
@@ -6631,7 +6707,7 @@ void WebViewCore::getWebFeedLinks ( Vector<WebFeedLink*>& out )
                 String url = linkElement->href() ;
                 String title = linkElement->getAttribute ( WebCore::HTMLNames::titleAttr ) ;
 
-                LOGV ( "WebViewCore::getWebFeedLinks() type=%s, url=%s, title = %s", type.latin1().data(), url.latin1().data(), title.latin1().data() );
+               ALOGV( "WebViewCore::getWebFeedLinks() type=%s, url=%s, title = %s", type.latin1().data(), url.latin1().data(), title.latin1().data() );
 
                 out.append ( new WebFeedLink ( url, title, type) ) ;
             }
@@ -6643,196 +6719,85 @@ void WebViewCore::getWebFeedLinks ( Vector<WebFeedLink*>& out )
 }
 //SAMSUNG CHANGE -
 
-//SAMSUNG CHANGES- EMAIL APP CUSTOMIZATION >>
-#define FILTERED_IMAGE_HEIGHT 50
-#define FILTERED_IMAGE_WIDTH  50 
-bool WebViewCore::getCountImages(int *out_Count)const
+
+
+Vector<VisibleSelection> WebViewCore::getTextRanges(
+        int startX, int startY, int endX, int endY)
 {
-    Frame* frame = m_mainFrame;
-    int count = 0;
-    while(frame) {
-        PassRefPtr<HTMLCollection> imageCollection = frame->document()->images();
-
-        CachedImage* cachedImage;
-        RenderImage *renderImage;
-        Node * tempNode;
-
-        for(int i=0; i< imageCollection->length();i++)
-        {
-            tempNode = imageCollection->item(i) ;
-            if(!tempNode)
-                continue;
-            renderImage = static_cast<RenderImage *>(tempNode->renderer());
-            if(!renderImage)
-            {
-                HTMLImageElement *imageElement = static_cast<HTMLImageElement *>(tempNode);
-                cachedImage = imageElement->cachedImage();
-                if(!cachedImage)
-                    continue;
-            }
-            else
-                cachedImage = renderImage->cachedImage();
-            if(!cachedImage)
-                continue;
-
-            WebCore::Image* image = cachedImage->image();
-            CachedResource *cachedBuffer = static_cast<CachedResource *>(cachedImage);
-            if((image && image->data())|| cachedBuffer->data())
-            {
-                count++;
-            }
+    // These are the positions of the selection handles,
+    // which reside below the line that they are selecting.
+    // Use the vertical position higher, which will include
+    // the selected text.
+    startY--;
+    endY--;
+    VisiblePosition startSelect = visiblePositionForContentPoint(startX, startY);
+    VisiblePosition endSelect =  visiblePositionForContentPoint(endX, endY);
+    Position start = startSelect.deepEquivalent();
+    Position end = endSelect.deepEquivalent();
+    Vector<VisibleSelection> ranges;
+    if (!start.isNull() && !end.isNull()) {
+        if (comparePositions(start, end) > 0) {
+            swap(start, end); // RTL start/end positions may be swapped
         }
-        frame = frame->tree()->traverseNext();
+        Position nextRangeStart = start;
+        Position previousRangeEnd;
+        do {
+            VisibleSelection selection(nextRangeStart, end);
+            ranges.append(selection);
+            previousRangeEnd = selection.end();
+            nextRangeStart = nextCandidate(previousRangeEnd);
+        } while (comparePositions(previousRangeEnd, end) < 0);
     }
-
-    *out_Count = count;
-    return true;
+    return ranges;
 }
 
-bool WebViewCore::requiresSmartFit()
+void WebViewCore::deleteText(int startX, int startY, int endX, int endY)
 {
-    __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit called");
-    int imgCount = 0;
-    bool bMemFull = false;
-    Frame* pFrame = NULL;
-    bool m_bSmartFit = false;
+    Vector<VisibleSelection> ranges =
+            getTextRanges(startX, startY, endX, endY);
 
-    pFrame = m_mainFrame; 
-    if(!pFrame){
-        __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit end1");
-        return m_bSmartFit;
-    }
+    EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
+            m_mainFrame->editor()->client());
+    client->setUiGeneratedSelectionChange(true);
 
-    Document* doc = pFrame->document();
-    if(!doc){
-        __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit end2");
-        return m_bSmartFit;
-    }
-
-    RefPtr<WebCore::NodeList> tableList = doc->getElementsByTagName( "tr" );
-    int length = tableList->length();
-    if(length > 0) {
-        tableList = 0;
-        __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit end3");
-        return m_bSmartFit;
-    }
-  
-    m_bSmartFit=true; 
-    __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit setting true 1");
-    
-    //Number of Images in html files
-    getCountImages(&imgCount);
-    __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit images count %d", imgCount );
-    
-    //In case of image count less than zero smart fit should be applied
-    if(imgCount <= 0){
-        __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit end4");
-        return m_bSmartFit;
-    }
-
-    //Images collection for all frames in a page
-    while(pFrame) {
-        //list of images in current DOM
-        PassRefPtr<HTMLCollection> listImages = pFrame->document()->images();
-        FrameView* view = pFrame->view();
-        CachedImage* cImage = NULL;
-        RenderImage *rImage = NULL;
-        String srcPath;
-        Node* ImageNode = NULL;
-        int i=0;
-        bool isRendered = false ;
-
-        //For every images in a particular frame, finding dimensions
-        for (; i< listImages->length() ;i++)
-        {
-            ImageNode = listImages->item(i);
-            if(!ImageNode)
-                continue;
-
-            rImage = static_cast<RenderImage *>(ImageNode->renderer());
-            if(!rImage) {
-                continue;
-            }else{
-                cImage = rImage->cachedImage();
-            }
-
-            if(!cImage) { 
-                continue;
-            }
-
-            Element* imgElement = static_cast<Element*>(ImageNode);
-            const AtomicString& value = imgElement->getAttribute("src");
-
-            srcPath = value.string();
-            if( (srcPath.isNull()) || (srcPath.isEmpty()) || (srcPath.length() == 0) ) {
-                continue;
-            }
-
-            WebCore::Image* pImage = cImage->image();
-            IntRect imgRect ;
-            isRendered = false ;
-            CachedResource *cBuffer = static_cast<CachedResource *>(cImage) ;
-
-            const char *imgData;
-            unsigned long imgSize;
-            unsigned long imgHeight =0, imgWidth=0;
-            if(pImage && pImage->data()) {  
-                imgHeight = pImage->height();
-                imgWidth  = pImage->width();
-                imgData = pImage->data()->data();
-                imgSize = pImage->data()->size();
-            }else if (cBuffer->data()) {
-                imgData = cBuffer->data()->data();
-                imgSize = cBuffer->data()->size();
-            }else {
-                continue;
-            }
-
-            //This is actual check to find smart fit or not
-            if(pImage && ((pImage->height() < FILTERED_IMAGE_HEIGHT) ||(pImage->width() < FILTERED_IMAGE_WIDTH))) {
-                m_bSmartFit = true;
-                __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit setting true 2");
-                continue;
-            }else {
-                m_bSmartFit = false;
-                __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit setting false 1");
-            }
-             
-            /* to add later
-            SFBalImgCodecType imgCodec = SFBalImgGetDataCodecType( (unsigned char*)(imgData ), imgSize);
-            char szExt[5];                 
-            GetExtensionFromCodec(imgCodec , szExt);
-            if ((SFBalStricmp(szExt, "dat") == 0)) {
-                continue;
-            }
-            */
-            if(!m_bSmartFit){
-                __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit end5");
-                return m_bSmartFit;
-            }
+    SelectionController* selector = m_mainFrame->selection();
+    for (size_t i = 0; i < ranges.size(); i++) {
+        const VisibleSelection& selection = ranges[i];
+        if (selection.isContentEditable()) {
+            selector->setSelection(selection, CharacterGranularity);
+            Document* document = selection.start().anchorNode()->document();
+            WebCore::TypingCommand::deleteSelection(document, 0);
         }
-        pFrame = pFrame->tree()->traverseNext();
-      }
-      __android_log_print(ANDROID_LOG_DEBUG,"GNANA"," requiresSmartFit end6");
-      return m_bSmartFit;
-}
-//SAMSUGN CHANGES <<
-
-//----------------------------------------------------------------------
-// Native JNI methods
-//----------------------------------------------------------------------
-static void RevealSelection(JNIEnv *env, jobject obj)
-{
-    GET_NATIVE_VIEW(env, obj)->revealSelection();
+    }
+    client->setUiGeneratedSelectionChange(false);
 }
 
-static jstring RequestLabel(JNIEnv *env, jobject obj, int framePointer,
-        int nodePointer)
+void WebViewCore::insertText(const WTF::String &text)
 {
-    return wtfStringToJstring(env, GET_NATIVE_VIEW(env, obj)->requestLabel(
-            (WebCore::Frame*) framePointer, (WebCore::Node*) nodePointer));
+    WebCore::Node* focus = currentFocus();
+    if (!focus || !isTextInput(focus))
+        return;
+
+    Document* document = focus->document();
+
+    EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
+            m_mainFrame->editor()->client());
+    if (!client)
+        return;
+    client->setUiGeneratedSelectionChange(true);
+    WebCore::TypingCommand::insertText(document, text,
+            TypingCommand::PreventSpellChecking);
+    client->setUiGeneratedSelectionChange(false);
 }
-//SISO_HTMLCOMPOSER begin
+
+void WebViewCore::resetFindOnPage()
+{
+    m_searchText.truncate(0);
+    m_matchCount = 0;
+    m_activeMatchIndex = 0;
+    m_activeMatch = 0;
+}
+//SISO_HTMLCOMPOSER start
 /*
 It gets the hittestresult from the main frame , find the innernoe and the renderer.
 If the rendered node is an image then it get the Renderblockbound rect which is basically the image region.
@@ -6854,7 +6819,7 @@ WebCore::IntRect WebViewCore::GetHitImageSize( int anchorX , int anchorY)
 
     WebCore::RenderObject *renderer = NULL ;
     if (!node) {
-        DBG_NAV_LOG("GetHitImageSize: HitTest Result Node is NULL!");
+        //DBG_NAV_LOG("GetHitImageSize: HitTest Result Node is NULL!");
         return webRect;
     }
     WebCore::RenderObject* nodeRenderer = node->renderer();
@@ -6862,29 +6827,30 @@ WebCore::IntRect WebViewCore::GetHitImageSize( int anchorX , int anchorY)
     if ( nodeRenderer != NULL && nodeRenderer->isRenderImage())
     {
         webRect=    getBlockBounds(node);
-        DBG_NAV_LOGD("getRenderBlockBounds  1  : node=%p result(%d, %d, %d, %d)", node, webRect.x(), webRect.y(), webRect.width(), webRect.height());
+        //DBG_NAV_LOGD("getRenderBlockBounds  1  : node=%p result(%d, %d, %d, %d)", node, webRect.x(), webRect.y(), webRect.width(), webRect.height());
 
         /*Create markup of this node - The markup is used to insert at new position in case of image move -28-9-11*/
-        LOGV ( "WebViewCore::GetHitImageSize() - setting image markup datata and size " );
+        ALOGV ( "WebViewCore::GetHitImageSize() - setting image markup datata and size " );
         String markupString = createMarkup(node);
         setImageNodeMarkup( markupString);
         m_SelectedImageNode = node;//ananta
-
+        //+Feature_Support_SPen
+        m_SelectedImageUri = hitTestResult.absoluteImageURL();
+        //-Feature_Support_SPen
     }
     else
     {
-        DBG_NAV_LOG("getRenderBlockBounds: No render block found!      ");
+        /*DBG_NAV_LOG*/ALOGV("getRenderBlockBounds: No render block found!      ");
     }
 
     //test code 
-    IntPoint pt = IntPoint(webRect.right(), webRect.bottom());
+    IntPoint pt = IntPoint(webRect.maxX(), webRect.maxY());
     imgVisibleSelectionToReInsert = m_mainFrame->visiblePositionForPoint(pt);
     //end 
 
     return webRect;
 
 }
-//HTML Composer Start
 WebCore::IntRect WebViewCore::GetSelectedImageSize()
 {
 	WebCore::Node* node = getSelectedImageNode();
@@ -6901,41 +6867,6 @@ WebCore::IntRect WebViewCore::GetSelectedImageSize()
 	return webRect;
 
 }
-//HTML Composer End
-
-// SAMSUNG CHANGE ++
-// Patch for MPSG100004567 - GA0100507167
-bool WebViewCore::IsNodeInIFrame()
-{
-	WebCore::Node* node = currentFocus();
-	//WebCore::RenderObject* renderer;
-
-	if(!node){
-	    return false;
-	}
-
-	if(mCurrentNode == NULL || mCurrentNode != node){
-	    mCurrentNode = node;
-	    while(node){
-	        if(node->hasTagName(HTMLNames::iframeTag) || node->hasTagName(HTMLNames::frameTag) /*renderer && renderer->isRenderIFrame()*/){
-		    mIsNodeInIFrame = true;  
-		    return mIsNodeInIFrame;
-	    	}
-	        if(!(node-> parentNode()) && node->isDocumentNode()/*node->document()*/){
-		    node = (WebCore::Node*)node->document()->ownerElement();
-	    	}else{
-	            node = node->parentNode();
-	    	}
-	    }
-	    mIsNodeInIFrame = false;
-	}
-	return mIsNodeInIFrame;
-}
-// SAMSUNG CHANGE --
-
-/*
-*ResizeImage - this is the native call initiated from htmlcomposerview.java 
-*/
 
 void WebViewCore:: resizeImage(int width  ,int height)
 {
@@ -6943,7 +6874,7 @@ void WebViewCore:: resizeImage(int width  ,int height)
     WebCore::IntRect webRect ;
     
     if (!m_SelectedImageNode) {
-        DBG_NAV_LOG("resizeImage: HitTest Result Node is NULL!");
+        /*DBG_NAV_LOG*/ALOGV("resizeImage: HitTest Result Node is NULL!");
         return ;
     }
     WebCore::RenderObject* nodeRenderer = m_SelectedImageNode->renderer();
@@ -6952,18 +6883,19 @@ void WebViewCore:: resizeImage(int width  ,int height)
     {
 
     __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","resizeImage called - width =%d  , height = %d ", width ,height);
-
-    ((HTMLImageElement*)m_SelectedImageNode)->setWidth(width);
-    ((HTMLImageElement*)m_SelectedImageNode)->setHeight(height);
-
+    float pgZoomFactor =m_mainFrame->pageZoomFactor();
+    ((HTMLImageElement*)m_SelectedImageNode)->setWidth((int)width/pgZoomFactor);
+    ((HTMLImageElement*)m_SelectedImageNode)->setHeight((int)height/pgZoomFactor);
     }
 }
-
-//SISO_HTMLCOMPOSER begin
 //getCurrentFontSize - api to get the font size of current selection.
 int WebViewCore::getCurrentFontSize()
 {
     return m_mainFrame->editor()->getCurrentFontSize(); 
+}
+WTF::String WebViewCore::getImageNodeMarkup()
+{
+    return imageNodeMarkup;
 }
 
 //getCurrentFontValue - api to get the font size of current selection in pixels
@@ -6971,44 +6903,40 @@ int WebViewCore::getCurrentFontValue()
 {
 	return m_mainFrame->editor()->getCurrentFontValue();	
 }
-//SISO_HTMLCOMPOSER end
 
 //Added for image move feature 
 void WebViewCore::saveImageSelectionController(  VisibleSelection imageSelection )
 {
-    __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","saveImageSelectionController called ");
+    ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","saveImageSelectionController called ");
 
-    //if(m_VisibleImageSelection == NULL)
-    {
-        //__android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","saveImageSelectionController m_VisibleImageSelection == NULL so initializing   ");
+   
         m_VisibleImageSelection = VisibleSelection();
-    }       
+          
     m_VisibleImageSelection = imageSelection;
 }
 
 void WebViewCore::releaseImageSelectionController()
 {
-    __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","initImageSelectionController called ");
+    ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","initImageSelectionController called ");
     m_VisibleImageSelection = VisibleSelection(); // it assign values fro no selection 
 
 }
 
 VisibleSelection  WebViewCore::getImageSelectionController()
 {
-    __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","getImageSelectionController called ");
+    ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","getImageSelectionController called ");
     return m_VisibleImageSelection;
 }
 WebCore::Node* WebViewCore::getSelectedImageNode()
 {
-    __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","getSelectedImageNode called ");
+    ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","getSelectedImageNode called ");
     return m_SelectedImageNode;
 }
 void WebViewCore::removeSelectedImageNode()
 {
-    __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","removeSelectedImageNode called ");
+    ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","removeSelectedImageNode called ");
     ExceptionCode e ;
 
-    //imageNode->detach();  
     applyCommand(RemoveNodeCommand::create(m_SelectedImageNode));
     m_SelectedImageNode->remove(e);
     __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","removeSelectedImageNode - e = %d ", e);
@@ -7020,24 +6948,20 @@ void WebViewCore::setImageNodeMarkup(String imagenodemarkup)
 {
     imageNodeMarkup = imagenodemarkup;
 }
-WTF::String WebViewCore::getImageNodeMarkup()
-{
-    return imageNodeMarkup;
-}
+
 
 void WebViewCore::SetSelectionPreviousImage(VisibleSelection imageSelection )
 {
-    __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","SetSelectionPreviousImage called ");
+    ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","SetSelectionPreviousImage called ");
 
-    //if(imageSelection==NULL)
     if(imageSelection.isNone())
-        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","SetSelectionPreviousImage - imageSelection is NULL     ");
+        ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","SetSelectionPreviousImage - imageSelection is NULL     ");
     
 
     SelectionController* selectionContrler = m_mainFrame->selection();
     if(selectionContrler != NULL && !(selectionContrler->isNone()))
     {
-        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","selectionContrler->setSelection(imageSelection) called  ");
+        ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","selectionContrler->setSelection(imageSelection) called  ");
         selectionContrler->setSelection(imageSelection);
     }   
 }
@@ -7054,30 +6978,12 @@ void WebViewCore:: setSelectionToMoveImage(bool isNewPosition){
     else
         newSelection = VisibleSelection(imgVisibleSelectionToReInsert);
 
-    //if(!newSelection.isNone())
-    //{
-     frameSelectionContrler->setSelection(newSelection/*(newSelectionControler.selection()*/); 
+     frameSelectionContrler->setSelection(newSelection); 
 
-    //}
-    /*else
-    {
-        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","setSelectionToMoveImage - No selection found to insert image   ");
-
-    }*/
 }
 
 //check  the selection- if image can be moved 
 bool WebViewCore:: checkSelectionToMoveImage(){
-
-/*  if(imageCanMove){
-            __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","imageCanMove return true   ");
-                return true ;
-        }
-    else
-        {
-            __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","imageCanMove return false  ");
-            return false;       
-        }*/
 
 
     SelectionController* frameSelectionContrler = m_mainFrame->selection();
@@ -7086,21 +6992,20 @@ bool WebViewCore:: checkSelectionToMoveImage(){
     VisibleSelection newSelection;
     newSelection = VisibleSelection(imageVisiblePosition);
 
-    //if(newSelection.isCaret()/*start().isCandidate()*/)
-    if(frameSelectionContrler->selection().isCaret())
+     if(frameSelectionContrler->selection().isCaret())
     {
-        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage - isCaret -  return true     ");
+        ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage - isCaret -  return true     ");
         return true ;
 
     }       
     else
     {
-        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage -isCaret -return false   ");
+        ALOGV(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage -isCaret -return false   ");
         return false;
     }
     
 }
-// HTML Composer start
+
 // Validating the New position while moving image to insert in new position 
 bool WebViewCore:: isValidePositionToMoveImage()
 {
@@ -7115,274 +7020,386 @@ bool WebViewCore:: isValidePositionToMoveImage()
     isSameNode = anchorNode->isSameNode(imgNode);
    return (!isSameNode && isCaret);
 }
-// HTML Composer end
-
-//SAMSUNG CHANGES >>>
-void WebViewCore::setWebTextViewOnOffStatus(bool status) {
-	DBG_NAV_LOGD("setWebTextViewOnOffStatus : Setting WebTextView status = %d", status);
-	WebCore::Settings* settings = mainFrame()->page()->settings();
-	settings->setWebTextViewOnOffStatus(status);
-}
-//SAMSUNG CHANGES <<<
-
-//SAMSUNG CHANGES >>
-void WebViewCore::setHeightCanMeasure(bool measure)
-{
-    m_heightCanMeasure = measure;
-}
-//SAMSUNG CHANGES <<
-
-// image move feature - it deletes the image at ols location and insert into new location -
-static void insertImageContent(JNIEnv *env, jobject obj, jstring command )
-{
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-
-    //Save the selection to display cursor after insertion of image 
-    //viewImpl->saveSelectionController();
-
-    if( false==viewImpl->isValidePositionToMoveImage())
-    {
-
-        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage fails - Image can not be moved   ");
-        return;
-    }
-
-    //delete using priviously save selecton controller 
-    /*
-    VisibleSelection imageSelection = viewImpl->getImageSelectionController();
-    viewImpl->SetSelectionPreviousImage(imageSelection);
-    WTF::String commandToDel = "Delete";
-    WTF::String value = "null";
-    viewImpl->execCommand(commandToDel,value);
-       */
-       
-    //delete the Selected image node  - using node pointer
-    
-    viewImpl->removeSelectedImageNode();
-    
 
 
-    if( false==viewImpl->checkSelectionToMoveImage())
-    {
-        __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage fails - Image can not be moved viewImpl->setSelectionToMoveImage(false); ");
-        viewImpl->setSelectionToMoveImage(false);
-    }
-    else 
-    {
-        //Set the selection at previously saved x,y position 
-            __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage fails - Image can be moved viewImpl->setSelectionToMoveImage(true);  ");
-        viewImpl->setSelectionToMoveImage(true);
-   }
-
-    //insert image at new position
-    WTF::String imageNodeMarkup = viewImpl->getImageNodeMarkup();
-    WTF::String commandName = jstringToWtfString(env, command); 
-    viewImpl->execCommand(commandName , imageNodeMarkup);
-//+HTMLCOMPOSERVIEW
-//HTML Composer Start
-// New Line not required after inserting the image 
-/*
-    WTF::String value("\n");
-    WTF::String commandInsertName("InsertText"); 
-    viewImpl->execCommand(commandInsertName , value);
-*/
-//HTML Composer End
-//-HTMLCOMPOSERVIEW
-}
 //SISO_HTMLCOMPOSER end
 
-static void ClearContent(JNIEnv *env, jobject obj)
+int WebViewCore::findTextOnPage(const WTF::String &text)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    resetFindOnPage(); // reset even if parameters are bad
+
+    WebCore::Frame* frame = m_mainFrame;
+    if (!frame)
+        return 0;
+
+    m_searchText = text;
+    FindOptions findOptions = WebCore::CaseInsensitive;
+
+    do {
+        frame->document()->markers()->removeMarkers(DocumentMarker::TextMatch);
+        m_matchCount += frame->editor()->countMatchesForText(text, findOptions,
+            0, true);
+        frame->editor()->setMarkedTextMatchesAreHighlighted(true);
+        frame = frame->tree()->traverseNextWithWrap(false);
+    } while (frame);
+    m_activeMatchIndex = m_matchCount - 1; // prime first findNext
+    return m_matchCount;
+}
+
+int WebViewCore::findNextOnPage(bool forward)
+{
+    if (!m_mainFrame)
+        return -1;
+    if (!m_matchCount)
+        return -1;
+
+    EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
+        m_mainFrame->editor()->client());
+    client->setUiGeneratedSelectionChange(true);
+
+    // Clear previous active match.
+    if (m_activeMatch) {
+        m_mainFrame->document()->markers()->setMarkersActive(
+            m_activeMatch.get(), false);
+    }
+
+    FindOptions findOptions = WebCore::CaseInsensitive
+        | WebCore::StartInSelection | WebCore::WrapAround;
+    if (!forward)
+        findOptions |= WebCore::Backwards;
+
+    // Start from the previous active match.
+    if (m_activeMatch) {
+        m_mainFrame->selection()->setSelection(m_activeMatch.get());
+    }
+
+    bool found = m_mainFrame->editor()->findString(m_searchText, findOptions);
+    if (found) {
+        VisibleSelection selection(m_mainFrame->selection()->selection());
+        if (selection.isNone() || selection.start() == selection.end()) {
+            // Temporary workaround for findString() refusing to select text
+            // marked "-webkit-user-select: none".
+            m_activeMatchIndex = 0;
+            m_activeMatch = 0;
+        } else {
+            // Mark current match "active".
+            if (forward) {
+                ++m_activeMatchIndex;
+                if (m_activeMatchIndex == m_matchCount)
+                    m_activeMatchIndex = 0;
+            } else {
+                if (m_activeMatchIndex == 0)
+                    m_activeMatchIndex = m_matchCount;
+                --m_activeMatchIndex;
+            }
+            m_activeMatch = selection.firstRange();
+            m_mainFrame->document()->markers()->setMarkersActive(
+                m_activeMatch.get(), true);
+
+//SAMSUNG CHANGES: MPSG100006003, MPSG100006340 >>
+            //WAS: m_mainFrame->selection()->revealSelection(
+            //         ScrollAlignment::alignCenterIfNeeded, true);
+
+            IntRect visibleContentRect = m_mainFrame->view()->visibleContentRect();
+            ALOGV("findNextOnPage() -selectionType=%d ContentSize [%d, %d] visibleContentRect [%d, %d, w=%d, h=%d] ", 
+                m_mainFrame->selection()->selectionType(),
+                m_mainFrame->view()->contentsWidth(), m_mainFrame->view()->contentsHeight(),
+                visibleContentRect.x(), visibleContentRect.y(), visibleContentRect.width(), visibleContentRect.height());
+
+            //Send additional scroll event to webview if View height and content height is same
+            if (visibleContentRect.height() == m_mainFrame->view()->contentsHeight()) {
+                IntRect rectToReveal= enclosingIntRect(m_mainFrame->selection()->bounds(false));
+                IntRect rectRevealExtent = VisiblePosition(m_mainFrame->selection()->extent()).absoluteCaretBounds();
+                ALOGV("findNextOnPage() - rectToReveal[%d, %d, w=%d, h=%d] rectRevealExtent[%d, %d, w=%d, h=%d] ",
+                    rectToReveal.x(), rectToReveal.y(), rectToReveal.width(), rectToReveal.height(),
+                    rectRevealExtent.x(), rectRevealExtent.y(), rectRevealExtent.width(), rectRevealExtent.height());
+                int rectGapX = 0;
+                if(rectRevealExtent.x() >= rectToReveal.maxX()) {
+                    rectGapX = rectRevealExtent.x() - rectToReveal.maxX();
+                }
+                else {
+                    rectGapX = rectToReveal.maxX() - rectRevealExtent.x();
+                }
+                if (rectToReveal.isEmpty() || rectGapX <= 2) {
+                    m_mainFrame->selection()->revealSelection(
+                        ScrollAlignment::alignCenterIfNeeded, true);  
+                    if (rectToReveal.isEmpty()) {
+                        rectToReveal = VisiblePosition(m_mainFrame->selection()->extent()).absoluteCaretBounds();
+                    }
+                }
+                // remove any x-scroll required as it will be taken care by revealSelection
+                if (rectToReveal.x() < visibleContentRect.x()) {
+                    rectToReveal.setX(visibleContentRect.x());
+                } else if (rectToReveal.maxX() > visibleContentRect.maxX() 
+                                   && rectToReveal.width() < visibleContentRect.width()) {
+                    rectToReveal.setX(visibleContentRect.maxX()-rectToReveal.width());
+                }
+                ALOGV("findNextOnPage() - modified - rectToReveal[%d, %d, w=%d, h=%d] call scrollRectOnScreen!!",
+                    rectToReveal.x(), rectToReveal.y(), rectToReveal.width(), rectToReveal.height());
+                //Only for scrolling in y-direction
+                scrollRectOnScreen(rectToReveal); 
+            }else {
+                m_mainFrame->selection()->revealSelection(
+                    ScrollAlignment::alignCenterIfNeeded, true);
+            }
+
+//SAMSUNG CHANGES <<
+        }
+    }
+
+    // Clear selection so it doesn't display.
+    m_mainFrame->selection()->clear();
+    client->setUiGeneratedSelectionChange(false);
+    return m_activeMatchIndex;
+}
+
+String WebViewCore::getText(int startX, int startY, int endX, int endY)
+{
+    String text;
+
+    Vector<VisibleSelection> ranges =
+            getTextRanges(startX, startY, endX, endY);
+
+    for (size_t i = 0; i < ranges.size(); i++) {
+        const VisibleSelection& selection = ranges[i];
+        if (selection.isRange()) {
+            PassRefPtr<Range> range = selection.firstRange();
+            String textInRange = range->text();
+            if (textInRange.length() > 0) {
+                if (text.length() > 0)
+                    text.append('\n');
+                text.append(textInRange);
+            }
+        }
+    }
+
+    return text;
+}
+
+/**
+ * Read the persistent locale.
+ */
+void WebViewCore::getLocale(String& language, String& region)
+{
+    char propLang[PROPERTY_VALUE_MAX], propRegn[PROPERTY_VALUE_MAX];
+
+    property_get("persist.sys.language", propLang, "");
+    property_get("persist.sys.country", propRegn, "");
+    if (*propLang == 0 && *propRegn == 0) {
+        /* Set to ro properties, default is en_US */
+        property_get("ro.product.locale.language", propLang, "en");
+        property_get("ro.product.locale.region", propRegn, "US");
+    }
+    language = String(propLang, 2);
+    region = String(propRegn, 2);
+}
+
+void WebViewCore::updateLocale()
+{
+    static String prevLang;
+    static String prevRegn;
+    String language;
+    String region;
+
+    getLocale(language, region);
+
+    if ((language != prevLang) || (region != prevRegn)) {
+        prevLang = language;
+        prevRegn = region;
+        GlyphPageTreeNode::resetRoots();
+        fontCache()->invalidate();
+    }
+}
+
+//----------------------------------------------------------------------
+// Native JNI methods
+//----------------------------------------------------------------------
+static void RevealSelection(JNIEnv* env, jobject obj, jint nativeClass)
+{
+    reinterpret_cast<WebViewCore*>(nativeClass)->revealSelection();
+}
+
+static jstring RequestLabel(JNIEnv* env, jobject obj, jint nativeClass,
+        int framePointer, int nodePointer)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return wtfStringToJstring(env, viewImpl->requestLabel(
+            (WebCore::Frame*) framePointer, (WebCore::Node*) nodePointer));
+}
+
+static void ClearContent(JNIEnv* env, jobject obj, jint nativeClass)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->clearContent();
 }
-//SAMSUNG changes - Reader
-static jstring applyreadability(JNIEnv *env, jobject obj,jstring flags)
+//SAMSUNG : Reader >>
+static jstring applyreadability(JNIEnv *env, jobject obj,  jint nativeClass, jstring flags)
 {
-    return wtfStringToJstring(env, GET_NATIVE_VIEW(env, obj)->applyreadability(jstringToWtfString(env, flags)));
+   WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+   return wtfStringToJstring(env, viewImpl->applyreadability(jstringToWtfString(env, flags)));
+    
 }
-static jstring loadinitialJs(JNIEnv *env, jobject obj,jstring flags)
+static jstring loadinitialJs(JNIEnv *env, jobject obj, jint nativeClass, jstring flags)
 {
-    return wtfStringToJstring(env, GET_NATIVE_VIEW(env, obj)->loadinitialJs(jstringToWtfString(env, flags)));
+   WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return wtfStringToJstring(env, viewImpl->loadinitialJs(jstringToWtfString(env, flags)));
 }
-//SAMSUNG changes - Reader
+//SAMSUNG : Reader <<
 
-static void UpdateFrameCacheIfLoading(JNIEnv *env, jobject obj)
+static void SetSize(JNIEnv* env, jobject obj, jint nativeClass, jint width,
+        jint height, jint textWrapWidth, jfloat scale, jint screenWidth,
+        jint screenHeight, jint anchorX, jint anchorY, jboolean ignoreHeight)
 {
-    GET_NATIVE_VIEW(env, obj)->updateFrameCacheIfLoading();
-}
-
-static void SetSize(JNIEnv *env, jobject obj, jint width, jint height,
-        jint textWrapWidth, jfloat scale, jint screenWidth, jint screenHeight,
-        jint anchorX, jint anchorY, jboolean ignoreHeight)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOGV("webviewcore::nativeSetSize(%u %u)\n viewImpl: %p", (unsigned)width, (unsigned)height, viewImpl);
-    LOG_ASSERT(viewImpl, "viewImpl not set in nativeSetSize");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOGV("webviewcore::nativeSetSize(%u %u)\n viewImpl: %p", (unsigned)width, (unsigned)height, viewImpl);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in nativeSetSize");
     viewImpl->setSizeScreenWidthAndScale(width, height, textWrapWidth, scale,
             screenWidth, screenHeight, anchorX, anchorY, ignoreHeight);
 }
 
-static void SetScrollOffset(JNIEnv *env, jobject obj, jint gen, jboolean sendScrollEvent, jint x, jint y)
+static void SetScrollOffset(JNIEnv* env, jobject obj, jint nativeClass,
+        jboolean sendScrollEvent, jint x, jint y)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "need viewImpl");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "need viewImpl");
 
-    viewImpl->setScrollOffset(gen, sendScrollEvent, x, y);
+    viewImpl->setScrollOffset(sendScrollEvent, x, y);
 }
 
-static void SetGlobalBounds(JNIEnv *env, jobject obj, jint x, jint y, jint h,
-                            jint v)
+static void SetGlobalBounds(JNIEnv* env, jobject obj, jint nativeClass,
+        jint x, jint y, jint h, jint v)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "need viewImpl");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "need viewImpl");
 
     viewImpl->setGlobalBounds(x, y, h, v);
 }
 
-static jboolean Key(JNIEnv *env, jobject obj, jint keyCode, jint unichar,
-        jint repeatCount, jboolean isShift, jboolean isAlt, jboolean isSym,
-        jboolean isDown)
+static jboolean Key(JNIEnv* env, jobject obj, jint nativeClass, jint keyCode,
+        jint unichar, jint repeatCount, jboolean isShift, jboolean isAlt,
+        jboolean isSym, jboolean isDown)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    return GET_NATIVE_VIEW(env, obj)->key(PlatformKeyboardEvent(keyCode,
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->key(PlatformKeyboardEvent(keyCode,
         unichar, repeatCount, isDown, isShift, isAlt, isSym));
 }
 
-static void Click(JNIEnv *env, jobject obj, int framePtr, int nodePtr, jboolean fake)
+//SAMSUNG CHANGES MPSG100006129 >>
+static void UpdateTextSelectionStartAndEnd(JNIEnv* env, jobject obj, jint nativeClass)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in Click");
-
-    viewImpl->click(reinterpret_cast<WebCore::Frame*>(framePtr),
-        reinterpret_cast<WebCore::Node*>(nodePtr), fake);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->updateTextSelectionStartAndEnd();
 }
-//SAMSUNG CHANGE: MPSG100003899, MPSG100005262 >>
-static void RecalcWidthAndForceLayout(JNIEnv *env, jobject obj)
+//SAMSUNG CHANGES MPSG100006129 <<
+
+static void SetInitialFocus(JNIEnv* env, jobject obj, jint nativeClass,
+                            jint keyDirection)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->setInitialFocus(PlatformKeyboardEvent(keyDirection,
+            0, 0, false, false, false, false));
+}
+
+//SAMSUNG CHANGES: mobile page zoom scale change issue - merge from ICS >>
+static void RecalcWidthAndForceLayout(JNIEnv *env, jobject obj, jint nativeClass)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in RecalcWidthAndForceLayout");
 
     WebCore::Settings* s = viewImpl->mainFrame()->page()->settings();
     if (!s) {
-        DBG_SET_LOG("!viewImpl->mainFrame()->page()->settings()");		
-        return;	
+        ALOGV("!viewImpl->mainFrame()->page()->settings()");
+        return;
     }
 
     //recalculate width and force layout only for mobile pages	
     if(0 == s->viewportWidth()) {
-        DBG_SET_LOG("Do recalcWidthAndForceLayout");		
+        ALOGV("Do recalcWidthAndForceLayout");
         viewImpl->recalcWidthAndForceLayout();
     }
 }
-//SAMSUNG CHANGE <<
-static void ContentInvalidateAll(JNIEnv *env, jobject obj)
+//SAMSUNG CHANGES <<
+
+static void ContentInvalidateAll(JNIEnv* env, jobject obj, jint nativeClass)
 {
-    GET_NATIVE_VIEW(env, obj)->contentInvalidateAll();
+    reinterpret_cast<WebViewCore*>(nativeClass)->contentInvalidateAll();
 }
 
-static void DeleteSelection(JNIEnv *env, jobject obj, jint start, jint end,
-        jint textGeneration)
+static void DeleteSelection(JNIEnv* env, jobject obj, jint nativeClass,
+        jint start, jint end, jint textGeneration)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->deleteSelection(start, end, textGeneration);
 }
 
-static void SetSelection(JNIEnv *env, jobject obj, jint start, jint end)
+static void SetSelection(JNIEnv* env, jobject obj, jint nativeClass,
+        jint start, jint end)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->setSelection(start, end);
 }
 
-static jstring ModifySelection(JNIEnv *env, jobject obj, jint direction, jint granularity)
+static jstring ModifySelection(JNIEnv* env, jobject obj, jint nativeClass,
+        jint direction, jint granularity)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     String selectionString = viewImpl->modifySelection(direction, granularity);
     return wtfStringToJstring(env, selectionString);
 }
 
-static void ReplaceTextfieldText(JNIEnv *env, jobject obj,
+static void ReplaceTextfieldText(JNIEnv* env, jobject obj, jint nativeClass,
     jint oldStart, jint oldEnd, jstring replace, jint start, jint end,
     jint textGeneration)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     WTF::String webcoreString = jstringToWtfString(env, replace);
     viewImpl->replaceTextfieldText(oldStart,
             oldEnd, webcoreString, start, end, textGeneration);
 }
 
-static void PassToJs(JNIEnv *env, jobject obj,
+static void PassToJs(JNIEnv* env, jobject obj, jint nativeClass,
     jint generation, jstring currentText, jint keyCode,
     jint keyValue, jboolean down, jboolean cap, jboolean fn, jboolean sym)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
     WTF::String current = jstringToWtfString(env, currentText);
-    GET_NATIVE_VIEW(env, obj)->passToJs(generation, current,
+    reinterpret_cast<WebViewCore*>(nativeClass)->passToJs(generation, current,
         PlatformKeyboardEvent(keyCode, keyValue, 0, down, cap, fn, sym));
 }
 
-static void ScrollFocusedTextInput(JNIEnv *env, jobject obj, jfloat xPercent,
-    jint y)
+static void ScrollFocusedTextInput(JNIEnv* env, jobject obj, jint nativeClass,
+        jfloat xPercent, jint y, jobject contentBounds)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    viewImpl->scrollFocusedTextInput(xPercent, y);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    IntRect bounds = viewImpl->scrollFocusedTextInput(xPercent, y);
+    if (contentBounds)
+        GraphicsJNI::irect_to_jrect(bounds, env, contentBounds);
 }
 
-static void SetFocusControllerActive(JNIEnv *env, jobject obj, jboolean active)
+static void SetFocusControllerActive(JNIEnv* env, jobject obj, jint nativeClass,
+        jboolean active)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    LOGV("webviewcore::nativeSetFocusControllerActive()\n");
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in nativeSetFocusControllerActive");
+    ALOGV("webviewcore::nativeSetFocusControllerActive()\n");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in nativeSetFocusControllerActive");
     viewImpl->setFocusControllerActive(active);
 }
 
-static void SaveDocumentState(JNIEnv *env, jobject obj, jint frame)
+static void SaveDocumentState(JNIEnv* env, jobject obj, jint nativeClass)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    LOGV("webviewcore::nativeSaveDocumentState()\n");
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in nativeSaveDocumentState");
-    viewImpl->saveDocumentState((WebCore::Frame*) frame);
+    ALOGV("webviewcore::nativeSaveDocumentState()\n");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in nativeSaveDocumentState");
+    viewImpl->saveDocumentState(viewImpl->focusedFrame());
 }
+//SAMSUNG - Google Text Selection >>
+static void InvokeUpdateTextSelection(JNIEnv* env, jobject obj, jint nativeClass)
+{
+    ALOGV("webviewcore::nativeupdateTextSelection()\n");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in nativeupdateTextSelection");
+    viewImpl->invokeUpdateTextSelection();
+}
+//SAMSUNG - Google Text Selection <<
 
 void WebViewCore::addVisitedLink(const UChar* string, int length)
 {
@@ -7390,53 +7407,26 @@ void WebViewCore::addVisitedLink(const UChar* string, int length)
         m_groupForVisitedLinks->addVisitedLink(string, length);
 }
 
-static bool UpdateLayers(JNIEnv *env, jobject obj, jint nativeClass, jint jbaseLayer)
-{
-    WebViewCore* viewImpl = (WebViewCore*) nativeClass;
-    BaseLayerAndroid* baseLayer = (BaseLayerAndroid*)  jbaseLayer;
-    if (baseLayer) {
-        LayerAndroid* root = static_cast<LayerAndroid*>(baseLayer->getChild(0));
-        if (root)
-            return viewImpl->updateLayers(root);
-    }
-    return true;
-}
-
-static void NotifyAnimationStarted(JNIEnv *env, jobject obj, jint nativeClass)
+static void NotifyAnimationStarted(JNIEnv* env, jobject obj, jint nativeClass)
 {
     WebViewCore* viewImpl = (WebViewCore*) nativeClass;
     viewImpl->notifyAnimationStarted();
 }
 
-static jint RecordContent(JNIEnv *env, jobject obj, jobject region, jobject pt)
+static jint RecordContent(JNIEnv* env, jobject obj, jint nativeClass, jobject pt)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    SkRegion* nativeRegion = GraphicsJNI::getNativeRegion(env, region);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     SkIPoint nativePt;
-    BaseLayerAndroid* result = viewImpl->recordContent(nativeRegion, &nativePt);
+    BaseLayerAndroid* result = viewImpl->recordContent(&nativePt);
     GraphicsJNI::ipoint_to_jpoint(nativePt, env, pt);
     return reinterpret_cast<jint>(result);
 }
 
-static void SplitContent(JNIEnv *env, jobject obj, jint content)
+static void SendListBoxChoice(JNIEnv* env, jobject obj, jint nativeClass,
+        jint choice)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    viewImpl->splitContent(reinterpret_cast<PictureSet*>(content));
-}
-
-static void SendListBoxChoice(JNIEnv* env, jobject obj, jint choice)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in nativeSendListBoxChoice");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in nativeSendListBoxChoice");
     viewImpl->popupReply(choice);
 }
 
@@ -7446,14 +7436,11 @@ static void SendListBoxChoice(JNIEnv* env, jobject obj, jint choice)
 // number of items in the average multiple-select listbox.
 #define PREPARED_LISTBOX_STORAGE 10
 
-static void SendListBoxChoices(JNIEnv* env, jobject obj, jbooleanArray jArray,
-        jint size)
+static void SendListBoxChoices(JNIEnv* env, jobject obj, jint nativeClass,
+        jbooleanArray jArray, jint size)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in nativeSendListBoxChoices");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in nativeSendListBoxChoices");
     jboolean* ptrArray = env->GetBooleanArrayElements(jArray, 0);
     SkAutoSTMalloc<PREPARED_LISTBOX_STORAGE, int> storage(size);
     int* array = storage.get();
@@ -7467,21 +7454,19 @@ static void SendListBoxChoices(JNIEnv* env, jobject obj, jbooleanArray jArray,
     viewImpl->popupReply(array, count);
 }
 
-static jstring FindAddress(JNIEnv *env, jobject obj, jstring addr,
-    jboolean caseInsensitive)
+// TODO: Move this to WebView.cpp since it is only needed there
+static jstring FindAddress(JNIEnv* env, jobject obj, jstring addr,
+        jboolean caseInsensitive)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
     if (!addr)
         return 0;
     int length = env->GetStringLength(addr);
     if (!length)
         return 0;
     const jchar* addrChars = env->GetStringChars(addr, 0);
-    int start, end;
-    bool success = CacheBuilder::FindAddress(addrChars, length,
-        &start, &end, caseInsensitive) == CacheBuilder::FOUND_COMPLETE;
+    size_t start, end;
+    AddressDetector detector;
+    bool success = detector.FindContent(addrChars, addrChars + length, &start, &end);
     jstring ret = 0;
     if (success)
         ret = env->NewString(addrChars + start, end - start);
@@ -7489,15 +7474,12 @@ static jstring FindAddress(JNIEnv *env, jobject obj, jstring addr,
     return ret;
 }
 
-static jboolean HandleTouchEvent(JNIEnv *env, jobject obj, jint action, jintArray idArray,
-                                 jintArray xArray, jintArray yArray,
-                                 jint count, jint actionIndex, jint metaState)
+static jint HandleTouchEvent(JNIEnv* env, jobject obj, jint nativeClass,
+        jint action, jintArray idArray, jintArray xArray, jintArray yArray,
+        jint count, jint actionIndex, jint metaState)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
     jint* ptrIdArray = env->GetIntArrayElements(idArray, 0);
     jint* ptrXArray = env->GetIntArrayElements(xArray, 0);
     jint* ptrYArray = env->GetIntArrayElements(yArray, 0);
@@ -7515,111 +7497,53 @@ static jboolean HandleTouchEvent(JNIEnv *env, jobject obj, jint action, jintArra
     return viewImpl->handleTouchEvent(action, ids, points, actionIndex, metaState);
 }
 
-static void TouchUp(JNIEnv *env, jobject obj, jint touchGeneration,
-        jint frame, jint node, jint x, jint y, 
-//LIGHT TOUCH
-        jboolean useLT)
-//LIGHT TOUCH        
+static bool MouseClick(JNIEnv* env, jobject obj, jint nativeClass)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
-    viewImpl->touchUp(touchGeneration,
-        (WebCore::Frame*) frame, (WebCore::Node*) node, x, y
-//LIGHT TOUCH
-        , useLT);
-//LIGHT TOUCH    
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->performMouseClick();
 }
 
-static jstring RetrieveHref(JNIEnv *env, jobject obj, jint x, jint y)
+static jstring RetrieveHref(JNIEnv* env, jobject obj, jint nativeClass,
+        jint x, jint y)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
     WTF::String result = viewImpl->retrieveHref(x, y);
     if (!result.isEmpty())
         return wtfStringToJstring(env, result);
     return 0;
 }
 
-static jstring RetrieveAnchorText(JNIEnv *env, jobject obj, jint x, jint y)
+static jstring RetrieveAnchorText(JNIEnv* env, jobject obj, jint nativeClass,
+        jint x, jint y)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
     WTF::String result = viewImpl->retrieveAnchorText(x, y);
     if (!result.isEmpty())
         return wtfStringToJstring(env, result);
     return 0;
 }
 
-static jstring RetrieveImageSource(JNIEnv *env, jobject obj, jint x, jint y)
+static jstring RetrieveImageSource(JNIEnv* env, jobject obj, jint nativeClass,
+        jint x, jint y)
 {
-    WTF::String result = GET_NATIVE_VIEW(env, obj)->retrieveImageSource(x, y);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    WTF::String result = viewImpl->retrieveImageSource(x, y);
     return !result.isEmpty() ? wtfStringToJstring(env, result) : 0;
 }
 
-static void StopPaintingCaret(JNIEnv *env, jobject obj)
+static void MoveMouse(JNIEnv* env, jobject obj, jint nativeClass, jint x, jint y)
 {
-    GET_NATIVE_VIEW(env, obj)->setShouldPaintCaret(false);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    viewImpl->moveMouse(x, y);
 }
 
-static void MoveFocus(JNIEnv *env, jobject obj, jint framePtr, jint nodePtr)
+static jint GetContentMinPrefWidth(JNIEnv* env, jobject obj, jint nativeClass)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
-    viewImpl->moveFocus((WebCore::Frame*) framePtr, (WebCore::Node*) nodePtr);
-}
-
-static void MoveMouse(JNIEnv *env, jobject obj, jint frame,
-        jint x, jint y)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
-    viewImpl->moveMouse((WebCore::Frame*) frame, x, y);
-}
-
-static void MoveMouseIfLatest(JNIEnv *env, jobject obj, jint moveGeneration,
-        jint frame, jint x, jint y)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
-    viewImpl->moveMouseIfLatest(moveGeneration,
-        (WebCore::Frame*) frame, x, y);
-}
-
-static void UpdateFrameCache(JNIEnv *env, jobject obj)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
-    viewImpl->updateFrameCache();
-}
-
-static jint GetContentMinPrefWidth(JNIEnv *env, jobject obj)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
 
     WebCore::Frame* frame = viewImpl->mainFrame();
     if (frame) {
@@ -7634,13 +7558,11 @@ static jint GetContentMinPrefWidth(JNIEnv *env, jobject obj)
     return 0;
 }
 
-static void SetViewportSettingsFromNative(JNIEnv *env, jobject obj)
+static void SetViewportSettingsFromNative(JNIEnv* env, jobject obj,
+        jint nativeClass)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
 
     WebCore::Settings* s = viewImpl->mainFrame()->page()->settings();
     if (!s)
@@ -7657,40 +7579,109 @@ static void SetViewportSettingsFromNative(JNIEnv *env, jobject obj)
 #endif
 }
 
-static void SetBackgroundColor(JNIEnv *env, jobject obj, jint color)
+static void SetBackgroundColor(JNIEnv* env, jobject obj, jint nativeClass,
+        jint color)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
 
     viewImpl->setBackgroundColor((SkColor) color);
 }
 
-// SAMSUNG CHANGE : ADVANCED TEXT SELECTION >>
-static jstring GetSelectedText(JNIEnv *env, jobject obj)
+//SISO_HTMLCOMPOSER start
+
+static void insertImageContent(JNIEnv *env, jobject obj, jint nativeClass, jstring command )
 {
-#ifdef ANDROID_INSTRUMENT
-	TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
-	WTF::String result = viewImpl->getSelectedText();
-	if (!result.isEmpty())
-		return wtfStringToJstring(env, result);
-	return 0;
+      WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+
+    
+    if( false==viewImpl->isValidePositionToMoveImage())
+    {
+
+       //__android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage fails - Image can not be moved   ");
+        return;
+    }
+
+           
+    //delete the Selected image node  - using node pointer
+    
+    viewImpl->removeSelectedImageNode();
+    
+
+
+    if( false==viewImpl->checkSelectionToMoveImage())
+    {
+        //__android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage fails - Image can not be moved viewImpl->setSelectionToMoveImage(false); ");
+        viewImpl->setSelectionToMoveImage(false);
+    }
+    else 
+    {
+        //Set the selection at previously saved x,y position 
+           // __android_log_print(ANDROID_LOG_DEBUG,"WebviewCore","checkSelectionToMoveImage fails - Image can be moved viewImpl->setSelectionToMoveImage(true);  ");
+        viewImpl->setSelectionToMoveImage(true);
+   }
+
+    //insert image at new position
+    WTF::String imageNodeMarkup = viewImpl->getImageNodeMarkup();
+    WTF::String commandName = jstringToWtfString(env, command); 
+    viewImpl->execCommand(commandName , imageNodeMarkup);
+  
 }
-//SISO_HTMLCOMPOSER begin
-static void SimulateDelKeyForCount(JNIEnv *env, jobject obj, jint count)
+
+/*
+GetImageSize() - retuns the image rect
+anchorX - Touch X value
+anchorY - Touch Y value
+
+Desc : This API calls GetHitImageSize() to get the rect data (left,top,height,width)
+       of the image that is touched on
+*/
+static jobject GetImageSize(JNIEnv *env, jobject obj ,jint nativeClass, int anchorX , int anchorY)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+
+     WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+     WebCore::IntRect webRect = viewImpl->GetHitImageSize(anchorX,anchorY);
+
+    jclass rectClass = env->FindClass("android/graphics/Rect");
+    ALOG_ASSERT(rectClass, "Could not find Rect class!");
+
+    jmethodID init = env->GetMethodID(rectClass, "<init>", "(IIII)V");
+   ALOG_ASSERT(init, "Could not find constructor for Rect");
+
+    jobject rect = env->NewObject(rectClass, init, webRect.x(),webRect.y(), webRect.maxX(), webRect.maxY());
+    return rect ;
+}
+
+static jobject nativeGetSelectedImageRect(JNIEnv *env, jobject obj, jint nativeClass )
+{
+	WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+
+	   if(!viewImpl)
+	   	return 0;
+
+	     	WebCore::IntRect webRect = viewImpl->GetSelectedImageSize();
+
+	 if(webRect.x()==-1||webRect.width()==-1)
+	 	return 0;
+
+	jclass rectClass = env->FindClass("android/graphics/Rect");
+	ALOG_ASSERT(rectClass, "Could not find Rect class!");
+
+	jmethodID init = env->GetMethodID(rectClass, "<init>", "(IIII)V");
+	ALOG_ASSERT(init, "Could not find constructor for Rect");
+    jobject rect = env->NewObject(rectClass, init, webRect.x(),webRect.y(), webRect.maxX(), webRect.maxY());
+    return rect ;
+
+}
+static void SimulateDelKeyForCount(JNIEnv *env, jobject obj, jint nativeClass, jint count)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->simulateDelKeyForCount(count);
 }
 
-static jstring GetTextAroundCursor(JNIEnv *env, jobject obj, jint count , jboolean isBefore)
+static jstring GetTextAroundCursor(JNIEnv *env, jobject obj, jint nativeClass, jint count , jboolean isBefore)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     WTF::String result = viewImpl->getTextAroundCursor(count, isBefore);
     if (!result.isEmpty())
         return wtfStringToJstring(env, result);
@@ -7698,16 +7689,16 @@ static jstring GetTextAroundCursor(JNIEnv *env, jobject obj, jint count , jboole
 }
 
 
-static void DeleteSurroundingText(JNIEnv *env, jobject obj, jint left , jint right)
+static void DeleteSurroundingText(JNIEnv *env, jobject obj, jint nativeClass, jint left , jint right)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->deleteSurroundingText(left , right);
 }
 
 
-static jobject InsertContent(JNIEnv *env, jobject obj,jstring content,jint newcursor, jboolean composing , jobject spanObj)
+static jobject InsertContent(JNIEnv *env, jobject obj, jint nativeClass,jstring content,jint newcursor, jboolean composing , jobject spanObj)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     WTF::String valueString = jstringToWtfString(env, content);
     int startOffset = -1;
     int endOffset = -1;
@@ -7761,13 +7752,13 @@ static jobject InsertContent(JNIEnv *env, jobject obj,jstring content,jint newcu
         WTF::String gStr = strHighlightColor.substring(2 , 2);
         WTF::String bStr = strHighlightColor.substring(4 , 2);
 
-        LOGD("strHighlightColor rStr : %s gStr : %s bStr : %s " , rStr.utf8().data() , gStr.utf8().data() , bStr.utf8().data());
+        ALOGV("strHighlightColor rStr : %s gStr : %s bStr : %s " , rStr.utf8().data() , gStr.utf8().data() , bStr.utf8().data());
         int rVal = rStr.toIntStrict(0 , 16);
         int gVal = gStr.toIntStrict(0 , 16);
         int bVal = bStr.toIntStrict(0 , 16);
         WebCore::Color webcoreHLColor = Color(rVal , gVal , bVal );
-        LOGD("webcoreHLColor rVal : %d gVal : %d bVal : %d " , rVal , gVal , bVal);
-        LOGD("strHighlightColor %s " , strHighlightColor.utf8().data());
+        ALOGV("webcoreHLColor rVal : %d gVal : %d bVal : %d " , rVal , gVal , bVal);
+        ALOGV("strHighlightColor %s " , strHighlightColor.utf8().data());
         compositionDeco.highLightColor = webcoreHLColor;
 
         color = env->GetIntField(spanData , underlineColorField);
@@ -7784,23 +7775,17 @@ static jobject InsertContent(JNIEnv *env, jobject obj,jstring content,jint newcu
         gStr = strUnderlineColor.substring(2 , 2);
         bStr = strUnderlineColor.substring(4 , 2);
 
-        LOGD("strUnderlineColor rStr : %s gStr : %s bStr : %s " , rStr.utf8().data() , gStr.utf8().data() , bStr.utf8().data());
+        ALOGV("strUnderlineColor rStr : %s gStr : %s bStr : %s " , rStr.utf8().data() , gStr.utf8().data() , bStr.utf8().data());
         rVal = rStr.toIntStrict(0 , 16);
         gVal = gStr.toIntStrict(0 , 16);
         bVal = bStr.toIntStrict(0 , 16);
         WebCore::Color webcoreULColor = Color(rVal , gVal , bVal );
-        LOGD("webcoreULColor rVal : %d gVal : %d bVal : %d " , rVal , gVal , bVal);
-        LOGD("strUnderlineColor %s " , strUnderlineColor.utf8().data());
+        ALOGV("webcoreULColor rVal : %d gVal : %d bVal : %d " , rVal , gVal , bVal);
+        ALOGV("strUnderlineColor %s " , strUnderlineColor.utf8().data());
         compositionDeco.color = webcoreULColor;
 
         spanDataVec.append(compositionDeco);
 
-        //highLightColor
-
-        //int startOffset;
-        //        int endOffset;
-        //      String highLightColor;
-        //  boolean isHighlightColor;
 
     }
 
@@ -7818,17 +7803,16 @@ static jobject InsertContent(JNIEnv *env, jobject obj,jstring content,jint newcu
     env->DeleteLocalRef(selectionOffset_clazz);
     return jselectionOffset_Object;
 }
-//annata.k
-static void  GetSelectionOffsetImage(JNIEnv *env, jobject obj,    jint left , jint top , jint right , jint bottom)
+static void  GetSelectionOffsetImage(JNIEnv *env, jobject obj, jint nativeClass )
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    viewImpl->getSelectionOffsetImage( left ,  top ,  right , bottom);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->getSelectionOffsetImage();
     return ;
 }
 
-static jobject GetSelectionOffset(JNIEnv *env, jobject obj)
+static jobject GetSelectionOffset(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     int startOffset = -1;
     int endOffset = -1;
     viewImpl->getSelectionOffset(startOffset , endOffset);
@@ -7844,109 +7828,96 @@ static jobject GetSelectionOffset(JNIEnv *env, jobject obj)
     return jselectionOffset_Object;
 }
 
-static jstring GetBodyText(JNIEnv *env, jobject obj)
+static jstring GetBodyText(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     WTF::String result = viewImpl->getBodyText();
     if (!result.isEmpty())
         return wtfStringToJstring(env, result);
     return 0;
 }
 
-static jstring GetBodyHTML(JNIEnv *env, jobject obj)
+static jstring GetBodyHTML(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     WTF::String result = viewImpl->getBodyHTML();
     if (!result.isEmpty())
         return wtfStringToJstring(env, result);
     return 0;
 }
 
-static bool GetBodyEmpty(JNIEnv *env, jobject obj)
+static bool GetBodyEmpty(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->getBodyEmpty();
 }
 
-
-
-static int ContentSelectionType(JNIEnv *env, jobject obj)
+static int ContentSelectionType(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->contentSelectionType();
 }
 
-static void UpdateIMSelection(JNIEnv *env, jobject obj,jint curStr , jint curEnd)
+static void UpdateIMSelection(JNIEnv *env, jobject obj, jint nativeClass, jint curStr , jint curEnd)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->updateIMSelection(curStr  , curEnd);
 }
 
-static bool ExecCommand(JNIEnv *env, jobject obj, jstring command , jstring value)
+static bool ExecCommand(JNIEnv *env, jobject obj, jint nativeClass, jstring command , jstring value)
 {
     WTF::String commandString = jstringToWtfString(env, command);
     WTF::String valueString = jstringToWtfString(env, value);
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->execCommand(commandString , valueString);
 
 }
 
-static bool CanUndo(JNIEnv *env, jobject obj)
+static bool CanUndo(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->canUndo();
 }
 
-static bool CanRedo(JNIEnv *env, jobject obj)
+static bool CanRedo(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->canRedo();
 }
 
-static void UndoRedoStateReset(JNIEnv *env, jobject obj)
+static void UndoRedoStateReset(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->undoRedoStateReset();
 }
 
-static void ResizeImage(JNIEnv *env, jobject obj,jint width , jint height)
+static void ResizeImage(JNIEnv *env, jobject obj, jint nativeClass, jint width , jint height)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->resizeImage(width  , height);
 }
 
-static int GetCurrentFontSize(JNIEnv *env, jobject obj)
+static int GetCurrentFontSize(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->getCurrentFontSize();
 }
 
-static int GetCurrentFontValue(JNIEnv *env, jobject obj)
+static int GetCurrentFontValue(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->getCurrentFontValue();
 }
 
-static bool CopyAndSaveImage(JNIEnv *env, jobject obj, jstring url)
+static bool CopyAndSaveImage(JNIEnv *env, jobject obj, jint nativeClass, jstring url)
 {
     WTF::String urlString = jstringToWtfString(env, url);
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->copyAndSaveImage(urlString);
 
 }
 
-// SAMSUNG CHANGE >>
-static bool SaveCachedImageToFile(JNIEnv *env, jobject obj, jstring url, jstring filePath)
-{
-    WTF::String strUrl = jstringToWtfString(env, url);
-    WTF::String strPath = jstringToWtfString(env, filePath);
-
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    return viewImpl->saveCachedImageToFile( strUrl, strPath );
-}
-// SAMSUNG CHANGE <<
-
-static jobject GetFullMarkupData(JNIEnv* env, jobject obj )
+static jobject GetFullMarkupData(JNIEnv* env, jobject obj, jint nativeClass)
 {
     jclass markupData_clazz = 0;
     jmethodID markupData_initID = 0;
@@ -7959,7 +7930,7 @@ static jobject GetFullMarkupData(JNIEnv* env, jobject obj )
     jmethodID vector_initID = 0;
     jobject vector_Object;
 
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     WebHTMLMarkupData* markupData = viewImpl->getFullMarkupData();
 
     //ANDROID_LOG_PRINT(ANDROID_LOG_DEBUG, "HTML_EDIT", " WebViewCore::nativeGetFullMarkupData() markupData = %p", markupData);
@@ -7968,13 +7939,13 @@ static jobject GetFullMarkupData(JNIEnv* env, jobject obj )
     markupData_clazz = env->FindClass ( "android/webkit/WebHTMLMarkupData" );
     markupData_initID = env->GetMethodID ( markupData_clazz, "<init>", "()V" );
     jmarkup_Object = env->NewObject ( markupData_clazz, markupData_initID);
-    LOGV ( "WebViewCore::nativeGetFullMarkupData() MarkupData Object Created ");
+    ALOGV ( "WebViewCore::nativeGetFullMarkupData() MarkupData Object Created ");
 
     //Create Vector Class
     vector_clazz = env->FindClass ( "java/util/Vector" );
     vector_initID = env->GetMethodID ( vector_clazz, "<init>", "()V" );
     vector_Object = env->NewObject ( vector_clazz, vector_initID);
-    LOGV ( "WebViewCore::nativeGetFullMarkupData() Vector Object Created ");
+    ALOGV ( "WebViewCore::nativeGetFullMarkupData() Vector Object Created ");
 
     //Find Class and Method ID for SubPart
     subPart_clazz = env->FindClass ( "android/webkit/WebSubPart" );
@@ -8033,163 +8004,180 @@ static jobject GetFullMarkupData(JNIEnv* env, jobject obj )
 
 }
 
-static jobject GetCursorRect(JNIEnv *env, jobject obj , jboolean giveContentRect)
+static jobject GetCursorRect(JNIEnv *env, jobject obj , jint nativeClass, jboolean giveContentRect)
 {
 #ifdef ANDROID_INSTRUMENT
     TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
 #endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in nativeSetSize");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in nativeSetSize");
 
     WebCore::IntRect webRect = viewImpl->getCursorRect(giveContentRect);
 
     jclass rectClass = env->FindClass("android/graphics/Rect");
-    LOG_ASSERT(rectClass, "Could not find Rect class!");
+    ALOG_ASSERT(rectClass, "Could not find Rect class!");
 
     jmethodID init = env->GetMethodID(rectClass, "<init>", "(IIII)V");
-    LOG_ASSERT(init, "Could not find constructor for Rect");
+    ALOG_ASSERT(init, "Could not find constructor for Rect");
 
     jobject rect = env->NewObject(rectClass, init, webRect.x(),
-            webRect.y(), webRect.right(), webRect.bottom());
+            webRect.y(), webRect.maxX(), webRect.maxY());
     return rect ;
 }
 
-
-static void SetSelectionNone(JNIEnv *env, jobject obj)
+static void SetSelectionNone(JNIEnv *env, jobject obj,jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->setSelectionNone();
 }
 
-static bool GetSelectionNone(JNIEnv *env, jobject obj)
+static bool GetSelectionNone(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->getSelectionNone();
 }
 
-
-
-
-
-static void SetComposingSelectionNone(JNIEnv *env, jobject obj)
+static void SetComposingSelectionNone(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->setComposingSelectionNone();
 }
-static void SetEditable(JNIEnv *env, jobject obj , jboolean isEditable)
+static void SetEditable(JNIEnv *env, jobject obj , jint nativeClass, jboolean isEditable)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->setEditable(isEditable);
 }
 
-static void SetSelectionEditable(JNIEnv *env, jobject obj, jint start , jint end)
+static void SetSelectionEditable(JNIEnv *env, jobject obj, jint nativeClass, jint start , jint end)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->setSelectionEditable(start , end);
 }
-static void SetSelectionEditableImage(JNIEnv *env, jobject obj, jint start , jint end)
+static void SetSelectionEditableImage(JNIEnv *env, jobject obj,jint nativeClass, jint start , jint end)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->setSelectionEditableImage(start , end);
 }
-static void SetComposingRegion(JNIEnv *env, jobject obj, jint start , jint end)
+static void SetComposingRegion(JNIEnv *env, jobject obj,jint nativeClass, jint start , jint end)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->setComposingRegion(start , end);
 }
-static void MoveSingleCursorHandler(JNIEnv *env, jobject obj, jint x, jint y )
+static void SetPageZoom(JNIEnv *env, jobject obj,jint nativeClass, jfloat factor)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->setPageZoomFact(factor);
+}
+static void MoveSingleCursorHandler(JNIEnv *env, jobject obj, jint nativeClass, jint x, jint y )
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->moveSingleCursorHandler(x,y );
 }
 
-static int CheckSelectionAtBoundry(JNIEnv *env, jobject obj)
+static int CheckSelectionAtBoundry(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->checkSelectionAtBoundry();
 }
 
-static void SaveSelectionController(JNIEnv *env, jobject obj)
+static void SaveSelectionController(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->saveSelectionController();
 }
 
 
-static void RestorePreviousSelectionController(JNIEnv *env, jobject obj)
+static void RestorePreviousSelectionController(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->restorePreviousSelectionController();
 }
 
-static void CheckSelectedClosestWord( JNIEnv *env, jobject obj)
+static void CheckSelectedClosestWord( JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->checkSelectedClosestWord();
 }
 
-static int GetStateInRichlyEditableText(JNIEnv *env, jobject obj)
+static int GetStateInRichlyEditableText(JNIEnv *env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->getStateInRichlyEditableText();    
 }
 
-static int CheckEndOfWordAtPosition( JNIEnv *env, jobject obj,  jint x, jint y )
+static int CheckEndOfWordAtPosition( JNIEnv *env, jobject obj, jint nativeClass, jint x, jint y )
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     return viewImpl->checkEndofWordAtPosition(x, y);
+}
+
+//+Feature_Support_SPen
+static jstring GetSelectedImageUri( JNIEnv *env, jobject obj, jint nativeClass )
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+
+    WTF::String result = viewImpl->getSelectedImageUri();
+    if (!result.isEmpty())
+        return wtfStringToJstring(env, result);
+    return 0;
+}
+//-Feature_Support_SPen
+//+Feature_SPen_Gesture_TextSelection
+static void SelectBWStartAndEnd( JNIEnv *env, jobject obj, jint nativeClass, jint startX, jint startY, jint endX, jint endY )
+{
+//    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->selectBWStartAndEnd(startX, startY, endX, endY);
+}
+//-Feature_SPen_Gesture_TextSelection
+
+static void SetCursorFromRangeSelectionController(JNIEnv *env, jobject obj, jint nativeClass)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->setCursorFromRangeSelectionController();
+}
+
+static int IsAtBoundary( JNIEnv *env, jobject obj, jint nativeClass, jint x, jint y )
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->isAtBoundary(x, y);
 }
 //SISO_HTMLCOMPOSER end
 
-static void DumpDomTree(JNIEnv *env, jobject obj, jboolean useFile)
+static void DumpDomTree(JNIEnv* env, jobject obj, jint nativeClass,
+        jboolean useFile)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
 
     viewImpl->dumpDomTree(useFile);
 }
 
-static void DumpRenderTree(JNIEnv *env, jobject obj, jboolean useFile)
+static void DumpRenderTree(JNIEnv* env, jobject obj, jint nativeClass,
+        jboolean useFile)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
 
     viewImpl->dumpRenderTree(useFile);
 }
 
-static void DumpNavTree(JNIEnv *env, jobject obj)
+static void SetJsFlags(JNIEnv* env, jobject obj, jint nativeClass, jstring flags)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
-
-    viewImpl->dumpNavTree();
-}
-
-static void DumpV8Counters(JNIEnv*, jobject)
-{
-#if USE(V8)
-#ifdef ANDROID_INSTRUMENT
-    V8Counters::dumpCounters();
-#endif
-#endif
-}
-
-static void SetJsFlags(JNIEnv *env, jobject obj, jstring flags)
-{
-#if USE(V8)
     WTF::String flagsString = jstringToWtfString(env, flags);
     WTF::CString utf8String = flagsString.utf8();
     WebCore::ScriptController::setFlags(utf8String.data(), utf8String.length());
-#endif
 }
 
 
 // Called from the Java side to set a new quota for the origin or new appcache
 // max size in response to a notification that the original quota was exceeded or
 // that the appcache has reached its maximum size.
-static void SetNewStorageLimit(JNIEnv* env, jobject obj, jlong quota) {
+static void SetNewStorageLimit(JNIEnv* env, jobject obj, jint nativeClass,
+        jlong quota)
+{
 #if ENABLE(DATABASE) || ENABLE(OFFLINE_WEB_APPLICATIONS)
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     Frame* frame = viewImpl->mainFrame();
 
     // The main thread is blocked awaiting this response, so now we can wake it
@@ -8200,8 +8188,10 @@ static void SetNewStorageLimit(JNIEnv* env, jobject obj, jlong quota) {
 }
 
 // Called from Java to provide a Geolocation permission state for the specified origin.
-static void GeolocationPermissionsProvide(JNIEnv* env, jobject obj, jstring origin, jboolean allow, jboolean remember) {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+static void GeolocationPermissionsProvide(JNIEnv* env, jobject obj,
+        jint nativeClass, jstring origin, jboolean allow, jboolean remember)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     Frame* frame = viewImpl->mainFrame();
 
     ChromeClientAndroid* chromeClient = static_cast<ChromeClientAndroid*>(frame->page()->chrome()->client());
@@ -8213,7 +8203,7 @@ static void GeolocationPermissionsProvide(JNIEnv* env, jobject obj, jstring orig
 static void NotificationPermissionsProvide(JNIEnv* env, jobject obj, jstring origin, jboolean allow) {
 #if ENABLE(NOTIFICATIONS)
     String orgiginstr = jstringToWtfString(env, origin);
-    LOGV("NotificationPermissionsProvide origin = %s, allow = %d", orgiginstr.utf8().data(),allow);
+    ALOGV("NotificationPermissionsProvide origin = %s, allow = %d", orgiginstr.utf8().data(),allow);
     WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
     Frame* frame = viewImpl->mainFrame();
 
@@ -8227,7 +8217,7 @@ static void NotificationPermissionsProvide(JNIEnv* env, jobject obj, jstring ori
 #if ENABLE(NOTIFICATIONS)
     String event = jstringToWtfString(env, eventName);
     
-    LOGV("Inside NotificationResponseback COUNTER %d" ,pointer );
+    ALOGV("Inside NotificationResponseback COUNTER %d" ,pointer );
     WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
     Frame* frame = viewImpl->mainFrame();
     ChromeClientAndroid* chromeClient = static_cast<ChromeClientAndroid*>(frame->page()->chrome()->client());
@@ -8240,7 +8230,7 @@ static void NotificationPermissionsProvide(JNIEnv* env, jobject obj, jstring ori
 static void NotificationIDback(JNIEnv* env, jobject obj, jint notificationID, jint counter) {
     
  #if ENABLE(NOTIFICATIONS)  
-    LOGV("Inside NotificationIDback NOTIFICATIONID %d COUNTER %d" ,notificationID, counter );
+    ALOGV("Inside NotificationIDback NOTIFICATIONID %d COUNTER %d" ,notificationID, counter );
     WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
     Frame* frame = viewImpl->mainFrame();
     ChromeClientAndroid* chromeClient = static_cast<ChromeClientAndroid*>(frame->page()->chrome()->client());
@@ -8249,87 +8239,113 @@ static void NotificationIDback(JNIEnv* env, jobject obj, jint notificationID, ji
 }
 // Samsung Change - HTML5 Web Notification	<<
 
-static void RegisterURLSchemeAsLocal(JNIEnv* env, jobject obj, jstring scheme) {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
+
+static void RegisterURLSchemeAsLocal(JNIEnv* env, jobject obj, jint nativeClass,
+        jstring scheme)
+{
     WebCore::SchemeRegistry::registerURLSchemeAsLocal(jstringToWtfString(env, scheme));
 }
 
-static bool FocusBoundsChanged(JNIEnv* env, jobject obj)
+static bool FocusBoundsChanged(JNIEnv* env, jobject obj, jint nativeClass)
 {
-    return GET_NATIVE_VIEW(env, obj)->focusBoundsChanged();
+    return reinterpret_cast<WebViewCore*>(nativeClass)->focusBoundsChanged();
 }
 
-static void SetIsPaused(JNIEnv* env, jobject obj, jboolean isPaused)
+static void SetIsPaused(JNIEnv* env, jobject obj, jint nativeClass,
+        jboolean isPaused)
 {
     // tell the webcore thread to stop thinking while we do other work
     // (selection and scrolling). This has nothing to do with the lifecycle
     // pause and resume.
-    GET_NATIVE_VIEW(env, obj)->setIsPaused(isPaused);
+    reinterpret_cast<WebViewCore*>(nativeClass)->setIsPaused(isPaused);
 }
 
-static void Pause(JNIEnv* env, jobject obj)
+static void Pause(JNIEnv* env, jobject obj, jint nativeClass)
 {
     // This is called for the foreground tab when the browser is put to the
     // background (and also for any tab when it is put to the background of the
     // browser). The browser can only be killed by the system when it is in the
     // background, so saving the Geolocation permission state now ensures that
     // is maintained when the browser is killed.
-    ChromeClient* chromeClient = GET_NATIVE_VIEW(env, obj)->mainFrame()->page()->chrome()->client();
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ChromeClient* chromeClient = viewImpl->mainFrame()->page()->chrome()->client();
     ChromeClientAndroid* chromeClientAndroid = static_cast<ChromeClientAndroid*>(chromeClient);
     chromeClientAndroid->storeGeolocationPermissions();
+
+// Samsung Change - HTML5 FileSystem API	>>
+    chromeClientAndroid->storeFileSystemQuotaUsage();
+// Samsung Change - HTML5 FileSystem API	<<
 // Samsung Change - HTML5 Web Notification	>>
     chromeClientAndroid->storeNotificationPermissions();
 // Samsung Change - HTML5 Web Notification	<<
-    Frame* mainFrame = GET_NATIVE_VIEW(env, obj)->mainFrame();
+    Frame* mainFrame = viewImpl->mainFrame();
     for (Frame* frame = mainFrame; frame; frame = frame->tree()->traverseNext()) {
         Geolocation* geolocation = frame->domWindow()->navigator()->optionalGeolocation();
         if (geolocation)
             geolocation->suspend();
     }
+    if (mainFrame)
+        mainFrame->settings()->setMinDOMTimerInterval(BACKGROUND_TIMER_INTERVAL);
 
-    GET_NATIVE_VIEW(env, obj)->deviceMotionAndOrientationManager()->maybeSuspendClients();
+    viewImpl->deviceMotionAndOrientationManager()->maybeSuspendClients();
 
     ANPEvent event;
     SkANP::InitEvent(&event, kLifecycle_ANPEventType);
     event.data.lifecycle.action = kPause_ANPLifecycleAction;
-    GET_NATIVE_VIEW(env, obj)->sendPluginEvent(event);
+    viewImpl->sendPluginEvent(event);
+////////SERI - WebGL Changes - Pause WEbGL Contents >>
+    if (mainFrame && mainFrame->document())
+    {
+        //mainFrame->document()->documentWillBecomeInactive();
+        mainFrame->document()->pauseScriptedAnimations();
+    }
+////////SERI - WebGL Changes - Pause WEbGL Contents << 
 
-    GET_NATIVE_VIEW(env, obj)->setIsPaused(true);
+    viewImpl->setIsPaused(true);
 }
 
-static void Resume(JNIEnv* env, jobject obj)
+static void Resume(JNIEnv* env, jobject obj, jint nativeClass)
 {
-    Frame* mainFrame = GET_NATIVE_VIEW(env, obj)->mainFrame();
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    Frame* mainFrame = viewImpl->mainFrame();
     for (Frame* frame = mainFrame; frame; frame = frame->tree()->traverseNext()) {
         Geolocation* geolocation = frame->domWindow()->navigator()->optionalGeolocation();
         if (geolocation)
             geolocation->resume();
     }
+    if (mainFrame)
+        mainFrame->settings()->setMinDOMTimerInterval(FOREGROUND_TIMER_INTERVAL);
 
-    GET_NATIVE_VIEW(env, obj)->deviceMotionAndOrientationManager()->maybeResumeClients();
+    viewImpl->deviceMotionAndOrientationManager()->maybeResumeClients();
 
     ANPEvent event;
     SkANP::InitEvent(&event, kLifecycle_ANPEventType);
     event.data.lifecycle.action = kResume_ANPLifecycleAction;
-    GET_NATIVE_VIEW(env, obj)->sendPluginEvent(event);
+    viewImpl->sendPluginEvent(event);
+////////SERI - WebGL Changes - Pause WEbGL Contents >>
+    if (mainFrame && mainFrame->document())
+    {
+        //mainFrame->document()->documentDidBecomeActive();
+        mainFrame->document()->resumeScriptedAnimations();
+    }
+////////SERI - WebGL Changes - Pause WEbGL Contents <<
 
-    GET_NATIVE_VIEW(env, obj)->setIsPaused(false);
+    viewImpl->setIsPaused(false);
 }
 
-static void FreeMemory(JNIEnv* env, jobject obj)
+static void FreeMemory(JNIEnv* env, jobject obj, jint nativeClass)
 {
     ANPEvent event;
     SkANP::InitEvent(&event, kLifecycle_ANPEventType);
     event.data.lifecycle.action = kFreeMemory_ANPLifecycleAction;
-    GET_NATIVE_VIEW(env, obj)->sendPluginEvent(event);
+    reinterpret_cast<WebViewCore*>(nativeClass)->sendPluginEvent(event);
 }
 
-static void ProvideVisitedHistory(JNIEnv *env, jobject obj, jobject hist)
+static void ProvideVisitedHistory(JNIEnv* env, jobject obj, jint nativeClass,
+        jobject hist)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
 
     jobjectArray array = static_cast<jobjectArray>(hist);
 
@@ -8344,80 +8360,38 @@ static void ProvideVisitedHistory(JNIEnv *env, jobject obj, jobject hist)
     }
 }
 
-static void PluginSurfaceReady(JNIEnv* env, jobject obj)
+static void PluginSurfaceReady(JNIEnv* env, jobject obj, jint nativeClass)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     if (viewImpl)
         viewImpl->sendPluginSurfaceReady();
 }
 
 // Notification from the UI thread that the plugin's full-screen surface has been discarded
-static void FullScreenPluginHidden(JNIEnv* env, jobject obj, jint npp)
+static void FullScreenPluginHidden(JNIEnv* env, jobject obj, jint nativeClass,
+        jint npp)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     PluginWidgetAndroid* plugin = viewImpl->getPluginWidget((NPP)npp);
     if (plugin)
         plugin->exitFullScreen(false);
 }
 
-static WebCore::IntRect jrect_to_webrect(JNIEnv* env, jobject obj)
+static jobject HitTest(JNIEnv* env, jobject obj, jint nativeClass, jint x,
+                       jint y, jint slop, jboolean doMoveMouse)
 {
-    int L, T, R, B;
-    GraphicsJNI::get_jrect(env, obj, &L, &T, &R, &B);
-    return WebCore::IntRect(L, T, R - L, B - T);
-}
-
-static bool ValidNodeAndBounds(JNIEnv *env, jobject obj, int frame, int node,
-    jobject rect)
-{
-    IntRect nativeRect = jrect_to_webrect(env, rect);
-    return GET_NATIVE_VIEW(env, obj)->validNodeAndBounds(
-            reinterpret_cast<Frame*>(frame),
-            reinterpret_cast<Node*>(node), nativeRect);
-}
-
-static void GetTouchHighlightRects(JNIEnv* env, jobject obj, jint x, jint y, jint slop)
-{
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     if (!viewImpl)
-        return;
-    Vector<IntRect> rects = viewImpl->getTouchHighlightRects(x, y, slop);
-    if (rects.isEmpty())
-        return;
-
-    jclass arrayClass = env->FindClass("java/util/ArrayList");
-    LOG_ASSERT(arrayClass, "Could not find java/util/ArrayList");
-    jmethodID init = env->GetMethodID(arrayClass, "<init>", "(I)V");
-    LOG_ASSERT(init, "Could not find constructor for ArrayList");
-    jobject array = env->NewObject(arrayClass, init, rects.size());
-    LOG_ASSERT(array, "Could not create a new ArrayList");
-    jmethodID add = env->GetMethodID(arrayClass, "add", "(Ljava/lang/Object;)Z");
-    LOG_ASSERT(add, "Could not find add method on ArrayList");
-    jclass rectClass = env->FindClass("android/graphics/Rect");
-    LOG_ASSERT(rectClass, "Could not find android/graphics/Rect");
-    jmethodID rectinit = env->GetMethodID(rectClass, "<init>", "(IIII)V");
-    LOG_ASSERT(rectinit, "Could not find init method on Rect");
-
-    for (size_t i = 0; i < rects.size(); i++) {
-        jobject rect = env->NewObject(rectClass, rectinit, rects[i].x(),
-                rects[i].y(), rects[i].maxX(), rects[i].maxY());
-        if (rect) {
-            env->CallBooleanMethod(array, add, rect);
-            env->DeleteLocalRef(rect);
-        }
-    }
-
-    env->DeleteLocalRef(rectClass);
-    env->DeleteLocalRef(arrayClass);
-
-    viewImpl->setTouchHighlightRects(array);
-
+        return 0;
+    AndroidHitTestResult result = viewImpl->hitTestAtPoint(x, y, slop, doMoveMouse);
+    return result.createJavaObject(env);
 }
 
-static void AutoFillForm(JNIEnv* env, jobject obj, jint queryId)
+static void AutoFillForm(JNIEnv* env, jobject obj, jint nativeClass,
+        jint queryId)
 {
 #if ENABLE(WEB_AUTOFILL)
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     if (!viewImpl)
         return;
 
@@ -8430,47 +8404,58 @@ static void AutoFillForm(JNIEnv* env, jobject obj, jint queryId)
 #endif
 }
 
-
-
-
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION >>
-static void WebTextSelectionAll(JNIEnv *env, jobject obj, int x1, int y1, int x2, int y2)
+// SAMSUNG CHANGE Copy image begin >>
+static bool SaveCachedImageToFile(JNIEnv *env, jobject obj, jstring url, jstring filePath)
 {
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "view not set in %s", __FUNCTION__);
+    WTF::String strUrl = jstringToWtfString(env, url);
+    WTF::String strPath = jstringToWtfString(env, filePath);
+
+    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    return viewImpl->saveCachedImageToFile( strUrl, strPath );
+}
+
+bool WebViewCore::saveCachedImageToFile(WTF::String& imageUrl, WTF::String& filePath)
+{
+    return WebCore::saveCachedImageToFile( m_mainFrame, imageUrl, filePath );
+}
+// SAMSUNG CHANGE Copy image end <<
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+static void WebTextSelectionAll(JNIEnv *env, jobject obj, jint nativeClass,jint x1, jint y1, jint x2, jint y2)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "view not set in %s", __FUNCTION__);
 	viewImpl->webTextSelectionAll(x1, y1, x2, y2);
 }
 
-static void CopyMoveSelection(JNIEnv *env, jobject obj, int x, int y, int controller,
-		bool ex, bool selectionMove, float zoomLevel, int granularity)
+static void CopyMoveSelection(JNIEnv *env, jobject obj, jint nativeClass,jint x, jint y, jint controller,
+		jboolean ex, jboolean selectionMove, jfloat zoomLevel, jint granularity)
 {
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "view not set in %s", __FUNCTION__);
+       WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "view not set in %s", __FUNCTION__);
 	viewImpl->copyMoveSelection(x, y, controller, ex, selectionMove, zoomLevel, granularity);
 }
 
-static void ClearTextSelection(JNIEnv *env, jobject obj, int contentX, int contentY)
+static void ClearTextSelection(JNIEnv *env, jobject obj, jint nativeClass,jint contentX, jint contentY)
 {
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "view not set in %s", __FUNCTION__);
+        WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "view not set in %s", __FUNCTION__);
 	viewImpl->clearTextSelection(contentX, contentY);
 }
 
-//arvind.maan RTL selection fix
-static bool RecordSelectionCopiedData(JNIEnv *env, jobject obj, jobject region,jobject cRegion,  jobject sRect,jobject eRect, jint value)
+
+static bool RecordSelectionCopiedData(JNIEnv *env, jobject obj,jint nativeClass, jobject region,jobject cRegion,  jobject sRect,jobject eRect, jint value)
 {
 #ifdef ANDROID_INSTRUMENT
 	TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
 #endif
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "viewImpl not set in RecordSelectionCopiedData");
+        WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "viewImpl not set in RecordSelectionCopiedData");
 
 	SkRegion* nativeRegion = GraphicsJNI::getNativeRegion(env, region);
     SkRegion* cNativeRegion = GraphicsJNI::getNativeRegion(env, cRegion);//arvind.maan RTL selection fix
 	SkIRect nativeSRect;
 	SkIRect nativeERect;
 
-//arvind.maan RTL selection fix
     bool result = viewImpl->recordSelectionCopiedData(nativeRegion,cNativeRegion, &nativeSRect,&nativeERect,value);
 	GraphicsJNI::set_jrect(env,sRect,nativeSRect.fLeft, nativeSRect.fTop,nativeSRect.fRight, nativeSRect.fBottom );
 	GraphicsJNI::set_jrect(env,eRect,nativeERect.fLeft, nativeERect.fTop,nativeERect.fRight, nativeERect.fBottom );
@@ -8481,80 +8466,138 @@ static bool RecordSelectionCopiedData(JNIEnv *env, jobject obj, jobject region,j
 	return result;
 }
 
-static jint GetSelectionGranularity(JNIEnv *env, jobject obj)
+static int GetSelectionGranularity(JNIEnv *env, jobject obj,jint nativeClass)
 {
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "viewImpl not set in GetSelectionGranularity");
+        WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "viewImpl not set in GetSelectionGranularity");
 	return viewImpl->getSelectionGranularity();
 }
 
-//Adding for MultiColumn Selection - Begin
-static jint GetSelectionMultiColInfo(JNIEnv *env, jobject obj)
+static bool GetSelectionMultiColInfo(JNIEnv *env, jobject obj,jint nativeClass)
 {
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "viewImpl not set in GetSelectionMultiColInfo");
+        WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "viewImpl not set in GetSelectionMultiColInfo");
 	return viewImpl->getSelectionMultiColInfo();
 }
-//Adding for MultiColumn Selection - End
 
-static bool SelectClosestWord(JNIEnv *env, jobject obj,int x, int y, float zoomLevel, bool flag)
+static jstring GetSelectedText(JNIEnv *env, jobject obj,jint nativeClass)
 {
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-	LOG_ASSERT(viewImpl, "viewImpl not set in SelectClosestWord");
+#ifdef ANDROID_INSTRUMENT
+	TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
+#endif
+       WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "viewImpl not set in %s", __FUNCTION__);
+	WTF::String result = viewImpl->getSelectedText();
+	if (!result.isEmpty())
+		return wtfStringToJstring(env, result);
+	return 0;
+}
+
+static bool SelectClosestWord(JNIEnv *env, jobject obj,jint nativeClass,jint x, jint y, jfloat zoomLevel, jboolean flag)
+{
+	WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+	ALOG_ASSERT(viewImpl, "viewImpl not set in SelectClosestWord");
 	return viewImpl->selectClosestWord(x,y, zoomLevel, flag);
 
 }
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
+static void CloseIdleConnections(JNIEnv* env, jobject obj, jint nativeClass)
+{
+    WebCache::get(true)->closeIdleConnections();
+    WebCache::get(false)->closeIdleConnections();
+}
+
+static void nativeCertTrustChanged(JNIEnv *env, jobject obj)
+{
+    WebCache::get(true)->certTrustChanged();
+    WebCache::get(false)->certTrustChanged();
+}
+
+static void ScrollRenderLayer(JNIEnv* env, jobject obj, jint nativeClass,
+        jint layer, jobject jRect)
+{
+    SkRect rect;
+    GraphicsJNI::jrect_to_rect(env, jRect, &rect);
+    reinterpret_cast<WebViewCore*>(nativeClass)->scrollRenderLayer(layer, rect);
+}
 
 //SAMSUNG CHANGES >>
-static jobjectArray nativeGetWebFeedLinks ( JNIEnv* env, jobject obj )
+static jobjectArray nativeGetWebFeedLinks ( JNIEnv* env, jobject obj, jint nativeClass )
 {
-	jclass fi_clazz = 0;
-	jmethodID initID = 0;
-	jobjectArray infos ;
-	int start = 0;
-	int limit = 0;
-	jobject urlobj,titleobj, typeobj;//, pathobj ;
-	Vector<WebFeedLink*> feedInfoList ;
+    jclass fi_clazz = 0;
+    jmethodID initID = 0;
+    jobjectArray infos ;
+    int start = 0;
+    int limit = 0;
+    jobject urlobj,titleobj, typeobj;//, pathobj ;
+    Vector<WebFeedLink*> feedInfoList ;
 
-	WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
 
-	viewImpl->getWebFeedLinks ( feedInfoList ) ;
+    viewImpl->getWebFeedLinks ( feedInfoList ) ;
 
-	LOGV ( "WebViewCore::nativeGetWebFeedLinks() links count = %d", feedInfoList.size() );
+   ALOGV( "WebViewCore::nativeGetWebFeedLinks() links count = %d", feedInfoList.size() );
 
-	fi_clazz = env->FindClass ( "android/webkit/WebFeedLink" );
-	initID = env->GetMethodID ( fi_clazz, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V" );
+    fi_clazz = env->FindClass ( "android/webkit/WebFeedLink" );
+    initID = env->GetMethodID ( fi_clazz, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V" );
 
-	infos = env->NewObjectArray ( feedInfoList.size(), fi_clazz, NULL );
+    infos = env->NewObjectArray ( feedInfoList.size(), fi_clazz, NULL );
 
-        for ( int i = 0; i <  feedInfoList.size(); i++ )
-	{
-		urlobj =env->NewString ( feedInfoList[i]->url().characters(), feedInfoList[i]->url().length() );
-		titleobj = env->NewString ( feedInfoList[i]->title().characters(), feedInfoList[i]->title().length() );
-		typeobj = env->NewString ( feedInfoList[i]->type().characters(), feedInfoList[i]->type().length() );
-		//pathobj = env->NewString(feedInfoList[i]->path().characters(), feedInfoList[i]->path().length());
+    for ( int i = 0; i <  feedInfoList.size(); i++ )
+    {
+        urlobj =env->NewString ( feedInfoList[i]->url().characters(), feedInfoList[i]->url().length() );
+        titleobj = env->NewString ( feedInfoList[i]->title().characters(), feedInfoList[i]->title().length() );
+        typeobj = env->NewString ( feedInfoList[i]->type().characters(), feedInfoList[i]->type().length() );
+        //pathobj = env->NewString(feedInfoList[i]->path().characters(), feedInfoList[i]->path().length());
 
-		jobject fi = env->NewObject ( fi_clazz, initID, urlobj, titleobj, typeobj );
+        jobject fi = env->NewObject ( fi_clazz, initID, urlobj, titleobj, typeobj );
 
-		env->SetObjectArrayElement ( infos, i, fi );
+        env->SetObjectArrayElement ( infos, i, fi );
 
-		delete feedInfoList[i] ;
-		env->DeleteLocalRef(urlobj);
-    	env->DeleteLocalRef(titleobj);
-    	env->DeleteLocalRef(typeobj);
-    	env->DeleteLocalRef(fi);
+        delete feedInfoList[i] ;
 
-		start = limit;
-	}
+        start = limit;
+    }
 
-	feedInfoList.clear() ;
+    feedInfoList.clear() ;
 
-	return infos ;
+    return infos ;
 }
+
 //SAMSUNG CHANGES <<
-//SAMSUNG CHANGES+
-// Spell Check
+
+
+static void DeleteText(JNIEnv* env, jobject obj, jint nativeClass,
+        jint startX, jint startY, jint endX, jint endY)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->deleteText(startX, startY, endX, endY);
+}
+
+static void InsertText(JNIEnv* env, jobject obj, jint nativeClass,
+        jstring text)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    WTF::String wtfText = jstringToWtfString(env, text);
+    viewImpl->insertText(wtfText);
+}
+
+static jobject GetText(JNIEnv* env, jobject obj, jint nativeClass,
+        jint startX, jint startY, jint endX, jint endY)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    WTF::String text = viewImpl->getText(startX, startY, endX, endY);
+    return text.isEmpty() ? 0 : wtfStringToJstring(env, text);
+}
+
+static void SelectText(JNIEnv* env, jobject obj, jint nativeClass,
+        jint startX, jint startY, jint endX, jint endY)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->selectText(startX, startY, endX, endY);
+}
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
 long nextWordStartIndex(char* sentence)
 {
@@ -8575,12 +8618,14 @@ long nextWordStartIndex(char* sentence)
 	return wordstartindex;
 }
 #endif
-
-static bool nativeCheckSpellingOfWordAtPosition(JNIEnv *env, jobject obj, jint x, jint y) {
+//SAMSUNG CHANGES <<<	
+    
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+static bool nativeCheckSpellingOfWordAtPosition(JNIEnv *env, jobject obj, jint nativeClass,jint x, jint y) {
 #if ENABLE(SPELLCHECK)
     jint location = -1, length = 0;
 	long wordstartindex = 0;
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
     viewImpl->selectClosestWord(x,y, 1.0f, true);
     WTF::String result = viewImpl->getSelectedText();
 	android_printLog(ANDROID_LOG_DEBUG, "WebViewCore","WebViewCore:nativeCheckSpellingOfWordAtPosition Text to select %s %d",result.utf8().data(),result.length());
@@ -8591,10 +8636,10 @@ static bool nativeCheckSpellingOfWordAtPosition(JNIEnv *env, jobject obj, jint x
 		return false;
 
     if (result != NULL) {
-        DBG_NAV_LOGD("selected word at position: %s", result.utf8().data());
+        ALOGV("selected word at position: %s", result.utf8().data());
     }
     else {
-        DBG_NAV_LOG("No word selected");
+        ALOGV("No word selected");
     }
   
 
@@ -8610,94 +8655,438 @@ static bool nativeCheckSpellingOfWordAtPosition(JNIEnv *env, jobject obj, jint x
         return true;
     }
 #else
-    DBG_NAV_LOG("Spell Check feature not enabled: define the macro ENABLE_SPELLCHECK");
+    ALOGV("Spell Check feature not enabled: define the macro ENABLE_SPELLCHECK");
     return false;
 #endif
+	return true;
 }
 
-static void nativeUnmarkWord(JNIEnv *env, jobject obj, jstring word)
+static void nativeUnmarkWord(JNIEnv *env, jobject obj, jint nativeClass, jstring word)
 {
 #if ENABLE(SPELLCHECK)
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    DBG_NAV_LOG("nativeUnmarkWord");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    ALOGV("nativeUnmarkWord");
     WebCore::Frame* frame = viewImpl->mainFrame();
     if (frame) {
     EditorClientAndroid* editorC = static_cast<EditorClientAndroid*>(frame->page()->editorClient());
-    editorC->unmarkwordlist(jstringToWtfString(env, word));//SAMSUNG CHANGES
+    editorC->unmarkwordlist(jstringToWtfString(env, word));
     }
 #else
-    DBG_NAV_LOG("Spell Check feature not enabled: define the macro ENABLE_SPELLCHECK");
+    ALOGV("Spell Check feature not enabled: define the macro ENABLE_SPELLCHECK");
 #endif
 }
-//SAMSUNG CHANGES-
-//SAMSUNG changes - Reader
+//SAMSUNG CHANGES <<<	
+
+static void ClearSelection(JNIEnv* env, jobject obj, jint nativeClass)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->focusedFrame()->selection()->clear();
+}
+
+//SAMSUNG : Reader >>
 //Called from browser activity and webview on click of reader button. Evaluates the reader javascript
 WTF ::String WebViewCore::applyreadability(WTF::String  str)
 {
 #if USE(V8)
-	LOGV("in apply readability");
+//	LOGV("in apply readability");
         m_mainFrame->script()->executeScript(str);
-        LOGV("after evaluation of script");
+   //     LOGV("after evaluation of script");
 			
-	Element* divElement = m_mainFrame-> document()->getElementById(WTF::String("reader_div"));
-	HTMLElement* HTMLdivElement= static_cast<HTMLElement *>(divElement);
-	return HTMLdivElement->innerHTML();
+        Element* iFrame = m_mainFrame->document()->getElementById(WTF::String("reader_iframe"));
+        HTMLFrameOwnerElement* reader_frame= static_cast<HTMLFrameOwnerElement *>(iFrame);
+        //Element* divElement = reader_frame->contentDocument()->getElementById(WTF::String("reader_div"));
+        if(reader_frame && (reader_frame->contentWindow()!=NULL)  && (reader_frame->contentWindow()->document()!=NULL))
+        {
+		Element* divElement = reader_frame->contentWindow()->document()->getElementById(WTF::String("reader_div")); // Changes for P120618-4508 
+	        HTMLElement* HTMLdivElement= static_cast<HTMLElement *>(divElement);
+        	return HTMLdivElement->innerHTML();
+        }
+	else
+		return WTF::String();
 #endif
 }
+
 //Evaluates the initial recognizearticle.js
-WTF::String WebViewCore::loadinitialJs( WTF::String  str)
+WTF::String WebViewCore::loadinitialJs(WTF::String  str)
 {
 #if USE(V8)
-	LOGV("in load initial JS");
+	//LOGV("in load initial JS");
         m_mainFrame->script()->executeScript(str);
-	LOGV("after evaluation of script");
+	//LOGV("after evaluation of script");
 	Element* divElement = m_mainFrame-> document()->getElementById(WTF::String("recog_div"));
 	HTMLElement* HTMLdivElement= static_cast<HTMLElement *>(divElement);
 	return HTMLdivElement->innerHTML().utf8().data() ;
 #endif
 }
-//SAMSUNG changes - Reader			 
+//SAMSUNG : Reader <<
 
-//SAMSUNG CHANGES- EMAIL APP CUSTOMIZATION >>
-static bool nativeRequiresSmartFit(JNIEnv *env, jobject obj)
+static bool SelectWordAt(JNIEnv* env, jobject obj, jint nativeClass, jint x, jint y)
 {
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    return viewImpl->requiresSmartFit();
-}
-//SAMSUNG CHANGES <<
-
-static void CloseIdleConnections(JNIEnv* env, jobject obj)
-{
-#if USE(CHROME_NETWORK_STACK)
-    WebCache::get(true)->closeIdleConnections();
-    WebCache::get(false)->closeIdleConnections();
-#endif
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->selectWordAt(x, y);
 }
 
-static void ScrollRenderLayer(JNIEnv* env, jobject obj, jint layer, jobject jRect)
+static void SelectAll(JNIEnv* env, jobject obj, jint nativeClass)
 {
-    SkRect rect;
-    GraphicsJNI::jrect_to_rect(env, jRect, &rect);
-    GET_NATIVE_VIEW(env, obj)->scrollRenderLayer(layer, rect);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    viewImpl->focusedFrame()->selection()->selectAll();
 }
-//SAMSUNG CHANGES >>>
-static void setWebTextViewOnOffStatus(JNIEnv* env, jobject obj, jboolean enable)
+
+static int FindAll(JNIEnv* env, jobject obj, jint nativeClass,
+        jstring text)
 {
-	GET_NATIVE_VIEW(env, obj)->setWebTextViewOnOffStatus(enable);
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    WTF::String wtfText = jstringToWtfString(env, text);
+    return viewImpl->findTextOnPage(wtfText);
 }
-//SAMSUNG CHANGES <<<
+
+static int FindNext(JNIEnv* env, jobject obj, jint nativeClass,
+        jboolean forward)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->findNextOnPage(forward);
+}
 
 //SAMSUNG CHANGE HTML5 COLOR <<
-static void SendColorPickerChoice(JNIEnv* env, jobject obj, jint choice)
+static void SendColorPickerChoice(JNIEnv* env, jobject obj,jint nativeClass, jint choice)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::WebViewCoreTimeCounter);
-#endif
-    WebViewCore* viewImpl = GET_NATIVE_VIEW(env, obj);
-    LOG_ASSERT(viewImpl, "viewImpl not set in nativeSendColorPickerChoice");
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);  
     viewImpl->ColorChooserReply(choice);
 }
 //SAMSUNG CHANGE HTML5 COLOR >>
+
+//SAMSUNG CHANGE Form Navigation >>
+bool WebViewCore::performClickOnNode(Node* node) {
+    if (!node) return false;
+    LayerAndroid* layer = 0;
+    platformLayerIdFromNode(node, &layer);
+    // MPSG100006196 >>
+    IntRect bounds = absoluteContentRect(node, layer);
+    if(layer) {
+       RenderLayer *owner = layer->owningLayer();
+       if(owner && !owner->isRootLayer()) {
+    	  bounds = getAbsoluteBoundingBox(node);
+       }
+    }
+    // MPSG100006196 <<
+
+    if (bounds.x() == 0 && bounds.y() == 0 && bounds.isEmpty()) return false;
+    ALOGD("WebViewCore::performClickOnNode bounds(%d, %d, %d, %d), Center(%d, %d)", bounds.x(), bounds.y(), bounds.maxX(), bounds.maxY(), bounds.center().x(), bounds.center().y());
+    moveMouse(bounds.center().x(), bounds.center().y(), 0, true);
+    return performMouseClick();
+}
+
+bool WebViewCore::moveFocusToNext() {
+    ALOGD("WebViewCore::moveFocusToNext");
+    WebCore::Node* focusNode = currentFocus();
+    if (!focusNode) return false;
+    if(!isFormNavTextInput(focusNode) && !isSelectInput(focusNode)) {
+        ALOGD("Focused Node is not Text or Select Input. Focused node name is <%s> and tag name is <%s>", 
+            focusNode->nodeName().utf8().data(), 
+            ((Element*) focusNode)->tagName().utf8().data());
+        return false;
+    }
+    WebCore::Node* newNode = nextTextOrSelectNode(focusNode);
+    if (!newNode) return false;
+
+    if(!isFormNavTextInput(newNode) && !isSelectInput(newNode)) {
+            ALOGD("New Node is not Text or Select Input. New node name is <%s> and tag name is <%s>",
+            		newNode->nodeName().utf8().data(),
+                ((Element*) newNode)->tagName().utf8().data());
+            return false;
+    }
+
+    scrollNodeIntoView(m_mainFrame, newNode);
+    bool handled =  performClickOnNode(newNode);
+    if (isFormNavTextInput(newNode)) {
+        RenderTextControl *rtc = toRenderTextControl(newNode);
+        setSelection(newNode, rtc->text().length(), rtc->text().length());
+    }
+    return handled;
+}
+
+bool WebViewCore::moveFocusToPrevious() {
+    ALOGD("WebViewCore::moveFocusToPrevious");
+    WebCore::Node* focusNode = currentFocus();
+    if (!focusNode) return false;
+    if(!isFormNavTextInput(focusNode) && !isSelectInput(focusNode)) {
+        ALOGD("Focused Node is not Text or Select Input. Focused node name is <%s> and tag name is <%s>", 
+            focusNode->nodeName().utf8().data(), 
+            ((Element*) focusNode)->tagName().utf8().data());
+        return false;
+    }
+    WebCore::Node* newNode = previousTextOrSelectNode(focusNode);
+    if (!newNode) return false;
+
+    if(!isFormNavTextInput(newNode) && !isSelectInput(newNode)) {
+            ALOGD("New Node is not Text or Select Input. New node name is <%s> and tag name is <%s>",
+            		newNode->nodeName().utf8().data(),
+                ((Element*) newNode)->tagName().utf8().data());
+            return false;
+    }
+
+    scrollNodeIntoView(m_mainFrame, newNode);
+    bool handled = performClickOnNode(newNode);
+    if (isFormNavTextInput(newNode)) {
+        RenderTextControl *rtc = toRenderTextControl(newNode);
+        setSelection(newNode, rtc->text().length(), rtc->text().length());
+    }
+    return handled;
+}
+
+static bool MoveFocusToNext(JNIEnv* env, jobject obj, jint nativeClass)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->moveFocusToNext();
+}
+
+static bool MoveFocusToPrevious(JNIEnv* env, jobject obj, jint nativeClass)
+{
+    WebViewCore* viewImpl = reinterpret_cast<WebViewCore*>(nativeClass);
+    return viewImpl->moveFocusToPrevious();
+}
+
+jobject WebViewCore::createSelectFieldInitData(Node* node)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    TextFieldInitDataGlue* classDef = m_textFieldInitDataGlue;
+    ScopedLocalRef<jclass> clazz(env,
+            env->FindClass("android/webkit/WebViewCore$TextFieldInitData"));
+    jobject initData = env->NewObject(clazz.get(), classDef->m_constructor);
+    env->SetIntField(initData, classDef->m_fieldPointer,
+            reinterpret_cast<int>(node));	
+    env->SetBooleanField(initData, classDef->m_isTextFieldNext,
+            isFormNavTextInput(nextTextOrSelectNode(node)) ? true : false);
+    env->SetBooleanField(initData, classDef->m_isTextFieldPrev,
+            isFormNavTextInput(previousTextOrSelectNode(node)) ? true : false);
+    env->SetBooleanField(initData, classDef->m_isSelectFieldNext,
+            isSelectInput(nextTextOrSelectNode(node)) ? true : false);
+    env->SetBooleanField(initData, classDef->m_isSelectFieldPrev,
+            isSelectInput(previousTextOrSelectNode(node)) ? true : false);
+    LayerAndroid* layer = 0;
+    platformLayerIdFromNode(node, &layer);
+    IntRect bounds = absoluteContentRect(node, layer);
+    ScopedLocalRef<jobject> jbounds(env, intRectToRect(env, bounds));
+    env->SetObjectField(initData, classDef->m_contentBounds, jbounds.get());
+    return initData;
+}
+
+void WebViewCore::initSelectField(Node* node)
+{
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    AutoJObject javaObject = m_javaGlue->object(env);
+    if (!javaObject.get())
+        return;
+    ScopedLocalRef<jobject> initData(env, createSelectFieldInitData(node));
+    env->CallVoidMethod(javaObject.get(), m_javaGlue->m_initSelectField, initData.get());
+    checkException(env);
+}
+
+static Node *nextDocumentFocusableNode(Node *frameOwner)
+{
+	if (NULL == frameOwner) {
+	     return NULL;
+	}
+
+	HTMLFrameOwnerElement *frameOwnerElement = static_cast<HTMLFrameOwnerElement *>(frameOwner);
+	Document *ownerDocument = frameOwnerElement->contentDocument();
+	if (NULL == ownerDocument) {
+	    return NULL;
+	}
+
+	Node *docBody = ownerDocument->body();
+	if (isContentEditable(docBody)) {
+		return docBody;
+	}
+	
+	Node *nextNode = docBody;
+	while(nextNode) {
+		nextNode = nextNode->traverseNextNode();
+		if (nextNode && (/* nextNode->isFrameOwnerElement() || */ nextNode->hasTagName(HTMLNames::iframeTag) ||
+	     	nextNode->hasTagName(HTMLNames::frameTag))) {
+	     	ALOGD("We got a frameOwner Element");
+		    HTMLFrameOwnerElement *nestedFrameOwner = static_cast<HTMLFrameOwnerElement *>(nextNode);
+		    if (!nestedFrameOwner->contentFrame()) {
+		    	ALOGD("WebViewCore::nestedFrameFocusableFormNode : frame doesn't have source and hence skipped");
+            	continue;
+		    }
+
+		    nextNode = nextDocumentFocusableNode(nestedFrameOwner);
+		    if (NULL == nextNode) {
+		        nextNode = static_cast<Node *>(nestedFrameOwner);
+		        continue;
+		    }
+		}
+		
+		if(nextNode && (nextNode->isFocusable()) && (isFormNavTextInput(nextNode) || isSelectInput(nextNode))) {
+           ALOGD("Found focusable node from nested");
+           break;
+		}
+	}
+
+	return nextNode;
+}
+Node* WebViewCore::nextTextOrSelectNode(Node* node) {
+    Document* document = node->document();
+    if (NULL == document) {
+        ALOGD("WebViewCore::nextTextOrSelectNode : !document");
+        return NULL;
+    }
+
+    Node *nextNode = node;
+    while (nextNode ) {
+        nextNode = nextNode->traverseNextNode();
+        if (nextNode && (/* nextNode->isFrameOwnerElement() || */nextNode->hasTagName(HTMLNames::iframeTag)  ||
+            nextNode->hasTagName(HTMLNames::frameTag))) {
+            HTMLFrameOwnerElement *frameOwner = static_cast<HTMLFrameOwnerElement *>(nextNode);
+            if (!frameOwner->contentFrame()) {
+                ALOGD("WebViewCore::nextTextOrSelectNode : frame doesn't have source and hence skipped");
+                continue;
+            }
+             
+            nextNode = nextDocumentFocusableNode(nextNode);
+            if (NULL == nextNode) {
+                nextNode = static_cast<Node *>(frameOwner);
+                ALOGD("WebViewCore::nextTextOrSelectNode : Assigned frameOwner %s Back", 
+                    nextNode->nodeName().utf8().data());
+                continue;
+            }
+        }
+        
+        if (NULL == nextNode) {// Couldn't find anything in the current document scope, try finding in other document scope if present any
+            if (document->frame() != m_mainFrame) {
+                ALOGD("WebViewCore::nextTextOrSelectNode : We are checking other document scope");
+                nextNode = nextTextOrSelectNode(node->document()->ownerElement());
+            }
+            else {
+                //Only One document Scope Didn't find anything
+            }
+        }
+
+        if (nextNode && (nextNode->isFocusable()) && (isFormNavTextInput(nextNode) || isSelectInput(nextNode))) {
+            ALOGD("WebViewCore::nextTextOrSelectNode : Broken after finding a focusable Node");
+           break;
+    }
+    }
+
+    if (!nextNode) {
+        ALOGD("WebViewCore::nextTextOrSelectNode :  nextNode is NULL");
+        return NULL;
+    }
+    else {
+        ALOGD("WebViewCore::nextTextOrSelectNode : Final Next Nodename = <%s>, tagname = <%s>", 
+   	    nextNode->nodeName().utf8().data(), ((Element*) nextNode)->tagName().utf8().data());
+    }
+
+    return nextNode;
+}
+
+static Node *previousDocumentFocusableNode(Node *documentOwner) {
+    ALOGD("Inside previousDocumentFocusableNode()");
+    if (NULL == documentOwner) {
+         return NULL;
+    }
+
+    HTMLFrameOwnerElement *frameOwnerElement = static_cast<HTMLFrameOwnerElement *>(documentOwner);
+    Document *ownerDocument = frameOwnerElement->contentFrame()->document();
+    if (NULL == ownerDocument) {
+        return NULL;
+    }
+
+    Node *docLastChild = ownerDocument->lastChild();
+    while (docLastChild && docLastChild->hasChildNodes()) {
+           docLastChild = docLastChild->lastChild();
+    }
+    
+    if (isContentEditable(docLastChild)) { //In case of empty body Element
+        return docLastChild;
+    }
+
+    Node *previousNode = docLastChild;
+    while (previousNode) {
+        previousNode = previousNode->traversePreviousNode();
+    	if (previousNode && (/* previousNode->isFrameOwnerElement() || */previousNode->hasTagName(HTMLNames::iframeTag) ||
+            previousNode->hasTagName(HTMLNames::frameTag))) {
+            ALOGD("We got a frameOwner Element");
+            HTMLFrameOwnerElement *nestedFrameOwner = static_cast<HTMLFrameOwnerElement *>(previousNode);
+            if (!nestedFrameOwner->contentFrame()) {
+                ALOGD("WebViewCore::nestedFrameFocusableFormNode : frame doesn't have source and hence skipped");
+                continue;
+            }
+
+
+            previousNode = previousDocumentFocusableNode(nestedFrameOwner);
+		    if (NULL == previousNode) {
+		        previousNode = static_cast<Node *>(nestedFrameOwner);
+		        continue;
+		    }
+    	}
+
+    	if (previousNode && (previousNode->isFocusable()) && (isFormNavTextInput(previousNode) || isSelectInput(previousNode))) {
+            ALOGD("Found focusable node from nested");
+            break;
+    	}
+    }
+
+    return previousNode;
+}
+
+Node* WebViewCore::previousTextOrSelectNode(Node* node) {
+    Document* document = node->document();
+    if (!document) {
+        ALOGD("WebViewCore::previousTextOrSelectNode : !document");
+        return NULL;
+    }
+
+    Node *previousNode = node;
+    while (previousNode) {
+        previousNode = previousNode->traversePreviousNode();
+        if (previousNode && (/* previousNode->isFrameOwnerElement() ||*/previousNode->hasTagName(HTMLNames::iframeTag)  ||
+            previousNode->hasTagName(HTMLNames::frameTag))) {
+            ALOGD("WebViewCore::previousTextOrSelectNode : Found an iFrame");
+            HTMLFrameOwnerElement *frameOwner = static_cast<HTMLFrameOwnerElement *>(previousNode);
+            if (!frameOwner->contentFrame()) {
+                ALOGD("WebViewCore::previousTextOrSelectNode : frame doesn't have source and hence skipped");
+            	continue;
+            }
+		
+            previousNode = previousDocumentFocusableNode(previousNode);
+            if (NULL == previousNode) {
+                previousNode = static_cast<Node *>(frameOwner);
+                ALOGD("WebViewCore::previousTextOrSelectNode : Assigned frameOwner %s Back", 
+				previousNode->nodeName().utf8().data());
+                continue;
+            }
+        }
+
+        if (NULL == previousNode) {
+            if (document->frame() != m_mainFrame) {
+                ALOGD("Continue with previous Frame hierarchy");
+                previousNode = previousTextOrSelectNode(node->document()->ownerElement());
+    	    }
+
+            else {
+                //We are in Top frame nothing found, standing at first focusable Node.
+            }
+        }
+        
+        if (previousNode && (previousNode->isFocusable()) && (isFormNavTextInput(previousNode) || isSelectInput(previousNode))) {
+            ALOGD("WebViewCore::previousTextOrSelectNode : Broken after finding a focusable Node");
+           break;
+    }
+ 
+   }
+
+    if (!previousNode) {
+        ALOGD("WebViewCore::previousTextOrSelectNode :  !previousNode )");
+        return NULL;
+    }
+ 
+    ALOGD("WebViewCore::previousTextOrSelectNode : Final Previous Nodename = <%s>, tagname = <%s>", 
+    previousNode->nodeName().utf8().data(), ((Element*) previousNode)->tagName().utf8().data());
+    return previousNode;
+}
+//SAMSUNG CHANGE Form Navigation <<
 
 // ----------------------------------------------------------------------------
 
@@ -8705,280 +9094,312 @@ static void SendColorPickerChoice(JNIEnv* env, jobject obj, jint choice)
  * JNI registration.
  */
 static JNINativeMethod gJavaWebViewCoreMethods[] = {
-    { "nativeClearContent", "()V",
+    { "nativeClearContent", "(I)V",
             (void*) ClearContent },
-    { "nativeFocusBoundsChanged", "()Z",
+    { "nativeFocusBoundsChanged", "(I)Z",
         (void*) FocusBoundsChanged } ,
-    { "nativeKey", "(IIIZZZZ)Z",
+    { "nativeKey", "(IIIIZZZZ)Z",
         (void*) Key },
-    { "nativeClick", "(IIZ)V",
-        (void*) Click },
-    { "nativeContentInvalidateAll", "()V",
+    { "nativeContentInvalidateAll", "(I)V",
         (void*) ContentInvalidateAll },
-    { "nativeSendListBoxChoices", "([ZI)V",
+    { "nativeSendListBoxChoices", "(I[ZI)V",
         (void*) SendListBoxChoices },
-    { "nativeSendListBoxChoice", "(I)V",
+    { "nativeSendListBoxChoice", "(II)V",
         (void*) SendListBoxChoice },
-    { "nativeSetSize", "(IIIFIIIIZ)V",
+    { "nativeSetSize", "(IIIIFIIIIZ)V",
         (void*) SetSize },
     { "nativeSetScrollOffset", "(IZII)V",
         (void*) SetScrollOffset },
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-    { "nativeUnmarkWord", "(Ljava/lang/String;)V",
-        (void*) nativeUnmarkWord }, // Spell Check
+    { "nativeUnmarkWord", "(ILjava/lang/String;)V",
+        (void*) nativeUnmarkWord },
 #endif
-    { "nativeSetGlobalBounds", "(IIII)V",
+//SAMSUNG CHANGES <<<	
+    { "nativeSetGlobalBounds", "(IIIII)V",
         (void*) SetGlobalBounds },
-    { "nativeSetSelection", "(II)V",
+    { "nativeSetSelection", "(III)V",
         (void*) SetSelection } ,
-    { "nativeModifySelection", "(II)Ljava/lang/String;",
+    { "nativeModifySelection", "(III)Ljava/lang/String;",
         (void*) ModifySelection },
-    { "nativeDeleteSelection", "(III)V",
+    { "nativeDeleteSelection", "(IIII)V",
         (void*) DeleteSelection } ,
-    { "nativeReplaceTextfieldText", "(IILjava/lang/String;III)V",
+    { "nativeReplaceTextfieldText", "(IIILjava/lang/String;III)V",
         (void*) ReplaceTextfieldText } ,
-    { "nativeMoveFocus", "(II)V",
-        (void*) MoveFocus },
     { "nativeMoveMouse", "(III)V",
         (void*) MoveMouse },
-    { "nativeMoveMouseIfLatest", "(IIII)V",
-        (void*) MoveMouseIfLatest },
-    { "passToJs", "(ILjava/lang/String;IIZZZZ)V",
+    { "passToJs", "(IILjava/lang/String;IIZZZZ)V",
         (void*) PassToJs },
-    { "nativeScrollFocusedTextInput", "(FI)V",
+    { "nativeScrollFocusedTextInput", "(IFILandroid/graphics/Rect;)V",
         (void*) ScrollFocusedTextInput },
-    { "nativeSetFocusControllerActive", "(Z)V",
+// SAMSUNG - Google Text selection >>
+    { "nativeupdateTextSelection", "(I)V",
+        (void*) InvokeUpdateTextSelection},
+// SAMSUNG - Google Text selection <<
+    { "nativeSetFocusControllerActive", "(IZ)V",
         (void*) SetFocusControllerActive },
     { "nativeSaveDocumentState", "(I)V",
         (void*) SaveDocumentState },
     { "nativeFindAddress", "(Ljava/lang/String;Z)Ljava/lang/String;",
         (void*) FindAddress },
-    { "nativeHandleTouchEvent", "(I[I[I[IIII)Z",
-            (void*) HandleTouchEvent },
-//LIGHT TOUCH            
-    { "nativeTouchUp", "(IIIIIZ)V",
-        (void*) TouchUp },
-//LIGHT TOUCH        
-    { "nativeRetrieveHref", "(II)Ljava/lang/String;",
+    { "nativeHandleTouchEvent", "(II[I[I[IIII)I",
+        (void*) HandleTouchEvent },
+    { "nativeMouseClick", "(I)Z",
+        (void*) MouseClick },
+    { "nativeRetrieveHref", "(III)Ljava/lang/String;",
         (void*) RetrieveHref },
-    { "nativeRetrieveAnchorText", "(II)Ljava/lang/String;",
+    { "nativeRetrieveAnchorText", "(III)Ljava/lang/String;",
         (void*) RetrieveAnchorText },
-    { "nativeRetrieveImageSource", "(II)Ljava/lang/String;",
+    { "nativeRetrieveImageSource", "(III)Ljava/lang/String;",
         (void*) RetrieveImageSource },
-    { "nativeStopPaintingCaret", "()V",
-        (void*) StopPaintingCaret },
-    { "nativeUpdateFrameCache", "()V",
-        (void*) UpdateFrameCache },
-    { "nativeGetContentMinPrefWidth", "()I",
+    { "nativeGetContentMinPrefWidth", "(I)I",
         (void*) GetContentMinPrefWidth },
-    { "nativeUpdateLayers", "(II)Z",
-        (void*) UpdateLayers },
     { "nativeNotifyAnimationStarted", "(I)V",
         (void*) NotifyAnimationStarted },
-    { "nativeRecordContent", "(Landroid/graphics/Region;Landroid/graphics/Point;)I",
+    { "nativeRecordContent", "(ILandroid/graphics/Point;)I",
         (void*) RecordContent },
-    { "setViewportSettingsFromNative", "()V",
+    { "setViewportSettingsFromNative", "(I)V",
         (void*) SetViewportSettingsFromNative },
-    { "nativeSplitContent", "(I)V",
-        (void*) SplitContent },
-    { "nativeSetBackgroundColor", "(I)V",
+    { "nativeSetBackgroundColor", "(II)V",
         (void*) SetBackgroundColor },
-//SISO_HTMLCOMPOSER begin
-    { "nativeInsertContent","(Ljava/lang/String;IZLjava/util/Vector;)Landroid/graphics/Point;",
+//SISO_HTMLCOMPOSER start
+    { "nativeInsertContent","(ILjava/lang/String;IZLjava/util/Vector;)Landroid/graphics/Point;",
         (void*) InsertContent},
-    { "nativeSimulateDelKeyForCount", "(I)V",
+    { "nativeSimulateDelKeyForCount", "(II)V",
      (void*) SimulateDelKeyForCount },
 
-    { "nativeGetTextAroundCursor", "(IZ)Ljava/lang/String;",
+    { "nativeGetTextAroundCursor", "(IIZ)Ljava/lang/String;",
      (void*) GetTextAroundCursor },
 
-    { "nativeDeleteSurroundingText", "(II)V",
+    { "nativeDeleteSurroundingText", "(III)V",
         (void*) DeleteSurroundingText },
 
 
-    { "nativeGetSelectionOffset", "()Landroid/graphics/Point;",
+    { "nativeGetSelectionOffset", "(I)Landroid/graphics/Point;",
         (void*) GetSelectionOffset },
 
-    { "nativeGetSelectionOffsetImage", "(IIII)V",
+    { "nativeGetSelectionOffsetImage", "(I)V",
         (void*) GetSelectionOffsetImage },
 
-    { "nativeGetBodyText", "()Ljava/lang/String;",
+    { "nativeGetBodyText", "(I)Ljava/lang/String;",
         (void*) GetBodyText },
 
-    { "nativeExecCommand", "(Ljava/lang/String;Ljava/lang/String;)Z",
+    { "nativeExecCommand", "(ILjava/lang/String;Ljava/lang/String;)Z",
      (void*) ExecCommand },
 
-    { "nativeCanUndo", "()Z",
+    { "nativeCanUndo", "(I)Z",
      (void*) CanUndo },
 
-    { "nativeCanRedo", "()Z",
+    { "nativeCanRedo", "(I)Z",
      (void*) CanRedo },
 
-    { "nativeUndoRedoStateReset", "()V",
+    { "nativeUndoRedoStateReset", "(I)V",
      (void*) UndoRedoStateReset },
 
 
-    { "nativeCopyAndSaveImage", "(Ljava/lang/String;)Z",
+    { "nativeCopyAndSaveImage", "(ILjava/lang/String;)Z",
      (void*) CopyAndSaveImage },
 
-    { "nativeSaveCachedImageToFile", "(Ljava/lang/String;Ljava/lang/String;)Z",
-     (void*) SaveCachedImageToFile },
 
 
-    { "nativeGetBodyHTML", "()Ljava/lang/String;",
+
+    { "nativeGetBodyHTML", "(I)Ljava/lang/String;",
         (void*) GetBodyHTML },
 
-    { "nativeGetFullMarkupData", "()Landroid/webkit/WebHTMLMarkupData;",
+    { "nativeGetFullMarkupData", "(I)Landroid/webkit/WebHTMLMarkupData;",
         (void*) GetFullMarkupData },
 
-    { "nativeSetEditable", "(Z)V",
+    { "nativeSetEditable", "(IZ)V",
         (void*) SetEditable },
 
-    { "nativeSetSelectionEditable", "(II)V",
+    { "nativeSetSelectionEditable", "(III)V",
         (void*) SetSelectionEditable },
 
-    { "nativeMoveSingleCursorHandler", "(II)V",
+    { "nativeMoveSingleCursorHandler", "(III)V",
         (void*) MoveSingleCursorHandler },
 
-    { "nativeSetComposingRegion", "(II)V",
+    { "nativeSetComposingRegion", "(III)V",
         (void*) SetComposingRegion },
-
-    { "nativeGetCursorRect", "(Z)Landroid/graphics/Rect;",
+    { "nativeSetPageZoom", "(IF)V",
+	(void*) SetPageZoom },
+    { "nativeGetCursorRect", "(IZ)Landroid/graphics/Rect;",
         (void*) GetCursorRect },
 
-    { "nativeSetSelectionNone", "()V",
+    { "nativeSetSelectionNone", "(I)V",
         (void*) SetSelectionNone },
 
-    { "nativeGetSelectionNone", "()Z",
+    { "nativeGetSelectionNone", "(I)Z",
         (void*) GetSelectionNone },
 
-    { "nativeSetComposingSelectionNone", "()V",
+    { "nativeSetComposingSelectionNone", "(I)V",
         (void*) SetComposingSelectionNone },
 
-    { "nativeGetBodyEmpty", "()Z",
+    { "nativeGetBodyEmpty", "(I)Z",
      (void*) GetBodyEmpty },
 
 
-    { "nativeContentSelectionType", "()I",
+    { "nativeContentSelectionType", "(I)I",
      (void*) ContentSelectionType },
 
-    { "nativeUpdateIMSelection", "(II)V",
+    { "nativeUpdateIMSelection", "(III)V",
      (void*) UpdateIMSelection },
 
-    { "nativeRestorePreviousSelectionController", "()V",
+    { "nativeRestorePreviousSelectionController", "(I)V",
      (void*) RestorePreviousSelectionController },
 
 
-    { "nativeSaveSelectionController", "()V",
+    { "nativeSaveSelectionController", "(I)V",
      (void*) SaveSelectionController },
 
-    { "nativeCheckSelectionAtBoundry", "()I",
+    { "nativeCheckSelectionAtBoundry", "(I)I",
      (void*) CheckSelectionAtBoundry },
 
-    { "nativeCheckSelectedClosestWord", "()V", 
+    { "nativeCheckSelectedClosestWord", "(I)V", 
      (void*) CheckSelectedClosestWord },
 
-    { "nativeGetStateInRichlyEditableText", "()I",
+    { "nativeGetStateInRichlyEditableText", "(I)I",
      (void*) GetStateInRichlyEditableText },    
 
-    { "nativeinsertImageContent", "(Ljava/lang/String;)V",
+    { "nativeinsertImageContent", "(ILjava/lang/String;)V",
      (void*) insertImageContent },
 
-    { "nativeresizeImage", "(II)V",
+    { "nativeresizeImage", "(III)V",
      (void*) ResizeImage },
 
-    { "nativegetCurrentFontSize", "()I",
+    { "nativegetCurrentFontSize", "(I)I",
      (void*) GetCurrentFontSize },
 
 
-    { "nativegetCurrentFontValue", "()I",
+    { "nativegetCurrentFontValue", "(I)I",
      (void*) GetCurrentFontValue },
 
 
-    { "nativeCheckEndOfWordAtPosition", "(II)Z",
+    { "nativeCheckEndOfWordAtPosition", "(III)I",
      (void*) CheckEndOfWordAtPosition },
+     
+    { "nativeGetImageSize", "(III)Landroid/graphics/Rect;",
+        (void*) GetImageSize },
+
+    { "nativeGetSelectedImageRect", "(I)Landroid/graphics/Rect;",
+     (void*) nativeGetSelectedImageRect },
+
+//+Feature_Support_SPen
+    { "nativeGetSelectedImageUri", "(I)Ljava/lang/String;",
+     (void*) GetSelectedImageUri },
+//-Feature_Support_SPen
+
+//+Feature_SPen_Gesture_TextSelection
+    { "nativeSelectBWStartAndEnd", "(IIIII)V",
+     (void*) SelectBWStartAndEnd },
+//-Feature_SPen_Gesture_TextSelections
+
+    { "nativeSetCursorFromRangeSelectionController", "(I)V",
+     (void*) SetCursorFromRangeSelectionController },
+
+    { "nativeIsAtBoundary", "(III)I",
+     (void*) IsAtBoundary },
 //SISO_HTMLCOMPOSER end
-    { "nativeRegisterURLSchemeAsLocal", "(Ljava/lang/String;)V",
+    { "nativeRegisterURLSchemeAsLocal", "(ILjava/lang/String;)V",
         (void*) RegisterURLSchemeAsLocal },
-    { "nativeDumpDomTree", "(Z)V",
+    { "nativeDumpDomTree", "(IZ)V",
         (void*) DumpDomTree },
-    { "nativeDumpRenderTree", "(Z)V",
+    { "nativeDumpRenderTree", "(IZ)V",
         (void*) DumpRenderTree },
-    { "nativeDumpNavTree", "()V",
-        (void*) DumpNavTree },
-    { "nativeDumpV8Counters", "()V",
-        (void*) DumpV8Counters },
-    { "nativeSetNewStorageLimit", "(J)V",
+    { "nativeSetNewStorageLimit", "(IJ)V",
         (void*) SetNewStorageLimit },
-    { "nativeGeolocationPermissionsProvide", "(Ljava/lang/String;ZZ)V",
+    { "nativeGeolocationPermissionsProvide", "(ILjava/lang/String;ZZ)V",
         (void*) GeolocationPermissionsProvide },
-    { "nativeSetIsPaused", "(Z)V", (void*) SetIsPaused },
-    { "nativePause", "()V", (void*) Pause },
-    { "nativeResume", "()V", (void*) Resume },
-    { "nativeFreeMemory", "()V", (void*) FreeMemory },
-    { "nativeSetJsFlags", "(Ljava/lang/String;)V", (void*) SetJsFlags },
-    { "nativeRequestLabel", "(II)Ljava/lang/String;",
+    { "nativeSetIsPaused", "(IZ)V", (void*) SetIsPaused },
+    { "nativePause", "(I)V", (void*) Pause },
+    { "nativeResume", "(I)V", (void*) Resume },
+    { "nativeFreeMemory", "(I)V", (void*) FreeMemory },
+    { "nativeSetJsFlags", "(ILjava/lang/String;)V", (void*) SetJsFlags },
+    { "nativeRequestLabel", "(III)Ljava/lang/String;",
         (void*) RequestLabel },
-    { "nativeRevealSelection", "()V", (void*) RevealSelection },
-    { "nativeUpdateFrameCacheIfLoading", "()V",
-        (void*) UpdateFrameCacheIfLoading },
-    { "nativeProvideVisitedHistory", "([Ljava/lang/String;)V",
+    { "nativeRevealSelection", "(I)V", (void*) RevealSelection },
+    { "nativeProvideVisitedHistory", "(I[Ljava/lang/String;)V",
         (void*) ProvideVisitedHistory },
-    { "nativeFullScreenPluginHidden", "(I)V",
+    { "nativeFullScreenPluginHidden", "(II)V",
         (void*) FullScreenPluginHidden },
-    { "nativePluginSurfaceReady", "()V",
+    { "nativePluginSurfaceReady", "(I)V",
         (void*) PluginSurfaceReady },
-    { "nativeValidNodeAndBounds", "(IILandroid/graphics/Rect;)Z",
-        (void*) ValidNodeAndBounds },
-    { "nativeGetTouchHighlightRects", "(III)V",
-        (void*) GetTouchHighlightRects },
-    { "nativeAutoFillForm", "(I)V",
+    { "nativeHitTest", "(IIIIZ)Landroid/webkit/WebViewCore$WebKitHitTest;",
+        (void*) HitTest },
+    { "nativeAutoFillForm", "(II)V",
         (void*) AutoFillForm },
-    { "nativeScrollLayer", "(ILandroid/graphics/Rect;)V",
+    { "nativeScrollLayer", "(IILandroid/graphics/Rect;)V",
         (void*) ScrollRenderLayer },
-//SAMSUNG changes - Reader
-	{ "applyreadability", "(Ljava/lang/String;)Ljava/lang/String;",
+//SAMSUNG : Reader >>
+    { "applyreadability", "(ILjava/lang/String;)Ljava/lang/String;",
         (void*) applyreadability },
-    { "loadinitialJs", "(Ljava/lang/String;)Ljava/lang/String;",
+    { "loadinitialJs", "(ILjava/lang/String;)Ljava/lang/String;",
         (void*) loadinitialJs },
-//SAMSUNG changes - Reader
-    { "nativeCloseIdleConnections", "()V",
-        (void*) CloseIdleConnections },
-    //SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION >>
-    { "nativeWebTextSelectionAll", "(IIII)V",
+//SAMSUNG : Reader <<
+//SAMSUNG : Copy image begin >>
+    { "nativeSaveCachedImageToFile", "(Ljava/lang/String;Ljava/lang/String;)Z",
+     (void*) SaveCachedImageToFile },
+//SAMSUNG : Copy image end <<
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    { "nativeWebTextSelectionAll", "(IIIII)V",
      (void*) WebTextSelectionAll },
-    { "nativeCopyMoveSelection", "(IIIZZFI)V",
+    { "nativeCopyMoveSelection", "(IIIIZZFI)V",
      (void*) CopyMoveSelection },
-    { "nativeClearTextSelection", "(II)V",
+    { "nativeClearTextSelectionEx", "(III)V",
      (void*) ClearTextSelection },
-    { "nativeRecordSelectionCopiedData", "(Landroid/graphics/Region;Landroid/graphics/Region;Landroid/graphics/Rect;Landroid/graphics/Rect;I)Z",/*arvind.maan RTL selection fix*/
+    { "nativeRecordSelectionCopiedData", "(ILandroid/graphics/Region;Landroid/graphics/Region;Landroid/graphics/Rect;Landroid/graphics/Rect;I)Z",
      (void*) RecordSelectionCopiedData },
-    { "nativeGetSelectionGranularity", "()I",
+    { "nativeGetSelectionGranularity", "(I)I",
      (void*) GetSelectionGranularity },
-    { "nativeSelectClosestWord", "(IIFZ)Z",
+    { "nativeSelectClosestWord", "(IIIFZ)Z",
      (void*) SelectClosestWord },
-    { "nativeGetSelectedText", "()Ljava/lang/String;",
+    { "nativeGetSelectedText", "(I)Ljava/lang/String;",
         (void*) GetSelectedText },
-//SAMSUNG CHANGE: MPSG100003899, MPSG100005262 >>
-    { "nativeRecalcWidthAndForceLayout", "()V",
-     (void*) RecalcWidthAndForceLayout },
-//SAMSUNG CHANGE <<
-// Adding for Multicolumn text selection - Begin     
-    { "nativeGetSelectionMultiColInfo", "()Z",
+    { "nativeGetSelectionMultiColInfo", "(I)Z",
      (void*) GetSelectionMultiColInfo },
-// Adding for Multicolumn text selection - End
-// SAMSUNG CHANGE <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+    { "nativeCloseIdleConnections", "(I)V",
+        (void*) CloseIdleConnections },
 //SAMSUNG CHANGES >>
-    { "nativeGetWebFeedLinks", "()[Landroid/webkit/WebFeedLink;",
+    { "nativeGetWebFeedLinks", "(I)[Landroid/webkit/WebFeedLink;",
         (void*) nativeGetWebFeedLinks },
-// Spell Check        
-    { "nativeCheckSpellingOfWordAtPosition", "(II)Z",
-        (void*) nativeCheckSpellingOfWordAtPosition },
 //SAMSUNG CHANGES <<
-    //SAMSUNG CHANGES- EMAIL APP CUSTOMIZATION >>
-    { "nativeRequiresSmartFit", "()Z",  
-        (void*) nativeRequiresSmartFit },
-    //SAMSUNG CHANGES <<
+    { "nativeDeleteText", "(IIIII)V",
+        (void*) DeleteText },
+    { "nativeInsertText", "(ILjava/lang/String;)V",
+        (void*) InsertText },
+    { "nativeGetText", "(IIIII)Ljava/lang/String;",
+        (void*) GetText },
+    { "nativeSelectText", "(IIIII)V",
+        (void*) SelectText },
+    { "nativeClearTextSelection", "(I)V",
+        (void*) ClearSelection },
+    { "nativeSelectWordAt", "(III)Z",
+        (void*) SelectWordAt },
+    { "nativeSelectAll", "(I)V",
+        (void*) SelectAll },
+    { "nativeCertTrustChanged","()V",
+        (void*) nativeCertTrustChanged },
+    { "nativeFindAll", "(ILjava/lang/String;)I",
+        (void*) FindAll },
+    { "nativeFindNext", "(IZ)I",
+        (void*) FindNext },
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
+	{ "nativeCheckSpellingOfWordAtPosition", "(III)Z",
+	(void*) nativeCheckSpellingOfWordAtPosition },
+#endif
+	//SAMSUNG CHANGES <<<	
+    { "nativeSetInitialFocus", "(II)V", (void*) SetInitialFocus },
+//SAMSUNG CHANGE HTML5 COLOR <<
+    { "nativeSendColorPickerChoice", "(II)V",
+        (void*) SendColorPickerChoice },
+//SAMSUNG CHANGE HTML5 COLOR <<
+//SAMSUNG CHANGE Form Navigation >>
+    { "nativeMoveFocusToNext", "(I)Z",
+        (void*) MoveFocusToNext },
+    { "nativeMoveFocusToPrevious", "(I)Z",
+        (void*) MoveFocusToPrevious },
+//SAMSUNG CHANGE Form Navigation <<
 // Samsung Change - HTML5 Web Notification	>>
     { "nativeNotificationPermissionsProvide", "(Ljava/lang/String;Z)V",
         (void*) NotificationPermissionsProvide },
@@ -8987,60 +9408,56 @@ static JNINativeMethod gJavaWebViewCoreMethods[] = {
     { "nativeNotificationIDback", "(II)V",
         (void*) NotificationIDback },
 // Samsung Change - HTML5 Web Notification	<<
-//SAMSUNG CHANGES >>>
-    { "nativeSetWebTextViewOnOffStatus", "(Z)V",  
-        (void*) setWebTextViewOnOffStatus },
-//SAMSUNG CHANGES <<<
-//SAMSUNG CHANGE HTML5 COLOR <<
-    { "nativeSendColorPickerChoice", "(I)V",
-        (void*) SendColorPickerChoice }
-//SAMSUNG CHANGE HTML5 COLOR <<
+//SAMSUNG CHANGES: mobile page zoom scale change issue - merge from ICS >>
+    { "nativeRecalcWidthAndForceLayout", "(I)V",
+        (void*) RecalcWidthAndForceLayout },
+//SAMSUNG CHANGES <<
+//SAMSUNG CHANGES MPSG100006129 >>
+        { "nativeUpdateTextSelectionStartAndEnd", "(I)V",
+            (void*) UpdateTextSelectionStartAndEnd },
+//SAMSUNG CHANGES MPSG100006129 <<
 };
 
 int registerWebViewCore(JNIEnv* env)
 {
     jclass widget = env->FindClass("android/webkit/WebViewCore");
-    LOG_ASSERT(widget,
+    ALOG_ASSERT(widget,
             "Unable to find class android/webkit/WebViewCore");
     gWebViewCoreFields.m_nativeClass = env->GetFieldID(widget, "mNativeClass",
             "I");
-    LOG_ASSERT(gWebViewCoreFields.m_nativeClass,
+    ALOG_ASSERT(gWebViewCoreFields.m_nativeClass,
             "Unable to find android/webkit/WebViewCore.mNativeClass");
     gWebViewCoreFields.m_viewportWidth = env->GetFieldID(widget,
             "mViewportWidth", "I");
-    LOG_ASSERT(gWebViewCoreFields.m_viewportWidth,
+    ALOG_ASSERT(gWebViewCoreFields.m_viewportWidth,
             "Unable to find android/webkit/WebViewCore.mViewportWidth");
     gWebViewCoreFields.m_viewportHeight = env->GetFieldID(widget,
             "mViewportHeight", "I");
-    LOG_ASSERT(gWebViewCoreFields.m_viewportHeight,
+    ALOG_ASSERT(gWebViewCoreFields.m_viewportHeight,
             "Unable to find android/webkit/WebViewCore.mViewportHeight");
     gWebViewCoreFields.m_viewportInitialScale = env->GetFieldID(widget,
             "mViewportInitialScale", "I");
-    LOG_ASSERT(gWebViewCoreFields.m_viewportInitialScale,
+    ALOG_ASSERT(gWebViewCoreFields.m_viewportInitialScale,
             "Unable to find android/webkit/WebViewCore.mViewportInitialScale");
     gWebViewCoreFields.m_viewportMinimumScale = env->GetFieldID(widget,
             "mViewportMinimumScale", "I");
-    LOG_ASSERT(gWebViewCoreFields.m_viewportMinimumScale,
+    ALOG_ASSERT(gWebViewCoreFields.m_viewportMinimumScale,
             "Unable to find android/webkit/WebViewCore.mViewportMinimumScale");
     gWebViewCoreFields.m_viewportMaximumScale = env->GetFieldID(widget,
             "mViewportMaximumScale", "I");
-    LOG_ASSERT(gWebViewCoreFields.m_viewportMaximumScale,
+    ALOG_ASSERT(gWebViewCoreFields.m_viewportMaximumScale,
             "Unable to find android/webkit/WebViewCore.mViewportMaximumScale");
     gWebViewCoreFields.m_viewportUserScalable = env->GetFieldID(widget,
             "mViewportUserScalable", "Z");
-    LOG_ASSERT(gWebViewCoreFields.m_viewportUserScalable,
+    ALOG_ASSERT(gWebViewCoreFields.m_viewportUserScalable,
             "Unable to find android/webkit/WebViewCore.mViewportUserScalable");
     gWebViewCoreFields.m_viewportDensityDpi = env->GetFieldID(widget,
             "mViewportDensityDpi", "I");
-    LOG_ASSERT(gWebViewCoreFields.m_viewportDensityDpi,
+    ALOG_ASSERT(gWebViewCoreFields.m_viewportDensityDpi,
             "Unable to find android/webkit/WebViewCore.mViewportDensityDpi");
-    gWebViewCoreFields.m_webView = env->GetFieldID(widget,
-            "mWebView", "Landroid/webkit/WebView;");
-    LOG_ASSERT(gWebViewCoreFields.m_webView,
-            "Unable to find android/webkit/WebViewCore.mWebView");
     gWebViewCoreFields.m_drawIsPaused = env->GetFieldID(widget,
             "mDrawIsPaused", "Z");
-    LOG_ASSERT(gWebViewCoreFields.m_drawIsPaused,
+    ALOG_ASSERT(gWebViewCoreFields.m_drawIsPaused,
             "Unable to find android/webkit/WebViewCore.mDrawIsPaused");
     gWebViewCoreFields.m_lowMemoryUsageMb = env->GetFieldID(widget, "mLowMemoryUsageThresholdMb", "I");
     gWebViewCoreFields.m_highMemoryUsageMb = env->GetFieldID(widget, "mHighMemoryUsageThresholdMb", "I");

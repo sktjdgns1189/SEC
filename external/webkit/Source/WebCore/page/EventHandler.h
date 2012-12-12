@@ -180,9 +180,11 @@ public:
 #if ENABLE(CONTEXT_MENUS)
     bool sendContextMenuEvent(const PlatformMouseEvent&);
     bool sendContextMenuEventForKey();
-    // SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     bool sendContextMenuEventForWordSelection(const PlatformMouseEvent&, bool longClick);
-    // SAMSUNG CHANGE <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
 #endif
 
     void setMouseDownMayStartAutoscroll() { m_mouseDownMayStartAutoscroll = true; }

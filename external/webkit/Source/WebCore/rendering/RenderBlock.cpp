@@ -62,11 +62,12 @@ using namespace std;
 using namespace WTF;
 using namespace Unicode;
 
-namespace WebCore {
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
 
-//SAMSUNG CHANGES >>
+namespace WebCore {
+//SISO_HTMLComposer start
 static const int verticalLineClickFudgeFactor = 10;
-//SAMSUNG CHANGES <<
+//SISO_HTMLComposer end
 using namespace HTMLNames;
 
 typedef WTF::HashMap<const RenderBox*, ColumnInfo*> ColumnInfoMap;
@@ -126,12 +127,6 @@ RenderBlock::RenderBlock(Node* node)
       , m_rareData(0)
       , m_lineHeight(-1)
       , m_beingDestroyed(false)
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-	  //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-      , m_widthForTextAutosizing(-1)
-      , m_lineCountForTextAutosizing(NOT_SET)
-      //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
 {
     setChildrenInline(true);
 }
@@ -200,7 +195,7 @@ void RenderBlock::destroy()
                         childBox->remove();
                 }
             }
-        } else if (isInline() && parent())
+        } else if (parent())
             parent()->dirtyLinesFromChangedChild(this);
     }
 
@@ -429,14 +424,18 @@ void RenderBlock::addChildToAnonymousColumnBlocks(RenderObject* newChild, Render
 
 RenderBlock* RenderBlock::containingColumnsBlock(bool allowAnonymousColumnBlock)
 {
+    RenderBlock* firstChildIgnoringAnonymousWrappers = 0;
     for (RenderObject* curr = this; curr; curr = curr->parent()) {
         if (!curr->isRenderBlock() || curr->isFloatingOrPositioned() || curr->isTableCell() || curr->isRoot() || curr->isRenderView() || curr->hasOverflowClip()
             || curr->isInlineBlockOrInlineTable())
             return 0;
         
         RenderBlock* currBlock = toRenderBlock(curr);
+        if (!currBlock->createsAnonymousWrapper())
+            firstChildIgnoringAnonymousWrappers = currBlock;
+
         if (currBlock->style()->specifiesColumns() && (allowAnonymousColumnBlock || !currBlock->isAnonymousColumnsBlock()))
-            return currBlock;
+            return firstChildIgnoringAnonymousWrappers;
             
         if (currBlock->isAnonymousColumnSpanBlock())
             return 0;
@@ -452,6 +451,8 @@ RenderBlock* RenderBlock::clone() const
     else {
         cloneBlock = new (renderArena()) RenderBlock(node());
         cloneBlock->setStyle(style());
+        if (!childrenInline() && cloneBlock->firstChild() && cloneBlock->firstChild()->isInline())
+            cloneBlock->makeChildrenNonInline();
     }
     cloneBlock->setChildrenInline(childrenInline());
     return cloneBlock;
@@ -666,12 +667,21 @@ RenderBlock* RenderBlock::columnsBlockForSpanningElement(RenderObject* newChild)
     // cross the streams and have to cope with both types of continuations mixed together).
     // This function currently supports (1) and (2).
     RenderBlock* columnsBlockAncestor = 0;
-    if (!newChild->isText() && newChild->style()->columnSpan() && !newChild->isFloatingOrPositioned()
-        && !newChild->isInline() && !isAnonymousColumnSpanBlock()) {
-        if (style()->specifiesColumns())
-            columnsBlockAncestor = this;
-        else if (parent() && parent()->isRenderBlock())
-            columnsBlockAncestor = toRenderBlock(parent())->containingColumnsBlock(false);
+    if (!newChild->isText() && newChild->style()->columnSpan() && !newChild->isBeforeOrAfterContent()
+        && !newChild->isFloatingOrPositioned() && !newChild->isInline() && !isAnonymousColumnSpanBlock()) {
+        columnsBlockAncestor = containingColumnsBlock(false);
+        if (columnsBlockAncestor) {
+            // Make sure that none of the parent ancestors have a continuation.
+            // If yes, we do not want split the block into continuations.
+            RenderObject* curr = this;
+            while (curr && curr != columnsBlockAncestor) {
+                if (curr->isRenderBlock() && toRenderBlock(curr)->continuation()) {
+                    columnsBlockAncestor = 0;
+                    break;
+                }
+                curr = curr->parent();
+            }
+        }
     }
     return columnsBlockAncestor;
 }
@@ -1306,20 +1316,7 @@ void RenderBlock::layoutBlock(bool relayoutChildren, int pageLogicalHeight)
     }
 
     if (previousHeight != newHeight)
-	{
-	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-		Node* focusedDNode = document()->focusedNode();
-		Node* currentNode = NULL;
-		if(focusedDNode && focusedDNode->hasTagName(textareaTag)) {
-			if(node())
-				currentNode = node()->shadowAncestorNode();
-			if(currentNode && currentNode == focusedDNode) {
-				document()->setCheckNode(0);
-			}
-		}
-	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
         relayoutChildren = true;
-	}
 
     layoutPositionedObjects(relayoutChildren || isRoot());
 
@@ -1436,8 +1433,8 @@ void RenderBlock::computeOverflow(int oldClientAfterEdge, bool recomputeFloats)
         addLayoutOverflow(rectToApply);
     }
         
-    // Add visual overflow from box-shadow and reflections.
-    addShadowOverflow();
+    // Add visual overflow from box-shadow and border-image-outset.
+    addBoxShadowAndBorderOverflow();
 }
 
 void RenderBlock::addOverflowFromBlockChildren()
@@ -1592,6 +1589,7 @@ bool RenderBlock::handleRunInChild(RenderBox* child)
         if (child->getCachedPseudoStyle(AFTER) && (generatedContent = child->afterPseudoElementRenderer()))
             generatedContent->destroy();
     }
+
     // Remove the old child.
     children()->removeChildNode(this, blockRunIn);
 
@@ -1603,8 +1601,8 @@ bool RenderBlock::handleRunInChild(RenderBox* child)
     // Move the nodes from the old child to the new child
     for (RenderObject* runInChild = blockRunIn->firstChild(); runInChild;) {
         RenderObject* nextSibling = runInChild->nextSibling();
-            blockRunIn->children()->removeChildNode(blockRunIn, runInChild, false);
-            inlineRunIn->addChild(runInChild); // Use addChild instead of appendChildNode since it handles correct placement of the children relative to :after-generated content.
+        blockRunIn->children()->removeChildNode(blockRunIn, runInChild, false);
+        inlineRunIn->addChild(runInChild); // Use addChild instead of appendChildNode since it handles correct placement of the children relative to :after-generated content.
         runInChild = nextSibling;
     }
 
@@ -2505,7 +2503,11 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, int tx, int ty)
     PaintPhase paintPhase = paintInfo.phase;
 
     // 1. paint background, borders etc
-    if ((paintPhase == PaintPhaseBlockBackground || paintPhase == PaintPhaseChildBlockBackground) && style()->visibility() == VISIBLE) {
+    if ((paintPhase == PaintPhaseBlockBackground || paintPhase == PaintPhaseChildBlockBackground
+#if PLATFORM(ANDROID)
+         || paintPhase == PaintPhaseBlockBackgroundDecorations
+#endif
+        ) && style()->visibility() == VISIBLE) {
         if (hasBoxDecorations())
             paintBoxDecorations(paintInfo, tx, ty);
         if (hasColumns())
@@ -2789,8 +2791,9 @@ GapRects RenderBlock::selectionGapRectsForRepaint(RenderBoxModelObject* repaintC
 
 void RenderBlock::paintSelection(PaintInfo& paintInfo, int tx, int ty)
 {
-    // SAMSUNG CHANGE BEGIN
-    if(false  == (document()->settings() && document()->settings()->advancedSelectionEnabled() )){
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+	if (false  == (document()->settings() && document()->settings()->advancedSelectionEnabled() )) {
+//SAMSUNG ADVANCED TEXT SELECTION - END
     if (shouldPaintSelectionGaps() && paintInfo.phase == PaintPhaseForeground) {
         int lastTop = 0;
         int lastLeft = logicalLeftSelectionOffset(this, lastTop);
@@ -2811,8 +2814,10 @@ void RenderBlock::paintSelection(PaintInfo& paintInfo, int tx, int ty)
         }
         paintInfo.context->restore();
     }
-}
-   //SAMSUNG CHANGE END
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+	}
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
 }
 
 static void clipOutPositionedObjects(const PaintInfo* paintInfo, const IntPoint& offset, RenderBlock::PositionedObjectsListHashSet* positionedObjects)
@@ -3038,14 +3043,19 @@ IntRect RenderBlock::blockSelectionGap(RenderBlock* rootBlock, const IntPoint& r
 
     IntRect gapRect = rootBlock->logicalRectToPhysicalRect(rootBlockPhysicalPosition, IntRect(logicalLeft, logicalTop, logicalWidth, logicalHeight));
     if (paintInfo)
+    //SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    // WAS: paintInfo->context->fillRect(gapRect, selectionBackgroundColor(), style()->colorSpace());
     {
-        //SAMSUNG CHANGE BEGIN : Advance Text Selection
-        if(true  == (document()->settings() && document()->settings()->advancedSelectionEnabled() )){
+        if (true  == (document()->settings() && document()->settings()->advancedSelectionEnabled() ))
+	{
              paintInfo->context->fillTransparentRect(gapRect, selectionBackgroundColor());
-        }else{
+        }
+	else
+        {
             paintInfo->context->fillRect(gapRect, selectionBackgroundColor(), style()->colorSpace());
         }
     }
+    //SAMSUNG ADVANCED TEXT SELECTION - END
     return gapRect;
 }
 
@@ -3060,14 +3070,20 @@ IntRect RenderBlock::logicalLeftSelectionGap(RenderBlock* rootBlock, const IntPo
         return IntRect();
 
     IntRect gapRect = rootBlock->logicalRectToPhysicalRect(rootBlockPhysicalPosition, IntRect(rootBlockLogicalLeft, rootBlockLogicalTop, rootBlockLogicalWidth, logicalHeight));
-    if (paintInfo){
-         //SAMSUNG CHANGE BEGIN : Advance Text Selection
-        if(true  == (document()->settings() && document()->settings()->advancedSelectionEnabled() )){
-            paintInfo->context->fillTransparentRect(gapRect, selObj->selectionBackgroundColor());
-        }else {
-            paintInfo->context->fillRect(gapRect, selObj->selectionBackgroundColor(), selObj->style()->colorSpace());
-        }
-    }
+    if (paintInfo)
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    // WAS: paintInfo->context->fillRect(gapRect, selObj->selectionBackgroundColor(), selObj->style()->colorSpace());
+	 {
+		if (true  == (document()->settings() && document()->settings()->advancedSelectionEnabled() ))
+		{
+			paintInfo->context->fillTransparentRect(gapRect, selObj->selectionBackgroundColor());
+		}
+		else 
+		{
+			paintInfo->context->fillRect(gapRect, selObj->selectionBackgroundColor(), selObj->style()->colorSpace());
+		}
+	}
+//SAMSUNG ADVANCED TEXT SELECTION - END
     return gapRect;
 }
 
@@ -3083,14 +3099,19 @@ IntRect RenderBlock::logicalRightSelectionGap(RenderBlock* rootBlock, const IntP
 
     IntRect gapRect = rootBlock->logicalRectToPhysicalRect(rootBlockPhysicalPosition, IntRect(rootBlockLogicalLeft, rootBlockLogicalTop, rootBlockLogicalWidth, logicalHeight));
     if (paintInfo)
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    // WAS: paintInfo->context->fillRect(gapRect, selObj->selectionBackgroundColor(), selObj->style()->colorSpace());
     {
-        //SAMSUNG CHANGE BEGIN : Advance Text Selection
-        if(true  == (document()->settings() && document()->settings()->advancedSelectionEnabled() ) ){
+        if (true  == (document()->settings() && document()->settings()->advancedSelectionEnabled() ) )
+	{
             paintInfo->context->fillTransparentRect(gapRect, selObj->selectionBackgroundColor());   
-        }else {
+        }
+	else 
+        {
             paintInfo->context->fillRect(gapRect, selObj->selectionBackgroundColor(), selObj->style()->colorSpace());
         }
     }
+//SAMSUNG ADVANCED TEXT SELECTION - END
     return gapRect;
 }
 
@@ -4207,7 +4228,7 @@ VisiblePosition RenderBlock::positionForPointWithInlineChildren(const IntPoint& 
         lastRootBoxWithChildren = root;
 
         // check if this root line box is located at this y coordinate
-        if (pointInLogicalContents.y() < (root->selectionBottom() + /*SAMSUNG CHANGES*/verticalLineClickFudgeFactor)) {
+        if (pointInLogicalContents.y() < root->selectionBottom()) {
             closestBox = root->closestLeafChildForLogicalLeftPosition(pointInLogicalContents.x());
             if (closestBox)
                 break;
@@ -4222,13 +4243,19 @@ VisiblePosition RenderBlock::positionForPointWithInlineChildren(const IntPoint& 
     }
 
     if (closestBox) {
-        if (moveCaretToBoundary && pointInLogicalContents.y() < (firstRootBoxWithChildren->selectionTop() - /*SAMSUNG CHANGES*/verticalLineClickFudgeFactor)) {
+        if (moveCaretToBoundary && pointInLogicalContents.y() < firstRootBoxWithChildren->selectionTop()) {
             // y coordinate is above first root line box, so return the start of the first
             return VisiblePosition(positionForBox(firstRootBoxWithChildren->firstLeafChild(), true), DOWNSTREAM);
         }
 
         // pass the box a top position that is inside it
-        IntPoint point(pointInLogicalContents.x(), closestBox->logicalTop());
+//SISO_HTMLComposer start	
+		IntPoint point;
+		if (document() && document()->settings() && document()->settings()->editableSupportEnabled()) 
+            point = IntPoint(pointInLogicalContents.x(), closestBox->logicalTop() + (verticalLineClickFudgeFactor/2));
+		else
+//SISO_HTMLComposer end	
+		    point = IntPoint(pointInLogicalContents.x(), closestBox->logicalTop());
         if (!isHorizontalWritingMode())
             point = point.transposedPoint();
         if (closestBox->renderer()->isReplaced())
@@ -4240,22 +4267,20 @@ VisiblePosition RenderBlock::positionForPointWithInlineChildren(const IntPoint& 
         // We hit this case for Mac behavior when the Y coordinate is below the last box.
         ASSERT(moveCaretToBoundary);
         InlineBox* logicallyLastBox;
-
         if (lastRootBoxWithChildren->getLogicalEndBoxWithNode(logicallyLastBox))
-	        {
+        {
 			if (!logicallyLastBox->isInlineTextBox())
 			{
-			/* this is for case when there is not inlinetext box under consideration while selecting the rectangle*/
-	        	    return VisiblePosition(positionForBox(logicallyLastBox, true), DOWNSTREAM);
+			    /* this is for case when there is not inlinetext box under consideration while selecting the rectangle*/
+		        closestBox = lastRootBoxWithChildren->closestLeafChildForLogicalLeftPosition(pointInLogicalContents.x());
+	        	return VisiblePosition(positionForBox(closestBox, true), DOWNSTREAM);
 			}
 			else
-			{ /*This is for the case there are inlineTextBoxes in selecting rect area . It consider consider the last inline
+			{ 
+			    /*This is for the case there are inlineTextBoxes in selecting rect area . It consider consider the last inline
 				text box if y coordinate is below the lastinlinetextbox*/
-//SAMSUNG CHANGE +
-//		            closestBox = lastRootBoxWithChildren->closestLeafChildForLogicalLeftPosition(pointInLogicalContents.x());
-//			     return VisiblePosition(positionForBox(closestBox, false), DOWNSTREAM);
-		        	    //return VisiblePosition(positionForBox(logicallyLastBox, false), DOWNSTREAM);
-					if(logicallyLastBox->renderer() && logicallyLastBox->renderer()->node() && logicallyLastBox->renderer()->node()->shadowAncestorNode() && logicallyLastBox->renderer()->node()->shadowAncestorNode()->hasTagName(textareaTag))
+	        	if(logicallyLastBox->renderer() && logicallyLastBox->renderer()->node() && logicallyLastBox->renderer()->node()->shadowAncestorNode()
+					&& (logicallyLastBox->renderer()->node()->shadowAncestorNode()->hasTagName(textareaTag) || logicallyLastBox->renderer()->node()->shadowAncestorNode()->hasTagName(inputTag)))
 					{
 					   IntPoint point(pointInLogicalContents.x(), logicallyLastBox->logicalTop());
 					   return logicallyLastBox->renderer()->positionForPoint(point);
@@ -4264,9 +4289,8 @@ VisiblePosition RenderBlock::positionForPointWithInlineChildren(const IntPoint& 
 					{
 		        	    return VisiblePosition(positionForBox(logicallyLastBox, false), DOWNSTREAM);				
 					}
-//SAMSUNG CHANGE -
-			}
-	        }
+            }
+	    }
     }
 
     // Can't reach this. We have a root line box, but it has no kids.
@@ -4290,9 +4314,9 @@ VisiblePosition RenderBlock::positionForPoint(const IntPoint& point)
         int pointLogicalLeft = isHorizontalWritingMode() ? point.x() : point.y();
         int pointLogicalTop = isHorizontalWritingMode() ? point.y() : point.x();
 
-        if ((pointLogicalTop + /*SAMSUNG CHANGES*/verticalLineClickFudgeFactor) < 0 || (pointLogicalTop < logicalHeight() && pointLogicalLeft < 0))
+        if (pointLogicalTop < 0 || (pointLogicalTop < logicalHeight() && pointLogicalLeft < 0))
             return createVisiblePosition(caretMinOffset(), DOWNSTREAM);
-        if ((pointLogicalTop - /*SAMSUNG CHANGES*/verticalLineClickFudgeFactor) >= logicalHeight() || (pointLogicalTop >= 0 && pointLogicalLeft >= logicalWidth()))
+        if (pointLogicalTop >= logicalHeight() || (pointLogicalTop >= 0 && pointLogicalLeft >= logicalWidth()))
             return createVisiblePosition(caretMaxOffset(), DOWNSTREAM);
     } 
 
@@ -4675,9 +4699,7 @@ void RenderBlock::computePreferredLogicalWidths()
 
     updateFirstLetter();
 
-// bug-64230-20120123184329.patch
-// https://bugs.webkit.org/show_bug.cgi?id=64230
-    if (!isTableCell() && style()->logicalWidth().isFixed() && style()->logicalWidth().value() > 0 && style()->marqueeBehavior() != MALTERNATE)
+    if (!isTableCell() && style()->logicalWidth().isFixed() && style()->logicalWidth().value() > 0&& style()->marqueeBehavior() != MALTERNATE)
         m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth = computeContentBoxLogicalWidth(style()->logicalWidth().value());
     else {
         m_minPreferredLogicalWidth = 0;
@@ -5433,20 +5455,27 @@ void RenderBlock::updateFirstLetter()
 
     // Drill into inlines looking for our first text child.
     RenderObject* currChild = firstLetterBlock->firstChild();
-    while (currChild && ((!currChild->isReplaced() && !currChild->isRenderButton() && !currChild->isMenuList()) || currChild->isFloatingOrPositioned()) && !currChild->isText()) {
-        if (currChild->isFloatingOrPositioned()) {
+    while (currChild) {
+        if (currChild->isText())
+            break;
+        if (currChild->isListMarker())
+            currChild = currChild->nextSibling();
+        else if (currChild->isFloatingOrPositioned()) {
             if (currChild->style()->styleType() == FIRST_LETTER) {
                 currChild = currChild->firstChild();
                 break;
-            } 
+            }
             currChild = currChild->nextSibling();
-        } else
+        } else if (currChild->isReplaced() || currChild->isRenderButton() || currChild->isMenuList())
+            break;
+        else if (currChild->style()->hasPseudoStyle(FIRST_LETTER) && currChild->canHaveChildren())  {
+            // We found a lower-level node with first-letter, which supersedes the higher-level style
+            firstLetterBlock = currChild;
+            currChild = currChild->firstChild();
+        }
+        else
             currChild = currChild->firstChild();
     }
-
-    // Get list markers out of the way.
-    while (currChild && currChild->isListMarker())
-        currChild = currChild->nextSibling();
 
     if (!currChild)
         return;
@@ -5877,8 +5906,11 @@ void RenderBlock::updateHitTestResult(HitTestResult& result, const IntPoint& poi
     }
 }
 
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+// WAS: IntRect RenderBlock::localCaretRect(InlineBox* inlineBox, int caretOffset, int* extraWidthToEndOfLine)
 IntRect RenderBlock::localCaretRect(InlineBox* inlineBox, int caretOffset, int* extraWidthToEndOfLine,bool bTextSelection)
 {
+//SAMSUNG ADVANCED TEXT SELECTION - END
     // Do the normal calculation in most cases.
     if (firstChild())
         return RenderBox::localCaretRect(inlineBox, caretOffset, extraWidthToEndOfLine);
@@ -6393,8 +6425,14 @@ const char* RenderBlock::renderName() const
     
     if (isFloating())
         return "RenderBlock (floating)";
-    if (isPositioned())
-        return "RenderBlock (positioned)";
+    if (isPositioned())	{
+// SAMSUNG CHANGE ++
+		if(style() && style()->position() == FixedPosition)
+			return "RenderBlock (fixed positioned)";
+		else
+			return "RenderBlock (absolute positioned)";
+	}
+// SAMSUNG CHANGE --
     if (isAnonymousColumnsBlock())
         return "RenderBlock (anonymous multi-column)";
     if (isAnonymousColumnSpanBlock())
@@ -6432,127 +6470,5 @@ inline void RenderBlock::FloatingObjects::decreaseObjectsCount(FloatingObject::T
     else
         m_rightObjectsCount--;
 }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#define ParagraphMinWordCount 6
-#define ParagraphMinLineCount 2
-#define ParagraphMaxWidth     0.9
 
-inline static bool isVisibleRenderText(RenderObject *renderer)
-{
-    if (!renderer->isText())
-        return false;
-    RenderText *renderText = toRenderText(renderer);
-    IntRect boundingBox = renderText->linesBoundingBox();
-    return boundingBox.width() != 0 && boundingBox.height() != 0 && !renderText->text()->containsOnlyWhitespace();
-}
-
-inline static bool resizeTextPermitted(RenderObject *render) {
-    // We disallow resizing for text input fields and textarea to address <rdar://problem/5792987> and <rdar://problem/8021123>
-    RenderObject* renderer = render->parent();
-    while (renderer) {
-        // Get the first non-shadow HTMLElement and see if it's an input.
-        if (renderer->node() && renderer->node()->isHTMLElement() && !renderer->node()->isShadowRoot()) {
-            HTMLElement* element = static_cast<HTMLElement*>(renderer->node());
-			return !element->hasTagName(inputTag) && !element->hasTagName(textareaTag);
-        }
-        renderer = renderer->parent();
-    }
-    
-    return true;
-}
-
-int RenderBlock::immediateLineCount()
-{
-    // Copied and modified from RenderBlock::lineCount.
-    // Only descend into list items.
-    int count = 0;
-    if (style()->visibility() == VISIBLE) {
-        if (childrenInline())
-            for (RootInlineBox* box = firstRootBox(); box; box = box->nextRootBox())
-                count++;
-        else
-            for (RenderObject* obj = firstChild(); obj; obj = obj->nextSibling())
-                if (obj->isListItem())
-                    count += static_cast<RenderBlock*>(obj)->lineCount();
-    }
-    return count;
-}
-
-static bool includeNonBlocksOrListItems(const RenderObject *render)
-{
-    return !render->isRenderBlock() || render->isListItem();
-}
-
-//  For now, we auto size single lines of text the same as multiple lines.
-//  We've been experimenting with low values for single lines of text.
-static inline float oneLineTextMultiplier(float specifiedSize)
-{
-    return max((1.0f / log10f(specifiedSize) * 1.7f), 1.0f);
-}
-
-static inline float textMultiplier(float specifiedSize)
-{
-    return max((1.0f / log10f(specifiedSize) * 1.95f), 1.0f);
-}
-
-void RenderBlock::adjustComputedFontSizes(float size, float visibleWidth)
-{
-    // Don't do any work if the block is smaller than the visible area.
-    if (visibleWidth >= width())
-        return;
-
-    LOGV("RenderBlock::adjustComputedFontSizes:size = %f and visible width = %f",size,visibleWidth);
-    
-    unsigned lineCount;
-    if (m_lineCountForTextAutosizing == NOT_SET) {
-        int count = immediateLineCount();
-        if (count == 0)
-            lineCount = NO_LINE;
-        else if (count == 1)
-            lineCount = ONE_LINE;
-        else
-            lineCount = MULTI_LINE;
-    } else {
-        lineCount = m_lineCountForTextAutosizing;
-    }
-    
-    ASSERT(lineCount != NOT_SET);
-    if (lineCount == NO_LINE)
-        return;
-    
-    float actualWidth = m_widthForTextAutosizing != -1 ? static_cast<float>(m_widthForTextAutosizing) : static_cast<float>(width());
-    float scale = visibleWidth / actualWidth;
-    float minFontSize = roundf(size / scale);  
-
-    LOGV("RenderBlock::adjustComputedFontSizes minFontSize %f",minFontSize); 
-
-    for (RenderObject *descendent = traverseNext(this, includeNonBlocksOrListItems); descendent; descendent = descendent->traverseNext(this, includeNonBlocksOrListItems)) {
-        if (isVisibleRenderText(descendent) && resizeTextPermitted(descendent)) {
-            RenderText *text = static_cast<RenderText *>(descendent);
-            RenderStyle *oldStyle = text->style();
-            FontDescription fontDescription = oldStyle->fontDescription();
-            float specifiedSize = fontDescription.specifiedSize();
-            float scaledSize = roundf(specifiedSize * scale);
-            if (scaledSize > 0 && scaledSize < minFontSize) {
-                // Record the width of the block and the line count the first time we resize text and use it from then on for text resizing.
-                // This makes text resizing consistent even if the block's width or line count changes (which can be caused by text resizing itself 5159915).
-                if (m_lineCountForTextAutosizing == NOT_SET)
-                    m_lineCountForTextAutosizing = lineCount;
-                if (m_widthForTextAutosizing == -1)
-                    m_widthForTextAutosizing = actualWidth;
-                
-                float candidateNewSize = 0;
-                if (lineCount == ONE_LINE)
-                    candidateNewSize = roundf(min(minFontSize, specifiedSize * oneLineTextMultiplier(specifiedSize)));
-                else
-                    candidateNewSize = roundf(min(minFontSize, specifiedSize * textMultiplier(specifiedSize)));
-                if (candidateNewSize > specifiedSize && candidateNewSize != fontDescription.computedSize() && text->node() && (!oldStyle || oldStyle->textSizeAdjust().isAuto()))
-                    document()->addAutoSizingNode (text->node(), candidateNewSize);
-            }
-        }
-    }
-}
-//SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
 } // namespace WebCore

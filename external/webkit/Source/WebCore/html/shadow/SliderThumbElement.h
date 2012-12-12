@@ -54,6 +54,9 @@ public:
 
     void dragFrom(const IntPoint&);
     virtual void defaultEventHandler(Event*);
+#if PLATFORM(ANDROID) && ENABLE(TOUCH_EVENTS)
+    virtual void attach();
+#endif
     virtual void detach();
     virtual const AtomicString& shadowPseudoId() const;
 

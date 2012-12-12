@@ -64,6 +64,7 @@
 
 #if USE(ACCELERATED_COMPOSITING)
 #include "RenderLayerBacking.h"
+#include "RenderLayerCompositor.h"
 #endif
 
 #if PLATFORM(QT)
@@ -599,10 +600,27 @@ static void write(TextStream& ts, RenderLayer& l,
     ts << "layer ";
     
     if (behavior & RenderAsTextShowAddresses)
-        ts << static_cast<const void*>(&l) << " ";
+    {
+        ts << "[o:" << static_cast<const void*>(&l) << ", ";
+        ts << "p:" << static_cast<const void*>(l.parent()) << ", ";
+        ts << "s:" << static_cast<const void*>(l.nextSibling()) << ", ";
+        ts << "c:" << static_cast<const void*>(l.firstChild()) << "]";
+    }
+    
+    ts << "[zIndex:" << l.zIndex() << "]";
+    
+    // layerandroid
+    if ( l.backing() && l.backing()->graphicsLayer() && l.backing()->graphicsLayer() )
+        ts << "[GLayerId:" << l.backing()->graphicsLayer()->getContentLayerId() << "] ";
       
     ts << layerBounds;
 
+// SAMSUNG CHANGE ++
+	IntRect absBounds = l.renderer()->localToAbsoluteQuad(FloatRect(l.localBoundingBox())).enclosingBoundingBox();
+	ts << ", absBounds ";
+	ts << absBounds;
+// SAMSUNG CHANGE --
+	
     if (!layerBounds.isEmpty()) {
         if (!backgroundClipRect.contains(layerBounds))
             ts << " backgroundClip " << backgroundClipRect;
@@ -631,7 +649,7 @@ static void write(TextStream& ts, RenderLayer& l,
 #if USE(ACCELERATED_COMPOSITING)
     if (behavior & RenderAsTextShowCompositedLayers) {
         if (l.isComposited())
-            ts << " (composited, bounds " << l.backing()->compositedBounds() << ")";
+            ts << " [composited(" << l.backing()->compositor()->reasonForCompositing(&l) << "), bounds " << l.backing()->compositedBounds() << "]";	// SAMSUNG CHANGE
     }
 #else
     UNUSED_PARAM(behavior);

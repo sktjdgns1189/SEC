@@ -405,7 +405,10 @@ void HTMLAnchorElement::setPathname(const String& value)
 
 String HTMLAnchorElement::port() const
 {
-    return String::number(href().port());
+    if (href().hasPort())
+        return String::number(href().port());
+
+    return "";
 }
 
 void HTMLAnchorElement::setPort(const String& value)
@@ -531,7 +534,11 @@ bool HTMLAnchorElement::treatLinkAsLiveForEventType(EventType eventType) const
 
 bool isEnterKeyKeydownEvent(Event* event)
 {
+#if OS(ANDROID)
+    return event->type() == eventNames().keyupEvent && event->isKeyboardEvent() && static_cast<KeyboardEvent*>(event)->keyIdentifier() == "Enter";
+#else
     return event->type() == eventNames().keydownEvent && event->isKeyboardEvent() && static_cast<KeyboardEvent*>(event)->keyIdentifier() == "Enter";
+#endif
 }
 
 bool isMiddleMouseButtonEvent(Event* event)
@@ -554,7 +561,7 @@ void handleLinkClick(Event* event, Document* document, const String& url, const 
     frame->loader()->urlSelected(document->completeURL(url), target, event, false, false, hideReferrer ? NoReferrer : SendReferrer);
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLAnchorElement::itemValueText() const
 {
@@ -566,5 +573,5 @@ void HTMLAnchorElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(hrefAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 }

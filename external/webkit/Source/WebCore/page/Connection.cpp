@@ -25,7 +25,22 @@
 
 #include "config.h"
 
+//SAMSUNG CHANGE - MPSG6020 >>
+#include <limits>
+#include <math.h>
+//SAMSUNG CHANGE - MPSG6020 <<
+
 #include "Connection.h"
+
+//SAMSUNG CHANGE - MPSG6020 >>
+#include "Event.h"
+#include "EventHandler.h"
+#include "EventListener.h"
+#include "EventNames.h"
+#include "EventQueue.h"
+#include "ExceptionCode.h"
+#include "Document.h"
+//SAMSUNG CHANGE - MPSG6020 <<
 
 #include "NetworkStateNotifier.h"
 
@@ -36,4 +51,53 @@ Connection::ConnectionType Connection::type() const
     return networkStateNotifier().type();
 }
 
+//SAMSUNG CHANGE - MPSG6020 >>
+
+double Connection::bandwidth() const
+{
+   if (!networkStateNotifier().onLine())
+   	return 0;
+   else
+   	return std::numeric_limits<double>::infinity();  //till the necessary network api to measure bandwidth becomes available, we return infinity as per the specifications 
+}
+
+
+bool Connection::metered() const
+{
+   if (!networkStateNotifier().onLine())
+   	return 0;
+   else
+   	return 0;   // ideally we should have some means of setting a user preference on the wifi side if the connection is pay-per-use etc, but for the moment, as we don't know, we will return false as default
+   	
+}
+
+
+ScriptExecutionContext* Connection::scriptExecutionContext() const
+{
+    return ActiveDOMObject::scriptExecutionContext();
+}
+
+
+void Connection::fireEvent(const AtomicString& type)
+{
+    dispatchEvent(Event::create(type, false, false));
+}
+
+	bool Connection::hasPendingActivity() const
+	{
+    return (ActiveDOMObject::hasPendingActivity());
+	}
+
+	bool Connection::canSuspend() const
+	{
+    return false;
+	}
+
+	void Connection::stop() const
+	{
+    //Not Implemented
+	}
+
+//SAMSUNG CHANGE - MPSG6020<<
+	
 };

@@ -570,10 +570,10 @@ JSValue JSDOMWindow::float32Array(ExecState* exec) const
     return getDOMConstructor<JSFloat32ArrayConstructor>(exec, this);
 }
 
-JSValue JSDOMWindow::float64Array(ExecState* exec) const
-{
-    return getDOMConstructor<JSFloat64ArrayConstructor>(exec, this);
-}
+JSValue JSDOMWindow::float64Array(ExecState* exec) const 
+{ 
+    return getDOMConstructor<JSFloat64ArrayConstructor>(exec, this); 
+} 
 
 JSValue JSDOMWindow::dataView(ExecState* exec) const
 {

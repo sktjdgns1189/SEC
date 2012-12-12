@@ -74,9 +74,9 @@ public:
     void appendFileToUpload(const std::string& filename);
 
     void setRequestContext(WebRequestContext* context);
-	//SAMSUNG_CHANGES >>
+    //SAMSUNG_CHANGES >>
     void start(bool isMainResource, bool isMainFrame);
-	//SAMSUNG_CHANGES <<    
+    //SAMSUNG_CHANGES <<    
     void cancel();
     void pauseLoad(bool pause);
 
@@ -111,20 +111,31 @@ private:
     void handleInterceptedURL();
     void finish(bool success);
     void updateLoadFlags(int& loadFlags);
+    // SAMSUNG CHANGE : reduce events in main thread
+    void sendDataReceivedEvent(bool forced);
 
 //SAMSUNG CHANGE: adding read timeout
-  void OnReadTimeout();
-  base::OneShotTimer<WebRequest> timer_;
+    void OnReadTimeout();
+    base::OneShotTimer<WebRequest> timer_;
 //SAMSUNG
+    // SAMSUNG CHANGE : reduce events in main thread >>
+    // network events are sent to main thread too often
+    // so, change concept
+    // data received event will be sent to main thread in following cases only
+    // 1. data size is bigger than half of buffer
+    // 2. finish() is called. It means there is no more data
+    char* m_networkBufferData;
+    int m_BytesInBuffer;
+    int m_stockedCounter;
+    // SAMSUNG CHANGE : reduce events in main thread <<
 
     scoped_refptr<WebUrlLoaderClient> m_urlLoader;
     OwnPtr<net::URLRequest> m_request;
     scoped_refptr<net::IOBuffer> m_networkBuffer;
     scoped_ptr<UrlInterceptResponse> m_interceptResponse;
-	//SAMSUNG_CHANGES >>
+    //SAMSUNG_CHANGES >>
     OwnPtr<WebResponse> m_webResponse;
-	//SAMSUNG_CHANGES <<
-    bool m_androidUrl;
+    //SAMSUNG_CHANGES <<
     std::string m_url;
     std::string m_userAgent;
     LoadState m_loadState;
@@ -133,12 +144,12 @@ private:
     ScopedRunnableMethodFactory<WebRequest> m_runnableFactory;
     bool m_wantToPause;
     bool m_isPaused;
-	//SAMSUNG_CHANGES >>
+    //SAMSUNG_CHANGES >>
     bool m_ShouldSniffFeed;
     bool m_isMainResource;
-	bool m_isMainFrame;
-	bool m_rssSniffingEnabled;
-	//SAMSUNG_CHANGES <<
+    bool m_isMainFrame;
+    bool m_rssSniffingEnabled;
+    //SAMSUNG_CHANGES <<
     bool m_isSync;
 #ifdef LOG_REQUESTS
     time_t m_startTime;

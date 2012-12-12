@@ -351,6 +351,20 @@ const WebGLTexture::LevelInfo* WebGLTexture::getLevelInfo(GC3Denum target, GC3Di
     return &(m_info[targetIndex][level]);
 }
 
+#if PLATFORM(ANDROID)
+PlatformWebGLTexture* WebGLTexture::platformTexture() 
+{
+	return m_platformTexture.get(); 
+}
+
+void WebGLTexture::setPlatformTexture(PassOwnPtr<PlatformWebGLTexture> obj) 
+{
+	m_platformTexture =  obj; 
+}
+
+#endif
+
+
 }
 
 #endif // ENABLE(WEBGL)

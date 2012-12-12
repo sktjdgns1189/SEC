@@ -65,7 +65,7 @@
 #include "att.h"
 #include "attrib-server.h"
 #include "eir.h"
-// #include <cutils/properties.h> // Samsung Bluetooth Feature - IT Policy
+
 /* Flags Descriptions */
 #define EIR_LIM_DISC                0x01 /* LE Limited Discoverable Mode */
 #define EIR_GEN_DISC                0x02 /* LE General Discoverable Mode */
@@ -83,6 +83,8 @@
 #define IO_CAPABILITY_INVALID		0xFF
 
 #define check_address(address) bachk(address)
+
+#define AUTH_SKIP_ENABLE 1
 
 static DBusConnection *connection = NULL;
 static GSList *adapter_drivers = NULL;
@@ -352,17 +354,35 @@ static int set_mode(struct btd_adapter *adapter, uint8_t new_mode,
 
 	if (!adapter->up && new_mode != MODE_OFF) {
 		err = adapter_ops->set_powered(adapter->dev_id, TRUE);
+#ifndef SEC_FMRADIO_BROADCOM
 		if (err < 0)
 			return err;
-
+#else
+		if (err < 0) {
+			DBG("set_powered TRUE returned err[%d]", err);
+			return err;
+		} else if(err == 400) {
+		      DBG("set_powered TRUE returned err[%d]", err);
+		      msg = NULL;
+		}
+#endif
 		goto done;
 	}
 
 	if (adapter->up && new_mode == MODE_OFF) {
 		err = adapter_ops->set_powered(adapter->dev_id, FALSE);
+#ifndef SEC_FMRADIO_BROADCOM
 		if (err < 0)
 			return err;
-
+#else
+		if (err < 0) {
+			DBG("set_powered FALSE returned err[%d]", err);
+			return err;
+		} else if(err == 400) {
+			DBG("set_powered FALSEreturned err[%d]", err);
+			msg = NULL;
+		}
+#endif
 		adapter->off_requested = TRUE;
 
 		goto done;
@@ -451,6 +471,17 @@ static DBusMessage *set_powered(DBusConnection *conn, DBusMessage *msg,
 
 	if (powered) {
 		mode = get_mode(&adapter->bdaddr, "on");
+
+/* SS_BLUETOOTH(changeon.park) 2012.05.11 */
+//not entered discoverable mode at BT on for discoverable timeout 0 above
+		if ((mode == MODE_DISCOVERABLE) && (adapter->discov_timeout > 0))
+		{           
+		    DBG("MODE_DISCOVERABLE not permitted at powered state");
+		    return set_discoverable(conn, msg, FALSE,
+									data);
+		}
+/* SS_BLUETOOTH(changeon.park) End */
+        
 		return set_discoverable(conn, msg, mode == MODE_DISCOVERABLE,
 									data);
 	}
@@ -1040,6 +1071,12 @@ static struct btd_device *adapter_create_device(DBusConnection *conn,
 {
 	struct btd_device *device;
 	const char *path;
+#if AUTH_SKIP_ENABLE
+	gboolean gbParam = TRUE;
+	bdaddr_t remote;
+	uint32_t class = 0;
+	char *iconstr = NULL;
+#endif
 
 	DBG("%s", address);
 
@@ -1047,7 +1084,22 @@ static struct btd_device *adapter_create_device(DBusConnection *conn,
 	if (!device)
 		return NULL;
 
+#if AUTH_SKIP_ENABLE
+	if (!strncmp(address, "00:12:A1", strlen("00:12:A1"))) {
+		str2ba(address, &remote);
+		read_remote_class(&adapter->bdaddr, &remote, &class);
+		DBG("Modified Remote class is %d", class);
+		// If it is HID Mouse, create it as a permanent device since pairing is not required
+		// for HID pointing devices.
+		iconstr = class_to_icon(class);
+		if ((NULL != iconstr) &&
+			(0 == strcmp("input-mouse", iconstr)))
+			gbParam = FALSE;
+	}
+	device_set_temporary(device, gbParam);
+#else
 	device_set_temporary(device, TRUE);
+#endif
 
 	adapter->devices = g_slist_append(adapter->devices, device);
 
@@ -1066,7 +1118,7 @@ void adapter_remove_device(DBusConnection *conn, struct btd_adapter *adapter,
 						struct btd_device *device,
 						gboolean remove_storage)
 {
-	const gchar *dev_path = device_get_path(device);
+	gchar *dev_path;// = device_get_path(device);
 	struct agent *agent;
 
 	adapter->devices = g_slist_remove(adapter->devices, device);
@@ -1074,10 +1126,13 @@ void adapter_remove_device(DBusConnection *conn, struct btd_adapter *adapter,
 
 	adapter_update_devices(adapter);
 
-	g_dbus_emit_signal(conn, adapter->path,
-			ADAPTER_INTERFACE, "DeviceRemoved",
-			DBUS_TYPE_OBJECT_PATH, &dev_path,
-			DBUS_TYPE_INVALID);
+	dev_path = g_try_malloc0(sizeof(device_get_path(device)));
+	if(dev_path==NULL){
+		DBG("not able to allocate memory");
+		return;
+	}
+	dev_path = g_strdup(device_get_path(device));
+	DBG("device path::%s",dev_path);
 
 	agent = device_get_agent(device);
 
@@ -1085,6 +1140,13 @@ void adapter_remove_device(DBusConnection *conn, struct btd_adapter *adapter,
 		agent_cancel(agent);
 
 	device_remove(device, remove_storage);
+
+	g_dbus_emit_signal(conn, adapter->path,
+		ADAPTER_INTERFACE, "DeviceRemoved",
+		DBUS_TYPE_OBJECT_PATH, &dev_path,
+		DBUS_TYPE_INVALID);
+	g_free(dev_path);
+
 }
 
 struct btd_device *adapter_get_device(DBusConnection *conn,
@@ -1119,6 +1181,58 @@ static gboolean discovery_cb(gpointer user_data)
 
 	return FALSE;
 }
+
+//JB_Test
+static DBusMessage *adapter_list_connection(DBusConnection *conn,
+						DBusMessage *msg, void *data)
+{
+
+	struct session_req *req;
+	struct btd_adapter *adapter = data;
+	DBusMessage *reply;
+	int err;
+	int32_t nconn=0;
+	GSList *l, *conns;
+
+	if (adapter->connections != NULL)
+	    nconn = g_slist_length(adapter->connections);
+
+	DBG("nconn value is %d",nconn);
+
+	reply = dbus_message_new_method_return(msg);
+	dbus_message_append_args(reply,
+			DBUS_TYPE_INT32, &nconn,
+			DBUS_TYPE_INVALID);
+
+	return reply;
+}
+
+static DBusMessage *adapter_disconnect_all_connections (DBusConnection *conn,
+						DBusMessage *msg,  void *user_data) {
+	struct btd_adapter *adapter = user_data;
+	DBusMessage *reply;
+	int err;
+	GSList *l;
+
+	DBG("entered disconnect all connections ");
+	l = adapter->connections;
+	while (l) {
+		struct btd_device *device = l->data;
+		bdaddr_t dst;
+		addr_type_t type;
+		l = l->next;
+		if (device) {
+			DBG("Found device");
+			//device_get_address(device, &dst);
+			//btd_adapter_disconnect_device(adapter, &dst);
+			device_get_address(device, &dst, &type);
+			btd_adapter_disconnect_device(adapter, &dst, type);
+		}
+	}
+
+	return dbus_message_new_method_return(msg);
+}
+
 
 static DBusMessage *adapter_start_discovery(DBusConnection *conn,
 						DBusMessage *msg, void *data)
@@ -2593,6 +2707,8 @@ static GDBusMethodTable adapter_methods[] = {
 	{ "SetLinkTimeout",	"ou",	"",	set_link_timeout	},
 	{ "AddReservedServiceRecords",   "au",    "au",    add_reserved_service_records  },
 	{ "RemoveReservedServiceRecords", "au",    "",	remove_reserved_service_records  },
+	{ "ListConnection",	"",	"i",	adapter_list_connection},
+	{ "DisconnectAllConnections", "",    "",	adapter_disconnect_all_connections  },
 	{ }
 };
 
@@ -3298,6 +3414,9 @@ int btd_adapter_stop(struct btd_adapter *adapter)
 	emit_property_changed(connection, adapter->path, ADAPTER_INTERFACE,
 				"Powered", DBUS_TYPE_BOOLEAN, &prop_false);
 
+	/* Duplicately publish the UUIDs to make sure the upper layers know */
+	adapter_emit_uuids_updated(adapter);
+
 	adapter->up = FALSE;
 	adapter->scan_mode = SCAN_DISABLED;
 	adapter->mode = MODE_OFF;
@@ -3671,11 +3790,18 @@ void adapter_emit_device_found(struct btd_adapter *adapter,
 	}
 
 	if (!dev->alias) {
+#ifdef ANDROID
+		/* Android doesn't fallback to name or address if there is no alias.
+		   It's safe to set alias to NULL because dict_append_entry() will
+		   silently return and not set the property when value is NULL. */
+		alias = NULL;
+#else  
 		if (!dev->name) {
 			alias = g_strdup(peer_addr);
 			g_strdelimit(alias, ":", '-');
 		} else
 			alias = g_strdup(dev->name);
+#endif  
 	} else
 		alias = g_strdup(dev->alias);
 
@@ -4067,7 +4193,6 @@ static int adapter_authorize(struct btd_adapter *adapter, const bdaddr_t *dst,
 	struct btd_device *device;
 	struct agent *agent;
 	char address[18];
-	// char value[PROPERTY_VALUE_MAX]; // Samsung Bluetooth Feature - IT Policy
 	const gchar *dev_path;
 	int err;
 
@@ -4080,8 +4205,6 @@ static int adapter_authorize(struct btd_adapter *adapter, const bdaddr_t *dst,
 	if (!g_slist_find(adapter->connections, device))
 		return -ENOTCONN;
 
-	// property_get("service.bt.security.policy.mode", value, "0"); // Samsung Bluetooth Feature - IT Policy    
-
 	if (adapter->auth_idle_id)
 		return -EBUSY;
 
@@ -4093,17 +4216,6 @@ static int adapter_authorize(struct btd_adapter *adapter, const bdaddr_t *dst,
 	auth->user_data = user_data;
 	auth->device = device;
 	auth->adapter = adapter;
-
-	// Samsung Bluetooth Feature - IT Policy
-	// if (device_is_trusted(device) == TRUE  && !(strcmp(value, "1") == 0)) {
-	/*
-	if (device_is_trusted(device) == TRUE) {
-		adapter->auth_idle_id = g_idle_add_full(G_PRIORITY_DEFAULT_IDLE,
-							auth_idle_cb, auth,
-							g_free);
-		return 0;
-	}
-	*/
 
 	agent = device_get_agent(device);
 	if (!agent) {

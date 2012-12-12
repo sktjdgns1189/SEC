@@ -378,6 +378,16 @@ void CSSFontSelector::fontCacheInvalidated()
     dispatchInvalidationCallbacks();
 }
 
+void CSSFontSelector::retireCustomFont(FontData* fontData)
+{
+    if (m_document)
+        m_document->retireCustomFont(fontData);
+    else {
+        GlyphPageTreeNode::pruneTreeCustomFontData(fontData);
+        delete fontData;
+    }
+}
+
 static FontData* fontDataForGenericFamily(Document* document, const FontDescription& fontDescription, const AtomicString& familyName)
 {
     if (!document || !document->frame())
@@ -562,7 +572,6 @@ FontData* CSSFontSelector::getFontData(const FontDescription& fontDescription, c
      Settings* settings = m_document ? m_document->frame() ? m_document->frame()->settings() : 0 : 0;
      bool woffEnabled = settings && settings->woffEnabled();
 //SISO WOFF CHANGES >>
-
     // We have a face.  Ask it for a font data.  If it cannot produce one, it will fail, and the OS will take over.
     return face->getFontData(fontDescription,woffEnabled); //SISO WOFF CHANGES (woffEnabled parameter added)
 }

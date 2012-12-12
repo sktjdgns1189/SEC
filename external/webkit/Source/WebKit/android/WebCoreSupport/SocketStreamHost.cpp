@@ -43,14 +43,11 @@ SocketStreamHost::SocketStreamHost(
 /* static */
 SocketStreamHost*
 SocketStreamHost::GetSocketStreamHost(net::SocketStream* socket) {
-// OSS_C1
-#if 0
   net::SocketStream::UserData* d = socket->GetUserData(kSocketHostKey);
   if (d) {
     SocketStreamInfo* info = static_cast<SocketStreamInfo*>(d);
     return info->host();
   }
-#endif
   return NULL;
 }
 
@@ -69,8 +66,8 @@ void SocketStreamHost::Connect(const GURL& url) {
     WebCache::get(false)->proxy()->GetLatestProxyConfig(config);
     
     std::string proxy("");    
-//    if(!config->proxy_rules().single_proxy.host_port_pair().host().empty()) 		// OSS_C1
-//		proxy = config->proxy_rules().single_proxy.host_port_pair().ToString();
+    if(!config->proxy_rules().single_proxy.host_port_pair().host().empty()) 
+		proxy = config->proxy_rules().single_proxy.host_port_pair().ToString();
     
     std::string exlist("");
     ProxyConfigServiceAndroid* proxyConfigService = new ProxyConfigServiceAndroid();
@@ -87,8 +84,8 @@ void SocketStreamHost::Connect(const GURL& url) {
     //req_context->set_http_auth_handler_factory(net::HttpAuthHandlerFactory::CreateDefault(hostResolver));
     req_context->set_cert_verifier(new CertVerifier());
     
-//    socket_ = net::SocketStreamJob::CreateSocketStreamJob(url, this, *req_context);		// OSS_C1
-//    socket_->set_context(req_context);
+    socket_ = net::SocketStreamJob::CreateSocketStreamJob(url, this, *req_context);
+    socket_->set_context(req_context);
  
     socket_->SetUserData(kSocketHostKey, new SocketStreamInfo(this));
     socket_->Connect();

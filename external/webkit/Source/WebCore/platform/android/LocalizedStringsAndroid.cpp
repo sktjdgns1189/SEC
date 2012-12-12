@@ -405,7 +405,8 @@ String inputElementAltText()
 
 String validationMessageValueMissingText()
 {
-    return String("This is a required field");    
+    notImplemented();
+    return String();
 }
 
 String validationMessageValueMissingForCheckboxText()
@@ -446,38 +447,26 @@ String validationMessageTypeMismatchText()
 
 String validationMessageTypeMismatchForEmailText()
 {
-    // Samsung Change - fix for MPSG100004640	>>
-   // return String("Please Enter a valid email address");
-    return *(PlatformBridge::globalLocalizedName(
-            PlatformBridge::EmailTextTypeMismatch));
-    // Samsung Change - fix for MPSG100004640	<<
+    notImplemented();
+    return validationMessageTypeMismatchText();
 }
 
 String validationMessageTypeMismatchForMultipleEmailText()
 {
-    // Samsung Change - fix for MPSG100004640	>>
-    //return String("Please Enter a valid email address seperated by commas");
-     return *(PlatformBridge::globalLocalizedName(
-            PlatformBridge::EmailMultipleTextTypeMismatch));
-    // Samsung Change - fix for MPSG100004640	<<
+    notImplemented();
+    return validationMessageTypeMismatchText();
 }
 
 String validationMessageTypeMismatchForURLText()
 {
-    // Samsung Change - fix for MPSG100004640	>>
-    //return String("Please Enter a valid url");
-     return *(PlatformBridge::globalLocalizedName(
-            PlatformBridge::URLTextMismatch));
-    // Samsung Change - fix for MPSG100004640	<<
+    notImplemented();
+    return validationMessageTypeMismatchText();
 }
 
 String validationMessagePatternMismatchText()
 {
-    // Samsung Change - fix for MPSG100004640	>>
-    //return String("Please Enter the specified pattern");
-    return *(PlatformBridge::globalLocalizedName(
-            PlatformBridge::PatternMismatch));
-    // Samsung Change - fix for MPSG100004640	<<
+    notImplemented();
+    return String();
 }
 
 String validationMessageTooLongText(int, int)
@@ -488,12 +477,14 @@ String validationMessageTooLongText(int, int)
 
 String validationMessageRangeUnderflowText(const String&)
 {
-    return String("Value is in underflow range");    
+    notImplemented();
+    return String();
 }
 
 String validationMessageRangeOverflowText(const String&)
 {
-    return String("Value is in overflow range");    
+    notImplemented();
+    return String();
 }
 
 String validationMessageStepMismatchText(const String&, const String&)

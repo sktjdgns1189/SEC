@@ -62,6 +62,7 @@ static const char const *modem_state_name[] = {
 	[STATE_BOOTING]		= "BOOTING",
 	[STATE_ONLINE]		= "ONLINE",
 	[STATE_LOADER_DONE]	= "LOADER_DONE",
+	[STATE_NV_REBUILDING]	= "NV_REBUILDING",
 };
 
 static int rx_iodev_skb(struct io_device *iod);
@@ -583,7 +584,7 @@ static void io_dev_modem_state_changed(struct io_device *iod,
 	pr_info("[MODEM_IF] %s state changed: %s\n", \
 				iod->name, modem_state_name[state]);
 
-	if (state == STATE_CRASH_EXIT)
+	if ((state == STATE_CRASH_EXIT) || (state == STATE_NV_REBUILDING))
 		wake_up(&iod->wq);
 }
 
@@ -592,7 +593,8 @@ static int misc_open(struct inode *inode, struct file *filp)
 	struct io_device *iod = to_io_device(filp->private_data);
 	filp->private_data = (void *)iod;
 
-	pr_info("[MODEM_IF] misc_open : %s\n", iod->name);
+	if (iod->format != IPC_BOOT && iod->format != IPC_RAMDUMP)
+		pr_info("[MODEM_IF] misc_open : %s\n", iod->name);
 
 	if (iod->link->init_comm)
 		return iod->link->init_comm(iod->link, iod);
@@ -603,7 +605,8 @@ static int misc_release(struct inode *inode, struct file *filp)
 {
 	struct io_device *iod = (struct io_device *)filp->private_data;
 
-	pr_info("[MODEM_IF] misc_release : %s\n", iod->name);
+	if (iod->format != IPC_BOOT && iod->format != IPC_RAMDUMP)
+		pr_info("[MODEM_IF] misc_release : %s\n", iod->name);
 
 	if (iod->link->terminate_comm)
 		iod->link->terminate_comm(iod->link, iod);
@@ -622,7 +625,8 @@ static unsigned int misc_poll(struct file *filp,
 	if ((!skb_queue_empty(&iod->sk_rx_q))
 				&& (iod->mc->phone_state != STATE_OFFLINE))
 		return POLLIN | POLLRDNORM;
-	else if (iod->mc->phone_state == STATE_CRASH_EXIT)
+	else if ((iod->mc->phone_state == STATE_CRASH_EXIT) ||
+		(iod->mc->phone_state == STATE_NV_REBUILDING))
 		return POLLHUP;
 	else
 		return 0;
@@ -630,6 +634,7 @@ static unsigned int misc_poll(struct file *filp,
 
 static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 {
+	int p_state;
 	struct io_device *iod = (struct io_device *)filp->private_data;
 
 	pr_debug("[MODEM_IF] misc_ioctl : 0x%x\n", cmd);
@@ -670,7 +675,12 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 
 	case IOCTL_MODEM_STATUS:
 		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_STATUS\n");
-		return iod->mc->phone_state;
+		p_state = iod->mc->phone_state;
+		if (p_state == STATE_NV_REBUILDING) {
+			pr_info("[MODEM_IF] nv rebuild state : %d\n", p_state);
+			iod->mc->phone_state = STATE_ONLINE;
+		}
+		return p_state;
 
 	case IOCTL_MODEM_DUMP_START:
 		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_DUMP_START\n");

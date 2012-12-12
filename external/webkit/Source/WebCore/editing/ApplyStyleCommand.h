@@ -108,10 +108,13 @@ private:
     void cleanupUnstyledAppleStyleSpans(Node* dummySpanAncestor);
 
     void surroundNodeRangeWithElement(PassRefPtr<Node> start, PassRefPtr<Node> end, PassRefPtr<Element>);
-//HTML Composer Start
+//SISO_HTMLComposer start
 	bool reArrangeBackColorStyle(Node* startNode, Node* endNode, String cssStyle);
 	bool reArrangeFontSizeStyle(Node* startNode, Node* endNode, String cssStyle);
-//HTML Composer End
+	Node* getStyledAncestor(Node* childNode, CSSPropertyID propertyID);
+	bool isStylePresent(Node* targetNode, CSSPropertyID propertyID);
+	bool isStyledText(const Node *node);
+//SISO_HTMLComposer end
     float computedFontSize(Node*);
     void joinChildTextNodes(Node*, const Position& start, const Position& end);
 

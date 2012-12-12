@@ -77,11 +77,11 @@ class SVGUseElement;
 #endif
 class TagNodeList;
 class TreeScope;
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 class HTMLPropertiesCollection;
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 typedef int ExceptionCode;
 
@@ -224,8 +224,8 @@ public:
     virtual bool isShadowBoundary() const { return false; }
     virtual bool canHaveLightChildRendererWithShadow() const { return false; }
 
-    Node* shadowAncestorNode();
-    Node* shadowTreeRootNode();
+    Node* shadowAncestorNode() const;
+    Node* shadowTreeRootNode() const;
     bool isInShadowTree();
     // Node's parent, shadow tree host, or SVG use.
     ContainerNode* parentOrHostNode() const;
@@ -325,11 +325,6 @@ public:
     void setIsLink(bool f) { setFlag(f, IsLinkFlag); }
     void setIsLink() { setFlag(IsLinkFlag); }
     void clearIsLink() { clearFlag(IsLinkFlag); }
-
-//SAMSUNG CHNAGES >>
-    void setHasTouchListener(bool f) { setFlag(f, HasTouchListenerFlag); }
-    bool hasTouchListener() const { return getFlag(HasTouchListenerFlag); }
-//SAMSUNG CHNAGES <<
 
     enum ShouldSetAttached {
         SetAttached,
@@ -545,18 +540,6 @@ public:
 
     unsigned short compareDocumentPosition(Node*);
 
-#ifdef ANDROID_INSTRUMENT
-    // Overridden to prevent the normal new from being called.
-    void* operator new(size_t size);
-    void* operator new[](size_t size);
-
-    // Overridden to prevent the normal delete from being called.
-    void operator delete(void* p, size_t size);
-    void operator delete[](void* p, size_t size);
-
-    static size_t reportDOMNodesSize();
-#endif
-
     virtual Node* toNode() { return this; }
 
     virtual InputElement* toInputElement();
@@ -601,7 +584,7 @@ public:
 
     virtual EventTargetData* eventTargetData();
     virtual EventTargetData* ensureEventTargetData();
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     void itemTypeAttributeChanged();
 
@@ -610,7 +593,7 @@ public:
     DOMSettableTokenList* itemType();
     HTMLPropertiesCollection* properties();
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 private:
     enum NodeFlags {
@@ -654,9 +637,6 @@ private:
 #else
         DefaultNodeFlags = IsParsingChildrenFinishedFlag | IsStyleAttributeValidFlag
 #endif
-//SAMSUNG CHNAGES >>
-        , HasTouchListenerFlag = 1 << 31
-//SAMSUNG CHNAGES <<
     };
 
     // 4 bits remaining
@@ -759,13 +739,13 @@ protected:
     void setHasRareSVGData() { setFlag(HasSVGRareDataFlag); }
     void clearHasRareSVGData() { clearFlag(HasSVGRareDataFlag); }
 #endif
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     void setItemProp(const String&);
     void setItemRef(const String&);
     void setItemType(const String&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 };
 
 // Used in Node::addSubresourceAttributeURLs() and in addSubresourceStyleURLs()

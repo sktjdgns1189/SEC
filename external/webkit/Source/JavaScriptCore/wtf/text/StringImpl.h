@@ -235,7 +235,13 @@ public:
             m_refCountAndFlags &= ~s_refCountFlagIsAtomic;
     }
 
-    unsigned hash() const { if (!m_hash) m_hash = StringHasher::computeHash(m_data, m_length); return m_hash; }
+    unsigned hash() const {
+	ASSERT(m_data);
+        ASSERT(m_length);
+	if (!m_hash)
+		m_hash = StringHasher::computeHash(m_data, m_length);
+	return m_hash;
+   }
     unsigned existingHash() const { ASSERT(m_hash); return m_hash; }
 
     ALWAYS_INLINE void deref() { m_refCountAndFlags -= s_refCountIncrement; if (!(m_refCountAndFlags & (s_refCountMask | s_refCountFlagStatic))) delete this; }

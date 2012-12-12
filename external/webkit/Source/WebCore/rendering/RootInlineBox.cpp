@@ -396,10 +396,10 @@ InlineBox* RootInlineBox::lastSelectedBox()
     return 0;
 }
 
-// Samsung Adding for multicolumn text selection - Begin
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 int RootInlineBox::selectionTop(bool bTextSelection) const
 {
-// Samsung Adding for multicolumn text selection - End 
+//SAMSUNG ADVANCED TEXT SELECTION - END
     int selectionTop = m_lineTop;
 
     if (m_hasAnnotationsBefore)
@@ -409,7 +409,6 @@ int RootInlineBox::selectionTop(bool bTextSelection) const
         return selectionTop;
 
     int prevBottom = prevRootBox() ? prevRootBox()->selectionBottom() : block()->borderBefore() + block()->paddingBefore();
-
     if (prevBottom < selectionTop && block()->containsFloats()) {
         // This line has actually been moved further down, probably from a large line-height, but possibly because the
         // line was forced to clear floats.  If so, let's check the offsets, and only be willing to use the previous
@@ -422,17 +421,17 @@ int RootInlineBox::selectionTop(bool bTextSelection) const
             return selectionTop;
     }
 
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 
-// Samsung - Advanced Text Selection - Begin
+    RootInlineBox* rootbox = (RootInlineBox*)(this);
+//SAMSUNG CHANGES : MPSG100006193 - use bTextSelection condition >>
+    if (bTextSelection || rootbox ->selectionState() != RenderObject::SelectionNone)
+//SAMSUNG CHANGES <<
+    {
+        prevBottom = selectionTop;
+    }
 
-	RootInlineBox* rootbox = (RootInlineBox*)(this);
-
-	if (rootbox ->selectionState() != RenderObject::SelectionNone)
-	{
-	    prevBottom = selectionTop;
-	}
-
-// Samsung - Advanced Text Selection - End 
+//SAMSUNG ADVANCED TEXT SELECTION - END
     return prevBottom;
 }
 

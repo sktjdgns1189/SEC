@@ -520,7 +520,7 @@ HTMLFormElement* HTMLObjectElement::virtualForm() const
     return FormAssociatedElement::form();
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLObjectElement::itemValueText() const
 {
@@ -532,6 +532,6 @@ void HTMLObjectElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(dataAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 }

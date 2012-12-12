@@ -176,12 +176,11 @@ module core {
 
         NodeList getElementsByName(in DOMString elementName);
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if defined(ENABLE_MICRODATA) && ENABLE_MICRODATA
         NodeList getItems(in [ConvertUndefinedorNullToNullString, Optional=CallWithDefaultValue] DOMString typeNames);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 #if defined(LANGUAGE_JAVASCRIPT) && LANGUAGE_JAVASCRIPT
                  attribute [Custom] Location location;
 #endif
@@ -347,11 +346,10 @@ module core {
         boolean isHTMLDocument();
 #endif
 
-        // Page visibility API.
+        // Page visibility API. //SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
         readonly attribute [Conditional=PAGE_VISIBILITY_API] DOMString webkitVisibilityState;
         readonly attribute [Conditional=PAGE_VISIBILITY_API] boolean webkitHidden;
-
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
     };
 
 }

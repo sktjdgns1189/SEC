@@ -25,15 +25,9 @@
 
 LOCAL_CFLAGS += -DWTF_USE_V8=1
 
-ifeq ($(DYNAMIC_SHARED_LIBV8SO),true)
 BINDING_C_INCLUDES := \
-	vendor/qcom/opensource/v8/include
-else
-BINDING_C_INCLUDES := \
-	external/v8/include
-endif
-
-BINDING_C_INCLUDES += \
+	external/v8/include \
+	\
 	$(LOCAL_PATH)/bindings/v8 \
 	$(LOCAL_PATH)/bindings/v8/custom \
 	$(LOCAL_PATH)/bindings/v8/specialization \
@@ -188,11 +182,6 @@ LOCAL_SRC_FILES += \
 	bindings/v8/custom/V8WebKitAnimationCustom.cpp \
 	bindings/v8/custom/V8WebSocketCustom.cpp
 
-ifeq ($(ENABLE_WEBGL), true)
-LOCAL_SRC_FILES += \
-	bindings/v8/custom/V8WebGLRenderingContextCustom.cpp
-endif
-
 ifeq ($(ENABLE_SVG), true)
 LOCAL_SRC_FILES += \
 	bindings/v8/custom/V8SVGDocumentCustom.cpp \
@@ -200,6 +189,10 @@ LOCAL_SRC_FILES += \
 	bindings/v8/custom/V8SVGLengthCustom.cpp \
 	bindings/v8/custom/V8SVGPathSegCustom.cpp
 endif
+
+#WebGL
+LOCAL_SRC_FILES += \
+	bindings/v8/custom/V8WebGLRenderingContextCustom.cpp \
 
 LOCAL_SRC_FILES += \
 	bindings/v8/custom/V8SharedWorkerCustom.cpp \

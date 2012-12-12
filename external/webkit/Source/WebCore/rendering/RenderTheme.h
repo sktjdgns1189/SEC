@@ -131,9 +131,19 @@ public:
 
     // Text selection colors.
     Color activeSelectionBackgroundColor() const;
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN	
     Color activeSelectionBackgroundColor(Settings* s) const;
+//SAMSUNG ADVANCED TEXT SELECTION - ENd
+
+
     Color inactiveSelectionBackgroundColor() const;
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     Color inactiveSelectionBackgroundColor(Settings* s) const;
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
+
     Color activeSelectionForegroundColor() const;
     Color inactiveSelectionForegroundColor() const;
 
@@ -207,9 +217,17 @@ public:
 protected:
     // The platform selection color.
     virtual Color platformActiveSelectionBackgroundColor() const;
+ 
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN	
     virtual Color platformActiveSelectionBackgroundColor(Settings* o) const;
+//SAMSUNG ADVANCED TEXT SELECTION - ENd
+
     virtual Color platformInactiveSelectionBackgroundColor() const;
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     virtual Color platformInactiveSelectionBackgroundColor(Settings* o) const;
+//SAMSUNG ADVANCED TEXT SELECTION - ENd
+
     virtual Color platformActiveSelectionForegroundColor() const;
     virtual Color platformInactiveSelectionForegroundColor() const;
 

@@ -100,6 +100,7 @@ static Node* enclosingList(const RenderListItem* listItem)
     return firstNode;
 }
 
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
 RenderListItem* RenderListItem::nextListItem(RenderObject* list, const RenderListItem* item)
 {
     if (!list)
@@ -120,6 +121,8 @@ RenderListItem* RenderListItem::nextListItem(RenderObject* list, const RenderLis
     }
     return 0;
 }
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
+
 static RenderListItem* previousListItem(RenderObject* list, const RenderListItem* item)
 {
     for (RenderObject* renderer = item->previousInPreOrder(); renderer && renderer != list; renderer = renderer->previousInPreOrder()) {
@@ -144,6 +147,7 @@ inline int RenderListItem::calcValue() const
     if (m_hasExplicitValue)
         return m_explicitValue;
     Node* list = enclosingList(this);
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
     RenderObject* listRenderer = list ? list->renderer() : 0;
     HTMLOListElement* oListElement = (list && list->hasTagName(olTag)) ? static_cast<HTMLOListElement*>(list) : 0;
     int valueStep = 1;
@@ -158,6 +162,7 @@ inline int RenderListItem::calcValue() const
     }
     if (oListElement)
         return oListElement->start();
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE >>
 
     return 1;
 }
@@ -421,8 +426,10 @@ void RenderListItem::explicitValueChanged()
     RenderObject* listRenderer = 0;
     if (listNode)
         listRenderer = listNode->renderer();
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
     for (RenderListItem* item = this; item; item = nextListItem(listRenderer, item))
         item->updateValue();
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE >>
 }
 
 void RenderListItem::setExplicitValue(int value)
@@ -448,11 +455,12 @@ void RenderListItem::clearExplicitValue()
     explicitValueChanged();
 }
 
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
 static RenderListItem* previousOrNextItem(bool isListReversed, RenderObject* list, RenderListItem* item)
 {
     return isListReversed ? previousListItem(list, item) : RenderListItem::nextListItem(list, item);
 }
-
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE >>
 void RenderListItem::updateListMarkerNumbers()
 {
     Node* listNode = enclosingList(this);
@@ -460,6 +468,7 @@ void RenderListItem::updateListMarkerNumbers()
     if (!listNode || !listNode->renderer())
         return;
 
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
     bool isListReversed = false;
     RenderObject* list = listNode->renderer();
     HTMLOListElement* oListElement = (listNode && listNode->hasTagName(olTag)) ? static_cast<HTMLOListElement*>(listNode) : 0;
@@ -477,6 +486,7 @@ void RenderListItem::updateListMarkerNumbers()
         }
         item->updateValue();
     }
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE >>
 }
 
 } // namespace WebCore

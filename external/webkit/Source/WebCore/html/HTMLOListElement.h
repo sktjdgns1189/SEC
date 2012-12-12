@@ -31,6 +31,7 @@ class HTMLOListElement : public HTMLElement {
 public:
     static PassRefPtr<HTMLOListElement> create(Document*);
     static PassRefPtr<HTMLOListElement> create(const QualifiedName&, Document*);
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
 
     int start() const { return m_hasExplicitStart ? m_start : (m_isReversed ? itemCount() : 1); }
     void setStart(int);
@@ -61,7 +62,7 @@ private:
     bool m_hasExplicitStart : 1;
     bool m_isReversed : 1;
     bool m_shouldRecalculateItemCount : 1;
-
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE >>
 };
 
 

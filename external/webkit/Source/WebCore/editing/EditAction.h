@@ -65,7 +65,9 @@ namespace WebCore {
         EditActionInsertList,
         EditActionIndent,
         EditActionOutdent,
-		EditActionSetFontValue	//HTMLComposer
+//SISO_HTMLComposer start
+		EditActionSetFontValue
+//SISO_HTMLComposer end
     } EditAction;    
 }
 

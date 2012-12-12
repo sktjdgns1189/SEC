@@ -56,8 +56,12 @@ gboolean gatt_parse_record(const sdp_record_t *rec,
 					uint16_t *start, uint16_t *end);
 
 // SSBT :: Praveen +
-guint gatt_read_multi_char(GAttrib *attrib, const char** handles, 
+guint gatt_read_multi_char(GAttrib *attrib, const char** handles,
 				GAttribResultFunc func, gpointer user_data);
 
 guint gatt_prep_write_char(GAttrib *attrib, uint16_t handle,  uint16_t offset,uint8_t *value,
 			int vlen, GAttribResultFunc func, gpointer user_data);
+
+guint gatt_declaration(GAttrib *attrib, uint16_t start, uint16_t end,
+						bt_uuid_t *uuid, GAttribResultFunc func,
+						gpointer user_data);

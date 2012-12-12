@@ -23,31 +23,46 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// All source files wishing to include Chromium headers must include this file
+// and must not incude Chromium headers directly.
+
 #ifndef ChromiumIncludes_h
 #define ChromiumIncludes_h
 
 #include "config.h"
 
-// Include all external/chromium files in this file so the problems with the LOG
-// and LOG_ASSERT defines can be handled in one place.
-
-// Undefine LOG and LOG_ASSERT before including chrome code, and if they were
-// defined attempt to set the macros to the Android logging macros (which are
-// the only ones that actually log).
-
+// Both WebKit and Chromium define LOG. In AOSP, the framework also defines
+// LOG. To avoid conflicts, we undefine LOG before including Chromium code,
+// then define it back to the WebKit macro.
 #ifdef LOG
-#define LOG_WAS_DEFINED LOG
+#define LOG_WAS_DEFINED
 #undef LOG
 #endif
 
-#ifdef LOG_ASSERT
-#define LOG_ASSERT_WAS_DEFINED LOG_ASSERT
+// In AOSP, the framework still uses LOG_ASSERT (as well as ALOG_ASSERT), which
+// conflicts with Chromium's LOG_ASSERT. So we undefine LOG_ASSERT to allow the
+// Chromium implementation to be picked up. We also redefine ALOG_ASSERT to the
+// underlying framework implementation without using LOG_ASSERT.
+// TODO: Remove this once LOG_ASSERT is removed from the framework in AOSP.
 #undef LOG_ASSERT
+#undef ALOG_ASSERT
+// Copied from log.h.
+#define ALOG_ASSERT(cond, ...) LOG_FATAL_IF(!(cond), ## __VA_ARGS__)
+
+// Chromium won't build without NDEBUG set, so we set it for all source files
+// that use Chromium code. This means that if NDEBUG was previously unset, we
+// have to redefine ASSERT() to a no-op, as this is enabled in debug builds.
+// Unfortunately, ASSERT() is defined from config.h, so we can't get in first.
+#ifndef NDEBUG
+#define NDEBUG 1
+#undef ASSERT
+#define ASSERT(assertion) (void(0))
 #endif
 
 #include <android/net/android_network_library_impl.h>
 #include <android/jni/jni_utils.h>
 #include <base/callback.h>
+#include <base/lazy_instance.h>
 #include <base/memory/ref_counted.h>
 #include <base/message_loop_proxy.h>
 #include <base/openssl_util.h>
@@ -100,13 +115,15 @@
 #endif
 
 #undef LOG
-#if defined(LOG_WAS_DEFINED) && defined(LOG_PRI)
-#define LOG(priority, tag, ...) LOG_PRI(ANDROID_##priority, tag, __VA_ARGS__)
+// If LOG was defined, restore it to the WebKit macro.
+#ifdef LOG_WAS_DEFINED
+// If LOG was defined, JOIN_LOG_CHANNEL_WITH_PREFIX must be too.
+// Copied from Assertions.h.
+#if LOG_DISABLED
+#define LOG(channel, ...) ((void)0)
+#else
+#define LOG(channel, ...) WTFLog(&JOIN_LOG_CHANNEL_WITH_PREFIX(LOG_CHANNEL_PREFIX, channel), __VA_ARGS__)
 #endif
-
-#undef LOG_ASSERT
-#if defined(LOG_ASSERT_WAS_DEFINED) && defined(LOG_FATAL_IF)
-#define LOG_ASSERT(cond, ...) LOG_FATAL_IF(!(cond), ## __VA_ARGS__)
 #endif
 
 #endif

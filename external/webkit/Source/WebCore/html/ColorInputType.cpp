@@ -99,7 +99,7 @@ bool ColorInputType::supportsRequired() const
     return false;
 }
 //SAMSUNG CHANGE HTML5 COLOR <<
-String ColorInputType::fallbackValue() const
+String ColorInputType::fallbackValue() 
 {
     //To pass html5test.com made changes to return null string instead of simple color 
     return String(" ");
@@ -122,7 +122,7 @@ void ColorInputType::handleDOMActivateEvent(Event* event)
         return;
 
     Chrome* chrome = this->chrome();
-    IntRect absBounds = element()->renderer()->absoluteBoundingBoxRect();	;
+    IntRect absBounds = element()->renderer()->absoluteBoundingBoxRect();	
     if (chrome)
        chrome->createColorChooser(this,absBounds);	
 

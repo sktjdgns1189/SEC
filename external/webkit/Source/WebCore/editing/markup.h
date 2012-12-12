@@ -30,7 +30,7 @@
 #include "HTMLInterchange.h"
 #include <wtf/Forward.h>
 #include <wtf/Vector.h>
-////////SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 #include "CachedResource.h"
 #include "PlatformString.h"
 #include "WebViewCore.h"
@@ -39,7 +39,7 @@ namespace android {
     class WebHTMLMarkupData;
 }
 
-////////SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 namespace WebCore {
 
     class Document;
@@ -55,23 +55,24 @@ namespace WebCore {
     PassRefPtr<DocumentFragment> createFragmentFromMarkup(Document*, const String& markup, const String& baseURL, FragmentScriptingPermission = FragmentScriptingAllowed);
     PassRefPtr<DocumentFragment> createFragmentFromNodes(Document*, const Vector<Node*>&);
 
-////////SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
     String createLocalResource(CachedResource* resource, const String& basePath, android::WebHTMLMarkupData* markupData = 0);
     android::WebHTMLMarkupData* createFullMarkup(const Node* node,const String& basePath);
-////////SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
     bool isPlainTextMarkup(Node *node);
 
     String createMarkup(const Range*,
+//SISO_HTMLComposer start
        // Vector<Node*>* = 0, EAnnotateForInterchange = DoNotAnnotateForInterchange, bool convertBlocksToInlines = false, EAbsoluteURLs = DoNotResolveURLs);
     //String createMarkup(const Node*, EChildrenOnly = IncludeNode, Vector<Node*>* = 0, EAbsoluteURLs = DoNotResolveURLs);
         Vector<Node*>* = 0, EAnnotateForInterchange = DoNotAnnotateForInterchange, bool convertBlocksToInlines = false, EAbsoluteURLs = DoNotResolveURLs, const String& basePath = String()/*SAMSUNG_HTML_EDIT_EXTENSION*/, android::WebHTMLMarkupData* markupData = 0);
     String createMarkup(const Node*, EChildrenOnly = IncludeNode, Vector<Node*>* = 0, EAbsoluteURLs = DoNotResolveURLs, const String& basePath = String()/*SAMSUNG_HTML_EDIT_EXTENSION*/, android::WebHTMLMarkupData* markupData = 0);
+//SISO_HTMLComposer end
     
     String createFullMarkup(const Node*);
     String createFullMarkup(const Range*);
 
     String urlToMarkup(const KURL&, const String& title);
-
     // SAMSUNG CHANGE : CopyImage
     bool saveCachedImageToFile(CachedResource* resource, const String& imageUrl, const String& filePath);
 }

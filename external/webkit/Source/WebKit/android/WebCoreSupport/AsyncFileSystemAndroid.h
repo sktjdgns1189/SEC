@@ -30,14 +30,13 @@
 
 #include "AsyncFileSystem.h"
 #include <wtf/PassOwnPtr.h>
+#include "AsyncFileWriterAndroid.h"
 
-namespace WebKit {
-class WebFileSystem;
-}
 
-namespace WebCore {
+using namespace WebCore;
 
-class AsyncFileSystemCallbacks;
+namespace android {
+
 
 class AsyncFileSystemAndroid : public AsyncFileSystem {
 public:
@@ -60,11 +59,16 @@ public:
     virtual void readDirectory(const String& path, PassOwnPtr<AsyncFileSystemCallbacks>);
     virtual void createWriter(AsyncFileWriterClient* client, const String& path, PassOwnPtr<AsyncFileSystemCallbacks>);
     static void openFileSystem(const String& basePath, const String& storageIdentifier, Type, bool create, PassOwnPtr<AsyncFileSystemCallbacks>);
-    //void didReadMetadata(const WebKit::WebFileInfo& info);
-
+    static void fileSystemStorage(unsigned);
+    
 private:
     AsyncFileSystemAndroid(AsyncFileSystem::Type, const String& rootPath);
     bool isDirectory;
+    static unsigned s_quota;
+    static String s_basepath;
+    static String s_identifier;
+    static AsyncFileWriterAndroid* s_asyncFileWriterAndroid;
+    
    };
 
 } // namespace WebCore

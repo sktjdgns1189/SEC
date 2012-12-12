@@ -162,7 +162,7 @@ bool HTMLIFrameElement::isURLAttribute(Attribute* attr) const
     return attr->name() == srcAttr;
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLIFrameElement::itemValueText() const
 {
@@ -174,5 +174,5 @@ void HTMLIFrameElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(srcAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 }

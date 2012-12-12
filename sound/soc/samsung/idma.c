@@ -515,7 +515,6 @@ void idma_init(void *regs)
 {
 	spin_lock_init(&idma.lock);
 	idma.regs = regs;
-
 #if defined(ENABLE_TRNCNT_WA) && defined(CONFIG_ARCH_EXYNOS4)
 	idma.trncnt_wa_enabled = (soc_is_exynos4412() || soc_is_exynos4212()) ?
 				true : false;

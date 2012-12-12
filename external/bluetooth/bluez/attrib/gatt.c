@@ -252,6 +252,21 @@ guint gatt_discover_primary(GAttrib *attrib, bt_uuid_t *uuid, gatt_cb_t func,
 	return g_attrib_send(attrib, 0, buf[0], buf, plen, cb, dp, NULL);
 }
 
+//SSBT : declaration for att server certi. Praveen +
+guint gatt_declaration(GAttrib *attrib, uint16_t start, uint16_t end,
+						bt_uuid_t *uuid, GAttribResultFunc func,
+						gpointer user_data)
+{
+	int buflen;
+	uint8_t *buf = g_attrib_get_buffer(attrib, &buflen);
+	guint16 plen;
+
+	plen = enc_read_by_type_req(start, end, uuid, buf, buflen);
+	if (plen == 0)
+		return 0;
+	return g_attrib_send(attrib, 0, buf[0], buf, plen, func, user_data, NULL);
+}
+
 static void char_discovered_cb(guint8 status, const guint8 *ipdu, guint16 iplen,
 							gpointer user_data)
 {

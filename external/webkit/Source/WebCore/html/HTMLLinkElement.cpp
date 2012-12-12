@@ -504,28 +504,6 @@ void HTMLLinkElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) const
         styleSheet->addSubresourceStyleURLs(urls);
 }
 
-#ifdef ANDROID_INSTRUMENT
-void* HTMLLinkElement::operator new(size_t size)
-{
-    return Node::operator new(size);
-}
-
-void* HTMLLinkElement::operator new[](size_t size)
-{
-    return Node::operator new[](size);
-}
-
-void HTMLLinkElement::operator delete(void* p, size_t size)
-{
-    Node::operator delete(p, size);
-}
-
-void HTMLLinkElement::operator delete[](void* p, size_t size)
-{
-    Node::operator delete[](p, size);
-}
-#endif
-
 void HTMLLinkElement::addPendingSheet(PendingSheetType type)
 {
     if (type <= m_pendingSheetType)
@@ -552,7 +530,7 @@ void HTMLLinkElement::removePendingSheet()
     document()->removePendingSheet();
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLLinkElement::itemValueText() const
 {
@@ -564,6 +542,6 @@ void HTMLLinkElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(hrefAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 }

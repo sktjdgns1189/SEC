@@ -34,8 +34,10 @@
 #if ENABLE(FILE_SYSTEM)
 
 #include <wtf/RefCounted.h>
+//SAMSUNG CHANGE HTML5 FILEAPI <<
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefPtr.h>
+//SAMSUNG CHANGE HTML5 FILEAPI >>
 
 namespace WebCore {
 

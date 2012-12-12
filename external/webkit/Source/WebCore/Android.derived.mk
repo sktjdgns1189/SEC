@@ -148,6 +148,7 @@ style_sheets := $(LOCAL_PATH)/css/html.css $(LOCAL_PATH)/css/quirks.css $(LOCAL_
 ifeq ($(ENABLE_SVG), true)
 style_sheets := $(style_sheets) $(LOCAL_PATH)/css/svg.css
 endif
+# Nataraj
 ifeq ($(ENABLE_WML), true)
 style_sheets := $(style_sheets) $(LOCAL_PATH)/css/wml.css
 endif

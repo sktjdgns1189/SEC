@@ -97,13 +97,12 @@ namespace WebCore {
         void detachFromPage();
         void pageDestroyed();
         void disconnectOwnerElement();
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-		//SAMSUNG CHANGES+
 		void lspellcheck();
 		void notifySpellCheckFinish();
-		//SAMSUNG CHANGES-
 #endif
-
+//SAMSUNG CHANGES <<<
         Page* page() const;
         HTMLFrameOwnerElement* ownerElement() const;
 
@@ -128,10 +127,11 @@ namespace WebCore {
         RenderPart* ownerRenderer() const; // Renderer for the element that contains this frame.
 
         void transferChildFrameToNewDocument();
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
         void dispatchVisibilityStateChangeEvent();
 #endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 
     // ======== All public functions below this point are candidates to move out of Frame into another class. ========
 

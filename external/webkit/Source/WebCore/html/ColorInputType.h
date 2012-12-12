@@ -56,7 +56,7 @@ private:
     virtual bool typeMismatch() const;
     virtual bool supportsRequired() const;
 //SAMSUNG CHANGE HTML5 COLOR <<
-    virtual String fallbackValue() const;
+    virtual String fallbackValue();
     virtual String sanitizeValue(const String&);  
     virtual void handleDOMActivateEvent(Event*);
 //SAMSUNG CHANGE HTML5 COLOR >>

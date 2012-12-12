@@ -110,12 +110,14 @@ public:
 
     virtual void ignoreWordInSpellDocument(const String&);
     virtual void learnWord(const String&);
-    // SAMSUNG CHANGES+ Spell Check
+	
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
     virtual void checkSpellingOfString(const UChar*, int length, int* misspellingLocation, int* misspellingLength);
 #if ENABLE(SPELLCHECK)
 	virtual bool isWordChecking();
 #endif
-    // SAMSUNG CHANGES-
+//SAMSUNG CHANGES <<<	
+    
     virtual String getAutoCorrectSuggestionForMisspelledWord(const String& misspelledWorld);
     virtual void checkGrammarOfString(const UChar*, int length, WTF::Vector<GrammarDetail>&, int* badGrammarLocation, int* badGrammarLength);
     virtual void updateSpellingUIWithGrammarString(const String&, const GrammarDetail& detail);
@@ -133,10 +135,14 @@ public:
     void setPage(Page* page) { m_page = page; }
     void setShouldChangeSelectedRange(bool shouldChangeSelectedRange) { m_shouldChangeSelectedRange = shouldChangeSelectedRange; }
     void setUiGeneratedSelectionChange(bool uiGenerated) { m_uiGeneratedSelectionChange = uiGenerated; }
-    // SAMSUNG CHANGE + Spell Check
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)    
+#if ENABLE(SPELLCHECK)
     int getNumberOfMisspelledWords();
     void unmarkwordlist(const String& unmarkword);
-    // SAMSUNG CHANGE -
+#endif
+//SAMSUNG CHANGES <<<	
+    
 #if ENABLE(WEB_AUTOFILL)
     WebAutofill* getAutofill();
 #endif
@@ -144,7 +150,12 @@ private:
     Page* m_page;
     bool  m_shouldChangeSelectedRange;
     bool  m_uiGeneratedSelectionChange;
-    WTF::Vector<String> unmarkwords; // SAMSUNG CHANGE - Spell Check
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)   
+#if ENABLE(SPELLCHECK)	
+    WTF::Vector<String> unmarkwords;
+#endif
+	//SAMSUNG CHANGES <<<	
+    
 #if ENABLE(WEB_AUTOFILL)
     OwnPtr<WebAutofill> m_autoFill;
 #endif

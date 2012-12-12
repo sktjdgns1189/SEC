@@ -277,7 +277,7 @@ void HTMLEmbedElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) cons
     addSubresourceURL(urls, document()->completeURL(getAttribute(srcAttr)));
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLEmbedElement::itemValueText() const
 {
@@ -289,6 +289,6 @@ void HTMLEmbedElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(srcAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 }

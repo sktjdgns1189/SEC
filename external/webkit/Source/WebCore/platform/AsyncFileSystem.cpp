@@ -39,12 +39,12 @@
 
 namespace WebCore {
 
-#if !PLATFORM(CHROMIUM)
+#if !PLATFORM(CHROMIUM) && !PLATFORM(ANDROID)
 bool AsyncFileSystem::isAvailable()
 {
-//    notImplemented();
-//    return false;
-      return true;
+    notImplemented();
+    return false;
+      
 }
 
 PassOwnPtr<AsyncFileSystem> AsyncFileSystem::create(Type, const String&)

@@ -79,26 +79,23 @@ void ValidationMessage::setMessage(const String& message)
 void ValidationMessage::setMessageDOMAndStartTimer(Timer<ValidationMessage>*)
 {
     ASSERT(m_bubbleMessage);
-    // SAMSUNG CHANGES MPSGS100004662/4655 Since the error message doesnt change no need to created and delete children everytime
-    if(!(m_bubbleMessage->hasChildNodes())){ 
-        m_bubbleMessage->removeAllChildren();
-        Vector<String> lines;
-        m_message.split('\n', lines);
-        Document* doc = m_bubbleMessage->document();
-        ExceptionCode ec = 0;
-        for (unsigned i = 0; i < lines.size(); ++i) {
-            if (i) {
-                m_bubbleMessage->appendChild(HTMLBRElement::create(doc), ec);
-                m_bubbleMessage->appendChild(Text::create(doc, lines[i]), ec);
-            } else {
-                RefPtr<HTMLElement> bold = HTMLElement::create(bTag, doc);
-                bold->setInnerText(lines[i], ec);
-                m_bubbleMessage->appendChild(bold.release(), ec);
-            }
+    m_bubbleMessage->removeAllChildren();
+    Vector<String> lines;
+    m_message.split('\n', lines);
+    Document* doc = m_bubbleMessage->document();
+    ExceptionCode ec = 0;
+    for (unsigned i = 0; i < lines.size(); ++i) {
+        if (i) {
+            m_bubbleMessage->appendChild(HTMLBRElement::create(doc), ec);
+            m_bubbleMessage->appendChild(Text::create(doc, lines[i]), ec);
+        } else {
+            RefPtr<HTMLElement> bold = HTMLElement::create(bTag, doc);
+            bold->setInnerText(lines[i], ec);
+            m_bubbleMessage->appendChild(bold.release(), ec);
         }
     }
 
-    int magnification = m_bubbleMessage->document()->page() ? m_bubbleMessage->document()->page()->settings()->validationMessageTimerMaginification() : -1;
+    int magnification = doc->page() ? doc->page()->settings()->validationMessageTimerMaginification() : -1;
     if (magnification <= 0)
         m_timer.clear();
     else {

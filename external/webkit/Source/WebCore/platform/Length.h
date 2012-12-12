@@ -81,9 +81,7 @@ public:
     int value() const {
         return getIntValue();
     }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-int rawValue() const { return (m_value & ~0xF) / 16; }
-#endif
+
     float percent() const
     {
         ASSERT(type() == Percent);
@@ -201,9 +199,6 @@ int rawValue() const { return (m_value & ~0xF) / 16; }
     }
 
 private:
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-	int m_value;
-#endif
     int getIntValue() const
     {
         return m_isFloat ? static_cast<int>(m_floatValue) : m_intValue;

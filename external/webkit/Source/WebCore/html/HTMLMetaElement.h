@@ -43,13 +43,12 @@ private:
 
     void process();
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     String m_equiv;
     String m_content;
 };

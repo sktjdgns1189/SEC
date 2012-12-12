@@ -58,7 +58,6 @@ private:
     virtual Document* document() const;
     virtual bool isEnabled() const;
     
-    using AccessibilityObject::setValue; // SM team asked 
     // Assumes float [0..1]
     virtual void setValue(float);
     virtual float valueForRange() const;

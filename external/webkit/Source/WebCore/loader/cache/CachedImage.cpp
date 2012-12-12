@@ -50,20 +50,6 @@
 
 using std::max;
 
-// SAMSUNG CHANGE +
-#ifdef DEBUG
-
-#undef XLOG
-#define XLOG(...) android_printLog(ANDROID_LOG_DEBUG, "CachedImage", __VA_ARGS__)
-
-#else
-
-#undef XLOG
-#define XLOG(...)
-
-#endif // DEBUG
-// SAMSUNG CHANGE -
-
 namespace WebCore {
 
 CachedImage::CachedImage(const String& url)
@@ -72,6 +58,7 @@ CachedImage::CachedImage(const String& url)
     , m_decodedDataDeletionTimer(this, &CachedImage::decodedDataDeletionTimerFired)
     , m_shouldPaintBrokenImage(true)
     , m_autoLoadWasPreventedBySettings(false)
+    , m_calledCount(0)
 {
     setStatus(Unknown);
 }
@@ -82,6 +69,7 @@ CachedImage::CachedImage(Image* image)
     , m_decodedDataDeletionTimer(this, &CachedImage::decodedDataDeletionTimerFired)
     , m_shouldPaintBrokenImage(true)
     , m_autoLoadWasPreventedBySettings(false)
+    , m_calledCount(0)
 {
     setStatus(Cached);
     setLoading(false);
@@ -89,10 +77,6 @@ CachedImage::CachedImage(Image* image)
 
 CachedImage::~CachedImage()
 {
-    //SAMSUNG CHANGES >>
-    if (image())
-    	image()->clearImageObserver();
-    //SAMSUNG CHANGES
 }
 
 void CachedImage::decodedDataDeletionTimerFired(Timer<CachedImage>*)
@@ -156,6 +140,15 @@ Image* CachedImage::image() const
     return Image::nullImage();
 }
 
+//SAMSUNG_CHANGES >> MPSG6322 & MPSG6356
+bool CachedImage::willPaintBrokenImage()
+{
+	if (errorOccurred() && m_shouldPaintBrokenImage)
+		return true;
+	else
+		return false;
+}
+//SAMSUNG_CHANGES <<
 void CachedImage::setImageContainerSize(const IntSize& containerSize)
 {
     if (m_image)
@@ -293,6 +286,16 @@ size_t CachedImage::maximumDecodedImageSize()
 
 void CachedImage::data(PassRefPtr<SharedBuffer> data, bool allDataReceived)
 {
+    // SAMSUNG CHANGE >>
+    // create image data 1 time per 128 times (mask:0x7F)
+    m_calledCount++;
+    if (!allDataReceived && ((m_calledCount & 0x7F) != 0x7F))
+        return;
+        
+    if (allDataReceived)
+        m_calledCount = 0;
+    // SAMSUNG CHANGE <<
+        
     m_data = data;
 
     createImage();
@@ -392,29 +395,6 @@ bool CachedImage::shouldPauseAnimation(const Image* image)
 
     return true;
 }
-
-// SAMSUNG CHANGE +
-bool CachedImage::isImageOffScreen(const Image* image, bool storeAnimation)
-{
-    XLOG("isImageOffScreen : image client count: %d", count());
-    if (image != m_image) {
-	 XLOG("isImageOffScreen : image not matched");
-        return false;
-    }
-
-    CachedResourceClientWalker w(m_clients);
-    while (CachedResourceClient* c = w.next()) {
-        if (c->isImageOffScreen(this, storeAnimation)) {
-	     XLOG("isImageOffScreen : image is offscreen");
-            return true;
-        } else {
-            XLOG("isImageOffScreen : image is VISIBLE");
-        }
-    }
-
-    return false;    
-}
-// SAMSUNG CHANGE -
 
 void CachedImage::animationAdvanced(const Image* image)
 {

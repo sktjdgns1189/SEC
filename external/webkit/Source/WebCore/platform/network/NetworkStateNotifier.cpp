@@ -53,10 +53,39 @@ void NetworkStateNotifier::setOnLine(bool onLine)
         return;
 
     m_isOnLine = onLine;
+    didOnlineOfflineToggleHappen =  true;   //SAMSUNG CHANGE - MPSG5821
 
     if (m_networkStateChangedFunction)
         m_networkStateChangedFunction();
 }
+//SAMSUNG CHANGE - MPSG5821 >>
+
+bool NetworkStateNotifier::getdidOnlineOfflineToggleHappen()
+{
+	return didOnlineOfflineToggleHappen;
+}
+
+void NetworkStateNotifier::resetdidOnlineOfflineToggleHappen()
+{
+	didOnlineOfflineToggleHappen = false;
+}
+
+//SAMSUNG CHANGE - MPSG5821 <<
+
+//SAMSUNG CHANGE - MPSG6020 >>
+
+bool NetworkStateNotifier::getdidNetworkTypeChangeHappen()
+{
+	return didNetworkTypeChangeHappen;
+}
+
+void NetworkStateNotifier::resetdidNetworkTypeChangeHappen()
+{
+	didNetworkTypeChangeHappen = false;
+}
+
+//SAMSUNG CHANGE - MPSG6020 <<
+
 #endif // PLATFORM(ANDROID) || PLATFORM(CHROMIM)
 
 #ifdef ANDROID
@@ -66,6 +95,7 @@ void NetworkStateNotifier::networkTypeChange(Connection::ConnectionType type)
         return;
 
     m_type = type;
+    didNetworkTypeChangeHappen = true; //SAMSUNG CHANGE - MPSG6020
 
     if (m_networkStateChangedFunction)
         m_networkStateChangedFunction();

@@ -30,11 +30,7 @@
 #include <wtf/RefCounted.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/text/AtomicString.h>
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#include "TextSizeAdjustment.h"
-//SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
+
 namespace WebCore {
 
 class CursorList;
@@ -62,17 +58,6 @@ public:
     Color textFillColor;
     Color textEmphasisColor;
 
-#ifdef ANDROID_CSS_RING
-    Color ringFillColor;
-    Length ringInnerWidth;
-    Length ringOuterWidth;
-    Length ringOutset;
-    Color ringPressedInnerColor;
-    Color ringPressedOuterColor;
-    Length ringRadius;
-    Color ringSelectedInnerColor;
-    Color ringSelectedOuterColor;
-#endif
 #ifdef ANDROID_CSS_TAP_HIGHLIGHT_COLOR
     Color tapHighlightColor;
 #endif
@@ -94,9 +79,7 @@ public:
     unsigned wordWrap : 1; // EWordWrap 
     unsigned nbspMode : 1; // ENBSPMode
     unsigned khtmlLineBreak : 1; // EKHTMLLineBreak
-#ifndef WEBKIT_TEXT_SIZE_ADJUST
     bool textSizeAdjust : 1; // An Apple extension.
-#endif
     unsigned resize : 2; // EResize
     unsigned userSelect : 1;  // EUserSelect
     unsigned colorSpace : 1; // ColorSpace
@@ -116,11 +99,6 @@ public:
     AtomicString textEmphasisCustomMark;
     RefPtr<QuotesData> quotes;
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
- //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    TextSizeAdjustment textSizeAdjust; // An Apple extension to an Apple extension.
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
 private:
     StyleRareInheritedData();
     StyleRareInheritedData(const StyleRareInheritedData&);

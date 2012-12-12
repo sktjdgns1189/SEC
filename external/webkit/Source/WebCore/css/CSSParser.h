@@ -34,8 +34,11 @@
 #include <wtf/Vector.h>
 #include <wtf/text/AtomicString.h>
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
+    class CSSBorderImageSliceValue;
     class CSSMutableStyleDeclaration;
     class CSSPrimitiveValue;
     class CSSPrimitiveValueCache;
@@ -159,7 +162,11 @@ namespace WebCore {
 
         // CSS3 Parsing Routines (for properties specific to CSS3)
         bool parseShadow(int propId, bool important);
-        bool parseBorderImage(int propId, bool important, RefPtr<CSSValue>&);
+    bool parseBorderImage(int propId, RefPtr<CSSValue>&);
+    bool parseBorderImageRepeat(RefPtr<CSSValue>&);
+    bool parseBorderImageSlice(int propId, RefPtr<CSSBorderImageSliceValue>&);
+    bool parseBorderImageWidth(RefPtr<CSSPrimitiveValue>&);
+    bool parseBorderImageOutset(RefPtr<CSSPrimitiveValue>&);
         bool parseBorderRadius(int propId, bool important);
 
         bool parseReflect(int propId, bool important);
@@ -354,6 +361,8 @@ namespace WebCore {
 
         static bool validUnit(CSSParserValue*, Units, bool strict);
 
+    bool parseBorderImageQuad(Units, RefPtr<CSSPrimitiveValue>&);
+    
         friend class TransformOperationInfo;
     };
 

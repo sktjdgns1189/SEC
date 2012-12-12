@@ -50,12 +50,19 @@ public:
     void setIndexedDBDatabasePath(const String&);
     const String& indexedDBDatabasePath() const { return m_indexedDBDatabasePath; }
 
+    // Samsung Change - HTML5 FileSystem API	>>
+    void setFileSystemQuotaBytes(unsigned);
+    unsigned fileSystemQuotaBytes() const { return m_fileSystemQuotaBytes; }
+    // Samsung Change - HTML5 FileSystem API	<<
 private:
     GroupSettings();
 
     unsigned m_localStorageQuotaBytes;
     String m_indexedDBDatabasePath;
     int64_t m_indexedDBQuotaBytes;
+    // Samsung Change - HTML5 FileSystem API	>>
+    unsigned m_fileSystemQuotaBytes;
+    // Samsung Change - HTML5 FileSystem API	<<
 };
 
 } // namespace WebCore

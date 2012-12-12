@@ -78,7 +78,7 @@ struct CompositingState {
         : m_compositingAncestor(compAncestor)
         , m_subtreeIsCompositing(false)
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
-        , m_fixedSibling(false)
+        , m_positionedSibling(false)
         , m_hasFixedElement(false)
 #endif
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
@@ -92,8 +92,12 @@ struct CompositingState {
     
     RenderLayer* m_compositingAncestor;
     bool m_subtreeIsCompositing;
+    // m_compositingBounds is only used in computeCompositingRequirements. It can be either the
+    // ancestor bounds or the bounds for the sibling layers which are above the composited layer.
+    // It is used to reject creating unnecesary layers.
+    IntRect m_compositingBounds;
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
-    bool m_fixedSibling;
+    bool m_positionedSibling;
     bool m_hasFixedElement;
 #endif
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
@@ -290,9 +294,7 @@ void RenderLayerCompositor::updateCompositingLayers(CompositingUpdateType update
     
     double startTime = WTF::currentTime();
 #endif        
-	if(updateRoot->renderer() && (updateRoot->renderer()->layer()==NULL)) // Temporary fix for P120327-4877 
-		 return;
-		
+
     if (checkForHierarchyUpdate) {
         // Go through the layers in presentation order, so that we can compute which RenderLayers need compositing layers.
         // FIXME: we could maybe do this and the hierarchy udpate in one pass, but the parenting logic would be more complex.
@@ -300,6 +302,7 @@ void RenderLayerCompositor::updateCompositingLayers(CompositingUpdateType update
         bool layersChanged = false;
 
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
+        compState.m_positionedSibling = false;
         compState.m_hasFixedElement = false;
 #endif
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
@@ -318,9 +321,6 @@ void RenderLayerCompositor::updateCompositingLayers(CompositingUpdateType update
         // Update the hierarchy of the compositing layers.
         CompositingState compState(updateRoot);
         Vector<GraphicsLayer*> childList;
-		if(updateRoot->renderer() && (updateRoot->renderer()->layer()==NULL)) // Temporary fix for P120327-4877 
-		 return;
-		
         rebuildCompositingLayerTree(updateRoot, compState, childList);
 
         // Host the document layer in the RenderView's root layer.
@@ -352,7 +352,11 @@ bool RenderLayerCompositor::updateBacking(RenderLayer* layer, CompositingChangeR
 {
     bool layerChanged = false;
 
+#if ENABLE(ANDROID_OVERFLOW_SCROLL)
+    if (needsToBeComposited(layer) || layer->shouldComposite()) {
+#else
     if (needsToBeComposited(layer)) {
+#endif
         enableCompositingMode();
         
         // 3D transforms turn off the testing of overlap.
@@ -467,8 +471,6 @@ IntRect RenderLayerCompositor::calculateCompositedBounds(const RenderLayer* laye
         return IntRect();
 
     IntRect boundingBoxRect = layer->localBoundingBox();
-	if(layer == NULL || layer->renderer()->layer() == NULL)	
-    	return IntRect();
     if (layer->renderer()->isRoot()) {
         // If the root layer becomes composited (e.g. because some descendant with negative z-index is composited),
         // then it has to be big enough to cover the viewport in order to display the background. This is akin
@@ -502,77 +504,35 @@ IntRect RenderLayerCompositor::calculateCompositedBounds(const RenderLayer* laye
 
     if (Vector<RenderLayer*>* negZOrderList = layer->negZOrderList()) {
         size_t listSize = negZOrderList->size();
-		Vector<RenderLayer*> corruptLayer;
-		size_t corruptLayerSize = 0;
         for (size_t i = 0; i < listSize; ++i) {
             RenderLayer* curLayer = negZOrderList->at(i);
-			if(curLayer != NULL && (curLayer->renderer()->layer() == NULL))
-			{
-				corruptLayer.append(curLayer);
-				continue;
-			}
             if (!curLayer->isComposited()) {
                 IntRect childUnionBounds = calculateCompositedBounds(curLayer, layer);
                 unionBounds.unite(childUnionBounds);
             }
         }
-		corruptLayerSize = corruptLayer.size();
-		if(corruptLayerSize > 0 ){
-			for (size_t i = 0; i < corruptLayerSize; ++i) {
-				RenderLayer* curLayer = corruptLayer.at(i);
-				negZOrderList->remove(negZOrderList->find(curLayer));
-			}
-		}
     }
 
     if (Vector<RenderLayer*>* posZOrderList = layer->posZOrderList()) {
         size_t listSize = posZOrderList->size();
-		Vector<RenderLayer*> corruptLayer;
-		size_t corruptLayerSize = 0;
         for (size_t i = 0; i < listSize; ++i) {
             RenderLayer* curLayer = posZOrderList->at(i);
-			if(curLayer != NULL && (curLayer->renderer()->layer() == NULL))
-			{
-				corruptLayer.append(curLayer);
-				continue;
-			}
             if (!curLayer->isComposited()) {
                 IntRect childUnionBounds = calculateCompositedBounds(curLayer, layer);
                 unionBounds.unite(childUnionBounds);
             }
         }
-		corruptLayerSize = corruptLayer.size();
-		if(corruptLayerSize > 0 ){
-			for (size_t i = 0; i < corruptLayerSize; ++i) {
-				RenderLayer* curLayer = corruptLayer.at(i);
-				posZOrderList->remove(posZOrderList->find(curLayer));
-			}
-		}
     }
 
     if (Vector<RenderLayer*>* normalFlowList = layer->normalFlowList()) {
         size_t listSize = normalFlowList->size();
-		Vector<RenderLayer*> corruptLayer;
-		size_t corruptLayerSize = 0;
         for (size_t i = 0; i < listSize; ++i) {
             RenderLayer* curLayer = normalFlowList->at(i);
-			if(curLayer != NULL && (curLayer->renderer()->layer() == NULL))
-			{
-				corruptLayer.append(curLayer);
-				continue;
-			}
             if (!curLayer->isComposited()) {
                 IntRect curAbsBounds = calculateCompositedBounds(curLayer, layer);
                 unionBounds.unite(curAbsBounds);
             }
         }
-		corruptLayerSize = corruptLayer.size();
-		if(corruptLayerSize > 0 ){
-			for (size_t i = 0; i < corruptLayerSize; ++i) {
-				RenderLayer* curLayer = corruptLayer.at(i);
-				normalFlowList->remove(normalFlowList->find(curLayer));
-			}
-		}
     }
 
     if (layer->paintsWithTransform(PaintBehaviorNormal)) {
@@ -662,56 +622,62 @@ bool RenderLayerCompositor::overlapsCompositedLayers(OverlapMap& overlapMap, con
 
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
 
-// to properly support z-index with composited fixed elements, we need to turn
-// layers following a fixed layer into compositing mode; but if a layer is fully
-// contained into a previous layer already composited (that is not the fixed
-// layer), we don't need to composite it. This saves up quite a bit on the
-// number of layers we have to composite.
-//
-bool RenderLayerCompositor::checkForFixedLayers(Vector<RenderLayer*>* list, bool stopAtFixedLayer)
+bool RenderLayerCompositor::checkForPositionedElements(Vector<RenderLayer*>* list)
 {
     int listSize = list->size();
     int haveFixedLayer = -1;
     bool fixedSibling = false;
-    for (int j = 0; j < listSize; ++j) {
-        RenderLayer* currentLayer = list->at(j);
-		if(currentLayer && currentLayer->renderer() && (currentLayer->renderer()->layer()==NULL)) // Temporary fix for P120327-4877 
-			 continue;
-		
-        if (currentLayer->isFixed() && needsToBeComposited(currentLayer)) {
-            haveFixedLayer = j;
-            fixedSibling = true;
-        }
-        IntRect currentLayerBounds = currentLayer->renderer()->localToAbsoluteQuad(
-            FloatRect(currentLayer->localBoundingBox())).enclosingBoundingBox();
-        if ((currentLayerBounds.width() <= 1
-            || currentLayerBounds.height() <= 1)
-            && haveFixedLayer == j) {
-            haveFixedLayer = -1;
-            fixedSibling = false;
-        }
-        if (haveFixedLayer != -1 && haveFixedLayer != j) {
-            bool needComposite = true;
-            int stop = 0;
-            if (stopAtFixedLayer)
-                stop = haveFixedLayer + 1;
+    bool positionedSibling = false;
 
-            for (int k = j - 1; k >= stop; --k) {
-                RenderLayer* aLayer = list->at(k);
-                if (aLayer && aLayer->renderer() && !(aLayer->renderer()->layer()==NULL)) {  // Temporary fix for P120327-4877  
-                    IntRect bounds = aLayer->renderer()->localToAbsoluteQuad(
-                        FloatRect(aLayer->localBoundingBox())).enclosingBoundingBox();
-                    if (bounds.contains(currentLayerBounds)
-                        && needsToBeComposited(aLayer) && aLayer->isStackingContext()) {
-                        needComposite = false;
-                        break;
-                    }
+#if 0
+    // For absolute positioned elements, we need to check if they are followed
+    // by a composited element; if so, they also need to be composited, as the
+    // layer display rendering might be incorrect (absolute elements being
+    // removed from the flow).
+    for (int i = 0; i < listSize; ++i) {
+        RenderLayer* currentLayer = list->at(i);
+        if (!needsToBeComposited(currentLayer)
+            && !currentLayer->shouldComposite()
+            && currentLayer->renderer()->isPositioned()) {
+            positionedSibling = true;
+            // check if there is a composited layer later, if so we should be
+            // composited.
+            for (int j = i + 1; j < listSize; ++j) {
+                RenderLayer* layer = list->at(j);
+                if (needsToBeComposited(layer)) {
+                    currentLayer->setShouldComposite(true);
+                    break;
                 }
             }
-            currentLayer->setShouldComposite(needComposite);
+            break;
         }
     }
-    return fixedSibling;
+#endif
+
+    // If we find a fixed layer, let's mark all the following layers as being
+    // composited. The layers' surfaces will be merged if needed UI-side.
+    for (int j = 0; j < listSize; ++j) {
+        RenderLayer* currentLayer = list->at(j);
+
+        // clear the composited flag first
+        currentLayer->setShouldComposite(false);
+
+        if (currentLayer->isFixed() && needsToBeComposited(currentLayer)) {
+            // Ignore fixed layers with a width or height or 1 or less...
+            IntRect currentLayerBounds = currentLayer->renderer()->localToAbsoluteQuad(
+                FloatRect(currentLayer->localBoundingBox())).enclosingBoundingBox();
+            if (currentLayerBounds.width() > 1 && currentLayerBounds.height() > 1) {
+                haveFixedLayer = j;
+                fixedSibling = true;
+            }
+            continue;
+        }
+
+        if (haveFixedLayer != -1)
+            currentLayer->setShouldComposite(true);
+    }
+
+    return positionedSibling || fixedSibling;
 }
 
 #endif
@@ -727,13 +693,15 @@ bool RenderLayerCompositor::checkForFixedLayers(Vector<RenderLayer*>* list, bool
 //
 void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, OverlapMap* overlapMap, struct CompositingState& compositingState, bool& layersChanged)
 {
-    if(layer && layer->renderer() && (layer->renderer()->layer()==NULL))  // Temporary fix for P120327-4877 
-		return;
-	
     layer->updateLayerPosition();
     layer->updateZOrderLists();
     layer->updateNormalFlowList();
-    
+#if PLATFORM(ANDROID)
+    RenderObject* renderer = layer->renderer();
+    bool intCom = requiresCompositingLayer(layer);
+    layer->setIntrinsicallyComposited(intCom);
+#endif
+
     // Clear the flag
     layer->setHasCompositingDescendant(false);
     
@@ -748,27 +716,32 @@ void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, O
         if (absBounds.isEmpty())
             absBounds.setSize(IntSize(1, 1));
         haveComputedBounds = true;
-        mustOverlapCompositedLayers = overlapsCompositedLayers(*overlapMap, absBounds);
+        // If the current subtree is not compositing, and the layer is fully inside the current compositing bounnds,
+        // there is no need to do the overlap test. This reduces the total number of the composited layers.
+        if (compositingState.m_subtreeIsCompositing || !compositingState.m_compositingBounds.contains(absBounds))
+            mustOverlapCompositedLayers = overlapsCompositedLayers(*overlapMap, absBounds);
     }
-    
-#if ENABLE(COMPOSITED_FIXED_ELEMENTS)
-    if (compositingState.m_fixedSibling)
-        layer->setMustOverlapCompositedLayers(layer->shouldComposite());
-    else
-        layer->setMustOverlapCompositedLayers(mustOverlapCompositedLayers);
-#else
+
     layer->setMustOverlapCompositedLayers(mustOverlapCompositedLayers);
-#endif
-    
+
     // The children of this layer don't need to composite, unless there is
     // a compositing layer among them, so start by inheriting the compositing
     // ancestor with m_subtreeIsCompositing set to false.
     CompositingState childState(compositingState.m_compositingAncestor);
+    if (compositingState.m_subtreeIsCompositing)
+        childState.m_compositingBounds = absBounds;
+    else
+        childState.m_compositingBounds = compositingState.m_compositingBounds;
 #ifndef NDEBUG
     ++childState.m_depth;
 #endif
 
     bool willBeComposited = needsToBeComposited(layer);
+
+#if 0 && ENABLE(COMPOSITED_FIXED_ELEMENTS)
+    willBeComposited |= layer->shouldComposite();
+    layer->setMustOverlapCompositedLayers(layer->shouldComposite());
+#endif
 
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
     // tell the parent it has scrollable descendants.
@@ -784,6 +757,7 @@ void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, O
         compositingState.m_subtreeIsCompositing = true;
         // This layer now acts as the ancestor for kids.
         childState.m_compositingAncestor = layer;
+        childState.m_compositingBounds = absBounds;
         if (overlapMap)
             addToOverlapMap(*overlapMap, layer, absBounds, haveComputedBounds);
     }
@@ -801,9 +775,9 @@ void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, O
         if (Vector<RenderLayer*>* negZOrderList = layer->negZOrderList()) {
             size_t listSize = negZOrderList->size();
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
-            childState.m_fixedSibling = compositingState.m_fixedSibling;
-            if (checkForFixedLayers(negZOrderList, false))
-                childState.m_fixedSibling = true;
+            childState.m_positionedSibling = compositingState.m_positionedSibling;
+            if (checkForPositionedElements(negZOrderList))
+                childState.m_positionedSibling = true;
 #endif
             for (size_t i = 0; i < listSize; ++i) {
                 RenderLayer* curLayer = negZOrderList->at(i);
@@ -838,9 +812,9 @@ void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, O
     if (Vector<RenderLayer*>* normalFlowList = layer->normalFlowList()) {
         size_t listSize = normalFlowList->size();
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
-        childState.m_fixedSibling = compositingState.m_fixedSibling;
-        if (checkForFixedLayers(normalFlowList, true))
-            childState.m_fixedSibling = true;
+        childState.m_positionedSibling = compositingState.m_positionedSibling;
+        if (checkForPositionedElements(normalFlowList))
+            childState.m_positionedSibling = true;
 #endif
         for (size_t i = 0; i < listSize; ++i) {
             RenderLayer* curLayer = normalFlowList->at(i);
@@ -852,9 +826,9 @@ void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, O
         if (Vector<RenderLayer*>* posZOrderList = layer->posZOrderList()) {
             size_t listSize = posZOrderList->size();
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
-            childState.m_fixedSibling = compositingState.m_fixedSibling;
-            if (checkForFixedLayers(posZOrderList, true))
-                childState.m_fixedSibling = true;
+            childState.m_positionedSibling = compositingState.m_positionedSibling;
+            if (checkForPositionedElements(posZOrderList))
+                childState.m_positionedSibling = true;
 #endif
             for (size_t i = 0; i < listSize; ++i) {
                 RenderLayer* curLayer = posZOrderList->at(i);
@@ -892,6 +866,8 @@ void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, O
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
     if (childState.m_hasFixedElement)
         compositingState.m_hasFixedElement = true;
+    if (childState.m_positionedSibling)
+        compositingState.m_positionedSibling = true;
 #endif
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
     if (childState.m_hasScrollableElement)
@@ -914,7 +890,9 @@ void RenderLayerCompositor::computeCompositingRequirements(RenderLayer* layer, O
 #if ENABLE(ANDROID_OVERFLOW_SCROLL)
     // We also need to check that we don't have a scrollable layer, as this
     // would not have set the m_subtreeIsCompositing flag
-    if (layer->isRootLayer() && !childState.m_subtreeIsCompositing && !childState.m_hasScrollableElement && !childState.m_hasFixedElement && !requiresCompositingLayer(layer) && !m_forceCompositingMode) {
+    if (layer->isRootLayer() && !childState.m_subtreeIsCompositing
+        && !childState.m_hasScrollableElement && !childState.m_positionedSibling && !childState.m_hasFixedElement
+        && !requiresCompositingLayer(layer) && !m_forceCompositingMode) {
 #else
     if (layer->isRootLayer() && !childState.m_subtreeIsCompositing && !requiresCompositingLayer(layer) && !m_forceCompositingMode) {
 #endif
@@ -1350,7 +1328,9 @@ void RenderLayerCompositor::didStartAcceleratedAnimation(CSSPropertyID property)
     // we don't do layout for every frame, but we have to ensure that the layering is
     // correct between the animating object and other objects on the page.
     if (property == CSSPropertyWebkitTransform)
-        setCompositingConsultsOverlap(false);
+		//SAMSUNG CHANGE P120811-1604
+        setCompositingConsultsOverlap(true);
+		//SAMSUNG CHANGE P120811-1604
 }
 
 bool RenderLayerCompositor::has3DContent() const
@@ -1453,6 +1433,13 @@ bool RenderLayerCompositor::requiresCompositingForAndroidLayers(const RenderLaye
     if (layer->isFixed())
         return true;
 #endif
+
+    if (layer->renderer()->isCanvas())
+        return true;
+
+    if (layer->renderer()->style()->hasFixedBackgroundImage())
+        return true;
+
     return false;
 }
 #endif
@@ -1581,14 +1568,8 @@ bool RenderLayerCompositor::requiresCompositingForCanvas(RenderObject* renderer)
 
     if (renderer->isCanvas()) {
         HTMLCanvasElement* canvas = static_cast<HTMLCanvasElement*>(renderer->node());
-        return canvas->isUsingGpuRendering() || (canvas->renderingContext() && canvas->renderingContext()->isAccelerated());
-    }
-#if 0
-    if (renderer->isCanvas()) {
-        HTMLCanvasElement* canvas = static_cast<HTMLCanvasElement*>(renderer->node());
         return canvas->renderingContext() && canvas->renderingContext()->isAccelerated();
     }
-#endif
     return false;
 }
 
@@ -2079,7 +2060,62 @@ void RenderLayerCompositor::updateContentsScale(float scale, RenderLayer* layer)
     }
 }
 
+//SAMSUNG CHANGE ++ : for render tree log
+const char* RenderLayerCompositor::reasonForCompositing(const RenderLayer* layer)
+{
+    RenderObject* renderer = layer->renderer();
+    if (layer->isReflection()) {
+        renderer = renderer->parent();
+        layer = toRenderBoxModelObject(renderer)->layer();
+    }
+
+    if (requiresCompositingForTransform(renderer))
+        return "3D transform";
+
+    if (requiresCompositingForVideo(renderer))
+        return "video";
+
+    if (requiresCompositingForCanvas(renderer))
+        return "canvas";
+
+    if (requiresCompositingForPlugin(renderer))
+        return "plugin";
+
+    if (requiresCompositingForFrame(renderer))
+        return "iframe";
+    
+    if ((canRender3DTransforms() && renderer->style()->backfaceVisibility() == BackfaceVisibilityHidden))
+        return "backface-visibility: hidden";
+
+    if (clipsCompositingDescendants(layer))
+        return "clips compositing descendants";
+
+    if (requiresCompositingForAnimation(renderer))
+        return "animation";
+
+#if PLATFORM(ANDROID)
+#if ENABLE(ANDROID_OVERFLOW_SCROLL)
+    if (layer->hasOverflowScroll())
+        return "hasOverflowScroll";
+    if (layer->isRootLayer() && m_renderView->frameView()->hasOverflowScroll())
+        return "root:hasOverflowScroll";
+#endif
+#if ENABLE(COMPOSITED_FIXED_ELEMENTS)
+    if (layer->isFixed())
+        return "position: fixed";
+#endif
+#endif
+
+	if(m_rootPlatformLayer && layer->mustOverlapCompositedLayers())
+		return "overlap";		
+
+    if (inCompositingMode() && layer->isRootLayer())
+        return "root";
+
+    return "";
+}
+//SAMSUNG CHANGE --
+
 } // namespace WebCore
 
 #endif // USE(ACCELERATED_COMPOSITING)
-

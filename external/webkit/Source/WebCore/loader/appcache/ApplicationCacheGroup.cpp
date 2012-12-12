@@ -608,7 +608,10 @@ void ApplicationCacheGroup::didFinishLoading(ResourceHandle* handle, double fini
     
     ASSERT(m_cacheBeingUpdated);
 
+    if(m_currentResource) {
     m_cacheBeingUpdated->addResource(m_currentResource.release());
+    }
+	
     m_currentHandle = 0;
     
     // Load the next resource, if any.

@@ -113,10 +113,6 @@
 #include "WMLNames.h"
 #endif
 
-#if PLATFORM(ANDROID)
-#include "WebViewCore.h"
-#endif
-
 using namespace std;
 
 namespace WebCore {
@@ -335,8 +331,8 @@ Settings* Frame::settings() const
 {
     return m_page ? m_page->settings() : 0;
 }
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-//SAMSUNG CHANGES+
 void Frame::lspellcheck()
 {
     WebCore::IntPoint contentsPoint = WebCore::IntPoint(0, 0);
@@ -349,12 +345,13 @@ void Frame::lspellcheck()
     editor()->markMisspellingsAndBadGrammar(selection()->selection());
     selection()->clear();
 }
+
 void Frame::notifySpellCheckFinish()
 {
     m_loader.client()->didFinishSpellCheck(document()->markers()->numberOfMarkers());
 }
-//SAMSUNG CHANGES-
 #endif
+//SAMSUNG CHANGES <<<
 static RegularExpression* createRegExpForLabels(const Vector<String>& labels)
 {
     // REVIEW- version of this call in FrameMac.mm caches based on the NSArray ptrs being
@@ -700,7 +697,7 @@ void Frame::setDOMWindow(DOMWindow* domWindow)
     m_domWindow = domWindow;
 }
 
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
 void Frame::dispatchVisibilityStateChangeEvent()
 {
@@ -710,8 +707,7 @@ void Frame::dispatchVisibilityStateChangeEvent()
         child->dispatchVisibilityStateChangeEvent();
 }
 #endif
-
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 DOMWindow* Frame::domWindow() const
 {
     if (!m_domWindow)

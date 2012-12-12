@@ -122,12 +122,11 @@
 #include <runtime/JSGlobalData.h>
 #endif
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 #include "HTMLPropertiesCollection.h"
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 #define DUMP_NODE_STATISTICS 0
 
 using namespace std;
@@ -776,10 +775,10 @@ bool Node::isContentEditable() const
 
 bool Node::rendererIsEditable(EditableLevel editableLevel) const
 {
-//HTMLComposer start
+//SISO_HTMLComposer start
     if (document() && (document()->inDesignMode() || (document()->frame() && document()->frame()->page() && document()->frame()->page()->isEditable())))
         return true;
-//HTMLComposer end	
+//SISO_HTMLComposer end	
 
     // Ideally we'd call ASSERT(!needsStyleRecalc()) here, but
     // ContainerNode::setFocus() calls setNeedsStyleRecalc(), so the assertion
@@ -1622,7 +1621,7 @@ SVGUseElement* Node::svgShadowHost() const
 }
 #endif
 
-Node* Node::shadowAncestorNode()
+Node* Node::shadowAncestorNode() const
 {
 #if ENABLE(SVG)
     // SVG elements living in a shadow tree only occur when <use> created them.
@@ -1630,18 +1629,18 @@ Node* Node::shadowAncestorNode()
     // but the actual shadow tree element - as main difference to the HTML forms
     // shadow tree concept. (This function _could_ be made virtual - opinions?)
     if (isSVGElement())
-        return this;
+        return const_cast<Node*>(this);
 #endif
 
     Node* root = shadowTreeRootNode();
     if (root)
         return root->shadowHost();
-    return this;
+    return const_cast<Node*>(this);
 }
 
-Node* Node::shadowTreeRootNode()
+Node* Node::shadowTreeRootNode() const
 {
-    Node* root = this;
+    Node* root = const_cast<Node*>(this);
     while (root) {
         if (root->isShadowRoot() || root->isSVGShadowRoot())
             return root;
@@ -2322,7 +2321,7 @@ FloatPoint Node::convertFromPage(const FloatPoint& p) const
     return p;
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 void Node::itemTypeAttributeChanged()
 {
@@ -2339,8 +2338,7 @@ void Node::itemTypeAttributeChanged()
     data->nodeLists()->invalidateMicrodataItemListCaches();
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 #if !defined(NDEBUG) || defined(ANDROID_DOM_LOGGING)
 
 static void appendAttributeDesc(const Node* node, String& string, const QualifiedName& name, const char* attrDesc)
@@ -2473,14 +2471,14 @@ void NodeListsNodeData::invalidateCachesThatDependOnAttributes()
         it->second->invalidateCache();
     if (m_labelsNodeListCache)
         m_labelsNodeListCache->invalidateCache();
-
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     invalidateMicrodataItemListCaches();
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 }
-//SAMSUNG MICRODATA CHANGES <<
+
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 void NodeListsNodeData::invalidateMicrodataItemListCaches()
 {
@@ -2489,7 +2487,7 @@ void NodeListsNodeData::invalidateMicrodataItemListCaches()
         it->second->invalidateCache();
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 bool NodeListsNodeData::isEmpty() const
 {
@@ -2516,12 +2514,12 @@ bool NodeListsNodeData::isEmpty() const
         if (it->second->refCount())
             return false;
     }
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     if (!m_microDataItemListCache.isEmpty())
         return false;
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
     if (m_labelsNodeListCache)
         return false;
@@ -2546,39 +2544,6 @@ Node* Node::enclosingLinkEventParentOrSelf()
 
     return 0;
 }
-
-#ifdef ANDROID_INSTRUMENT
-static size_t nodeSize = 0;
-
-void* Node::operator new(size_t size)
-{
-    nodeSize += size;
-    return ::operator new(size);
-}
-
-void* Node::operator new[](size_t size)
-{
-    nodeSize += size;
-    return ::operator new[](size);
-}
-
-void Node::operator delete(void* p, size_t size)
-{
-    nodeSize -= size;
-    ::operator delete(p);
-}
-
-void Node::operator delete[](void* p, size_t size)
-{
-    nodeSize -= size;
-    ::operator delete[](p);
-}
-
-size_t Node::reportDOMNodesSize()
-{
-    return nodeSize;
-}
-#endif
 
 // --------
 
@@ -2924,7 +2889,7 @@ void Node::defaultEventHandler(Event* event)
     }
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTMl5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 DOMSettableTokenList* Node::itemProp()
 {
@@ -2969,7 +2934,7 @@ void NodeRareData::createNodeLists(Node* node)
     if (TreeScope* treeScope = node->treeScope())
         treeScope->addNodeListCache();
 }
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTMl5 MICRODATA CHANGES >>
 } // namespace WebCore
 
 #ifndef NDEBUG

@@ -42,7 +42,9 @@
 #include "CreateLinkCommand.h"
 #include "DeleteButtonController.h"
 #include "DeleteSelectionCommand.h"
+//SISO_HTMLComposer start
 #include "CachedResourceLoader.h"
+//SISO_HTMLComposer end
 #include "DocumentFragment.h"
 #include "DocumentMarkerController.h"
 #include "EditingText.h"
@@ -87,7 +89,9 @@
 #include <wtf/UnusedParam.h>
 #include <wtf/unicode/CharacterNames.h>
 #include <wtf/unicode/Unicode.h>
+//SISO_HTMLComposer start
 #include "EditingStyle.h"
+//SISO_HTMLComposer end
 
 namespace WebCore {
 
@@ -513,7 +517,7 @@ void Editor::respondToChangedContents(const VisibleSelection& endingSelection)
         client()->respondToChangedContents();
 }
 
-// SISO HTMLCOMPOSER Begin
+//SISO_HTMLComposer start
 int Editor::getCurrentFontSize()
 {
 	int size = CSSValueMedium - CSSValueXSmall + 1; //Default Size
@@ -548,8 +552,7 @@ int Editor::getCurrentFontValue()
 	}
 	return pixelFontSize;
 }
-// SISO HTMLCOMPOSER End
-
+//SISO_HTMLComposer end
 const SimpleFontData* Editor::fontForSelection(bool& hasMultipleFonts) const
 {
 #if !PLATFORM(QT)
@@ -955,9 +958,9 @@ TriState Editor::selectionHasStyle(int propertyID, const String& value) const
     return state;
 }
 
-//HTML Composer Begin
+//SISO_HTMLComposer start
 bool Editor::hasTransparentBackgroundColor(CSSStyleDeclaration* style)
-//HTML Composer End
+//SISO_HTMLComposer end
 {
     RefPtr<CSSValue> cssValue = style->getPropertyCSSValue(CSSPropertyBackgroundColor);
     if (!cssValue)
@@ -1061,6 +1064,13 @@ void Editor::unappliedEditing(PassRefPtr<EditCommand> cmd)
     dispatchEditableContentChangedEvents(*cmd);
     
     VisibleSelection newSelection(cmd->startingSelection());
+//SISO_HTMLComposer start
+	if(newSelection.isRange()){
+			String str = selectedText();
+		if(NULL == str || str.isEmpty() || str == "\n")
+		newSelection.setWithoutValidation(newSelection.base(), newSelection.base());
+	}
+//SISO_HTMLComposer end
     changeSelectionAfterCommand(newSelection, true, true);
     
     m_lastEditCommand = 0;
@@ -1214,8 +1224,11 @@ void Editor::cut()
     RefPtr<Range> selection = selectedRange();
     if (shouldDeleteRange(selection.get())) {
         updateMarkersForWordsAffectedByEditing(true);
-        if (isNodeInTextFormControl(m_frame->selection()->start().deprecatedNode()))
-            Pasteboard::generalPasteboard()->writePlainText(selectedText());
+        if (isNodeInTextFormControl(m_frame->selection()->start().deprecatedNode())){
+//SAMSUNG: Text selection >>
+            Pasteboard::generalPasteboard()->writePlainText(selectedText(),m_frame);
+//SAMSUNG: Text selection <<
+        }
         else
             Pasteboard::generalPasteboard()->writeSelection(selection.get(), canSmartCopyOrDelete(), m_frame);
         didWriteSelectionToPasteboard();
@@ -1232,8 +1245,11 @@ void Editor::copy()
         return;
     }
 
-    if (isNodeInTextFormControl(m_frame->selection()->start().deprecatedNode()))
-        Pasteboard::generalPasteboard()->writePlainText(selectedText());
+    if (isNodeInTextFormControl(m_frame->selection()->start().deprecatedNode())){
+//SAMSUNG: Text selection >>
+        Pasteboard::generalPasteboard()->writePlainText(selectedText(),m_frame);
+//SAMSUNG: Text selection <<
+    	}
     else {
         Document* document = m_frame->document();
         if (HTMLImageElement* imageElement = imageElementFromImageDocument(document))
@@ -1574,10 +1590,16 @@ void Editor::deleteBackwardByDecomposingPreviousCharacter(int count)
     setComposition( compositionText, underline, newComposingTextLength, newComposingTextLength );
 }
 //HQ_HTMLCOMPOSER END
-
-void Editor::confirmComposition(const String& text, bool preserveSelection)
+void Editor::confirmComposition(const String& composingText, bool preserveSelection)
 {
     UserTypingGestureIndicator typingGestureIndicator(m_frame);
+
+//SISO_HTMLComposer start
+	//Skipping newline character in the composing text so that invalid selection is prevented.
+	String text = composingText;
+	if(text.length()>0 && text.find('\n') != -1)
+		text.replace('\n',"");
+//SISO_HTMLComposer end
 
     setIgnoreCompositionSelectionChange(true);
 
@@ -1609,10 +1631,10 @@ void Editor::confirmComposition(const String& text, bool preserveSelection)
     m_customCompositionUnderlines.clear();
 
     insertTextForConfirmedComposition(text);
-//HTMLComposer start
+//SISO_HTMLComposer start
     if(oldSelection.start().isOrphan() || oldSelection.end().isOrphan())
 	oldSelection = m_frame->selection()->selection();
-//HTMLComposer end
+//SISO_HTMLComposer end
     if (preserveSelection) {
         m_frame->selection()->setSelection(oldSelection, 0);
         // An open typing command that disagrees about current selection would cause issues with typing later on.
@@ -1622,9 +1644,16 @@ void Editor::confirmComposition(const String& text, bool preserveSelection)
     setIgnoreCompositionSelectionChange(false);
 }
 
-void Editor::setComposition(const String& text, const Vector<CompositionUnderline>& underlines, unsigned selectionStart, unsigned selectionEnd)
+void Editor::setComposition(const String& composingText, const Vector<CompositionUnderline>& underlines, unsigned selectionStart, unsigned selectionEnd)
 {
     UserTypingGestureIndicator typingGestureIndicator(m_frame);
+	
+//SISO_HTMLComposer start
+	//Skipping newline character in the composing text so that invalid selection is prevented.
+	String text = composingText;
+	if(text.length()>0 && text.find('\n') != -1)
+		text.replace('\n',"");
+//SISO_HTMLComposer end
 
     setIgnoreCompositionSelectionChange(true);
 
@@ -2035,9 +2064,11 @@ void Editor::markMisspellingsAndBadGrammar(const VisibleSelection &movingSelecti
 
     if (markSpelling) {
         RefPtr<Range> unusedFirstMisspellingRange;
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
 	#if ENABLE(SPELLCHECK)
-		m_isWordChecking = false;//SAMSUNG + SPELLCHECK CHANGES
+		m_isWordChecking = false;
 	#endif
+	//SAMSUNG CHANGES <<<
         markMisspellings(movingSelection, unusedFirstMisspellingRange);
     }
 
@@ -2086,9 +2117,13 @@ void Editor::markMisspellingsAfterTypingToWord(const VisiblePosition &wordStart,
 
     // Check spelling of one word
     RefPtr<Range> misspellingRange;
+	
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
 	#if ENABLE(SPELLCHECK)
-		m_isWordChecking = true;//SAMSUNG + SPELLCHECK CHANGES
+		m_isWordChecking = true;
 	#endif
+	//SAMSUNG CHANGES <<<
+	
     markMisspellings(VisibleSelection(startOfWord(wordStart, LeftWordIfOnBoundary), endOfWord(wordStart, RightWordIfOnBoundary)), misspellingRange);
 
     // Autocorrect the misspelled word.
@@ -2795,12 +2830,12 @@ void Editor::changeSelectionAfterCommand(const VisibleSelection& newSelection, b
 {
     // If the new selection is orphaned, then don't update the selection.
     if (newSelection.start().isOrphan() || newSelection.end().isOrphan())
+//SISO_HTMLComposer start	
 	{
-//HTMLComposer start	
-		m_frame->selection()->setSelectionFromNone();
-//HTMLComposer end	
+		m_frame->selection()->setSelectionIfOrphan();
         return;
 	}
+//SISO_HTMLComposer end
 
     // If there is no selection change, don't bother sending shouldChangeSelection, but still call setSelection,
     // because there is work that it must do in this situation.
@@ -2841,51 +2876,42 @@ IntRect Editor::firstRectForRange(Range* range) const
 
     InlineBox* startInlineBox;
     int startCaretOffset;
-   //HTMLComposer start
-
     Position startPosition = VisiblePosition(range->startPosition()).deepEquivalent();
-    //  startPosition = range->startPosition();
-
-    //HTMLComposer end
-//    VisiblePosition(startPosition);
     if (startPosition.isNull())
         return IntRect();
     startPosition.getInlineBoxAndOffset(DOWNSTREAM, startInlineBox, startCaretOffset);
 
     RenderObject* startRenderer = startPosition.deprecatedNode()->renderer();
     ASSERT(startRenderer);
-
-    // Adding for Multicolumn text selection - Begin
-    Node* node = startRenderer->node();
-    int DummyextraWidthToEndOfLine = 0;
-//    bool bHasColumn = false;
-
-//    bHasColumn = startRenderer->GetMultiColumnInfo(node);
-	
+    // SAMSUNG: Advanced Copy & Paste >>
+    // WAS: IntRect startCaretRect = startRenderer->localCaretRect(startInlineBox, startCaretOffset, &extraWidthToEndOfLine);
     IntRect startCaretRect = startRenderer->localCaretRect(startInlineBox, startCaretOffset, &extraWidthToEndOfLine,true);
-
+    if (!startInlineBox) {
+        startCaretRect.setHeight(startRenderer->style()->fontMetrics().height());
+    }
+    // SAMSUNG: Advanced Copy & Paste <<
     if (startCaretRect != IntRect())
         startCaretRect = startRenderer->localToAbsoluteQuad(FloatRect(startCaretRect)).enclosingBoundingBox();
 
     InlineBox* endInlineBox;
     int endCaretOffset;
-//    Position endPosition = VisiblePosition(range->endPosition()).deepEquivalent();
-    //HTMLComposer start  
-
     Position endPosition = VisiblePosition(range->endPosition()).deepEquivalent();
-    //endPosition = range->endPosition();
-
- //HTMLComposer end
-//    VisiblePosition(endPosition);
-	
     if (endPosition.isNull())
         return IntRect();
     endPosition.getInlineBoxAndOffset(UPSTREAM, endInlineBox, endCaretOffset);
 
     RenderObject* endRenderer = endPosition.deprecatedNode()->renderer();
     ASSERT(endRenderer);
+
+    // SAMSUNG: Advanced Copy & Paste >>
+    // WAS: IntRect endCaretRect = endRenderer->localCaretRect(endInlineBox, endCaretOffset);
+    int DummyextraWidthToEndOfLine = 0;
     IntRect endCaretRect = endRenderer->localCaretRect(endInlineBox, endCaretOffset,&DummyextraWidthToEndOfLine,true);
-    // Adding for Multicolumn text selection - END
+    if (!endInlineBox) {
+        endCaretRect.setHeight(endRenderer->style()->fontMetrics().height());
+    }
+    // SAMSUNG: Advanced Copy & Paste <<
+
     if (endCaretRect != IntRect())
         endCaretRect = endRenderer->localToAbsoluteQuad(FloatRect(endCaretRect)).enclosingBoundingBox();
 
@@ -2904,8 +2930,7 @@ IntRect Editor::firstRectForRange(Range* range) const
         startCaretRect.height());
 }
 
-//Added for MulitColumn Selection Begin 
-
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 bool Editor::getMultiColinfoOfSelection(Range* range) const
 {
 	InlineBox* startInlineBox;
@@ -2913,7 +2938,7 @@ bool Editor::getMultiColinfoOfSelection(Range* range) const
 	Position startPosition = VisiblePosition(range->startPosition()).deepEquivalent();
 
 	if (startPosition.isNull())
-	    return false;
+		return false;
 
 	startPosition.getInlineBoxAndOffset(DOWNSTREAM, startInlineBox, startCaretOffset);
 
@@ -2924,85 +2949,72 @@ bool Editor::getMultiColinfoOfSelection(Range* range) const
 	Node* node = startRenderer->node();
 	bool bHasColumn = false;
 
-        bHasColumn = startRenderer->GetMultiColumnInfo(node);
+	bHasColumn = startRenderer->GetMultiColumnInfo(node);
 
 	return bHasColumn;
 }
 
-//Added for MulitColumn Selection End
-// SAMSUNG  : ADVANCED_TEXT_SELECTION >>
 IntRect Editor::lastRectForRange(Range* range) const
 {
-    int extraWidthToEndOfLine = 0;
-    ASSERT(range->startContainer());
-    ASSERT(range->endContainer());
+	int extraWidthToEndOfLine = 0;
+	ASSERT(range->startContainer());
+	ASSERT(range->endContainer());
 
-    InlineBox* startInlineBox;
-    int startCaretOffset;
-   //HTMLComposer start
+	InlineBox* startInlineBox;
+	int startCaretOffset;
 
-    Position startPosition = VisiblePosition(range->startPosition()).deepEquivalent();
-    //  startPosition = range->startPosition();
+	Position startPosition = VisiblePosition(range->startPosition()).deepEquivalent();
 
-    //HTMLComposer end
-//    VisiblePosition(startPosition);
-    if (startPosition.isNull())
-        return IntRect();
-    startPosition.getInlineBoxAndOffset(DOWNSTREAM, startInlineBox, startCaretOffset);
+	if (startPosition.isNull())
+		return IntRect();
 
-    RenderObject* startRenderer = startPosition.deprecatedNode()->renderer();
-    ASSERT(startRenderer);
-    // Adding for Multicolumn text selection - Begin
-    Node* node = startRenderer->node();
-    int DummyextraWidthToEndOfLine = 0;
-//    bool bHasColumn = false;
+	startPosition.getInlineBoxAndOffset(DOWNSTREAM, startInlineBox, startCaretOffset);
 
-//    bHasColumn = startRenderer->GetMultiColumnInfo(node);
+	RenderObject* startRenderer = startPosition.deprecatedNode()->renderer();
+	ASSERT(startRenderer);
 
-    IntRect startCaretRect = startRenderer->localCaretRect(startInlineBox, startCaretOffset, &extraWidthToEndOfLine,true);
-    if (startCaretRect != IntRect())
-        startCaretRect = startRenderer->localToAbsoluteQuad(FloatRect(startCaretRect)).enclosingBoundingBox();
+	IntRect startCaretRect = startRenderer->localCaretRect(startInlineBox, startCaretOffset, &extraWidthToEndOfLine,true);
 
-    InlineBox* endInlineBox;
-    int endCaretOffset;
-	
-//    Position endPosition = VisiblePosition(range->endPosition()).deepEquivalent();
+	if (startCaretRect != IntRect())
+		startCaretRect = startRenderer->localToAbsoluteQuad(FloatRect(startCaretRect)).enclosingBoundingBox();
 
-    //HTMLComposer start 
+	InlineBox* endInlineBox;
+	int endCaretOffset;
 
-    Position endPosition = VisiblePosition(range->endPosition()).deepEquivalent();
-    //endPosition = range->endPosition();
-    //HTMLComposer end
+	Position endPosition = VisiblePosition(range->endPosition()).deepEquivalent();
 
+	if (endPosition.isNull())
+		return IntRect();
 
-//    VisiblePosition(endPosition);
-    if (endPosition.isNull())
-        return IntRect();
-    endPosition.getInlineBoxAndOffset(UPSTREAM, endInlineBox, endCaretOffset);
+	endPosition.getInlineBoxAndOffset(UPSTREAM, endInlineBox, endCaretOffset);
 
-    RenderObject* endRenderer = endPosition.deprecatedNode()->renderer();
-    ASSERT(endRenderer);
-    IntRect endCaretRect = endRenderer->localCaretRect(endInlineBox, endCaretOffset,&DummyextraWidthToEndOfLine,true);
-    // Adding for Multicolumn text selection - End	
+	RenderObject* endRenderer = endPosition.deprecatedNode()->renderer();
+	ASSERT(endRenderer);
 
-    if (endCaretRect != IntRect())
-        endCaretRect = endRenderer->localToAbsoluteQuad(FloatRect(endCaretRect)).enclosingBoundingBox();
+	int DummyextraWidthToEndOfLine = 0;
+	IntRect endCaretRect = endRenderer->localCaretRect(endInlineBox, endCaretOffset,&DummyextraWidthToEndOfLine,true);
 
-    if (startCaretRect.y() == endCaretRect.y()) {
-        // start and end are on the same line
-        return IntRect(max(startCaretRect.x(), endCaretRect.x()),
-            endCaretRect.y(),
-            endCaretRect.width(),
-            max(startCaretRect.height(), endCaretRect.height()));
-    }
+	if (endCaretRect != IntRect())
+		endCaretRect = endRenderer->localToAbsoluteQuad(FloatRect(endCaretRect)).enclosingBoundingBox();
 
-    // start and end aren't on the same line, so go from start to the end of its line
-    return IntRect(endCaretRect.x(),
-        endCaretRect.y(),
-        endCaretRect.width(),
-        endCaretRect.height());
+	if (startCaretRect.y() == endCaretRect.y()) 
+	{
+		// start and end are on the same line
+		return IntRect(max(startCaretRect.x(), endCaretRect.x()),
+		endCaretRect.y(),
+		endCaretRect.width(),
+		max(startCaretRect.height(), endCaretRect.height()));
+	}
+
+	// start and end aren't on the same line, so go from start to the end of its line
+	return IntRect(endCaretRect.x(),
+	endCaretRect.y(),
+	endCaretRect.width(),
+	endCaretRect.height());
+
 }
-// SAMSUNG CHNAGE <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
 bool Editor::shouldChangeSelection(const VisibleSelection& oldSelection, const VisibleSelection& newSelection, EAffinity affinity, bool stillSelecting) const
 {
     return client()->shouldChangeSelectedRange(oldSelection.toNormalizedRange().get(), newSelection.toNormalizedRange().get(), affinity, stillSelecting);
@@ -3029,10 +3041,10 @@ void Editor::computeAndSetTypingStyle(CSSStyleDeclaration* style, EditAction edi
     RefPtr<EditingStyle> blockStyle = typingStyle->extractAndRemoveBlockProperties();
     if (!blockStyle->isEmpty())
         applyCommand(ApplyStyleCommand::create(m_frame->document(), blockStyle.get(), editingAction));
-//HTMLComposer start	
+//SISO_HTMLComposer start
 	//Set the EditAction for setting FontValue (px)
 	typingStyle->setEditAction(editingAction);
-//HTMLComposer end    
+//SISO_HTMLComposer end
     // Set the remaining style as the typing style.
     m_frame->selection()->setTypingStyle(typingStyle);
 }

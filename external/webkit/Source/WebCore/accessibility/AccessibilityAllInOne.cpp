@@ -35,9 +35,11 @@
 #include "AccessibilityListBoxOption.cpp"
 #include "AccessibilityMediaControls.cpp"
 #include "AccessibilityObject.cpp"
+//SAMSUNG CHANGES HTML5 PROGRESS <<
 #if ENABLE(PROGRESS_TAG)
 #include "AccessibilityProgressIndicator.cpp"
 #endif
+//SAMSUNG CHANGES HTML5 PROGRESS >>
 #include "AccessibilityRenderObject.cpp"
 #include "AccessibilityScrollView.cpp"
 #include "AccessibilityScrollbar.cpp"

@@ -42,11 +42,11 @@ module ranges {
         [OldStyleObjC] void setEnd(in Node refNode, 
                                    in long offset)
             raises(RangeException, DOMException);
-		//SAMSUNG CHANGE  - Merged from P1 Gingerbread - fixes MPSG3078 Start
+	    //SAMSUNG CHANGE >> Merged from ICS to JELLYBEAN - This code is for Range.setRect() Implementation(fixes MPSG3078 Issue) Start
         [OldStyleObjC] void setRect(in long x, in long y, 
                                    in long width, in long height)
             raises(RangeException, DOMException);
-		//SAMSUNG CHANGE  - Merged from P1 Gingerbread - fixes MPSG3078 End
+	    //SAMSUNG CHANGE >> Merged from ICS to JELLYBEAN - This code is for Range.setRect() Implementation(fixes MPSG3078 Issue) End
         void setStartBefore(in Node refNode)
             raises(RangeException, DOMException);
         void setStartAfter(in Node refNode)

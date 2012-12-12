@@ -16,18 +16,18 @@
 
 #include "config.h"
 
-#include "RenderSkinNinePatch.h"
 #include "NinePatchPeeker.h"
+#include "RenderSkinNinePatch.h"
 #include "SkCanvas.h"
 #include "SkImageDecoder.h"
 #include "SkNinePatch.h"
 #include "SkRect.h"
 #include "SkStream.h"
 #include "SkTemplates.h"
-#include <utils/Asset.h>
-#include <utils/AssetManager.h>
+#include <androidfw/Asset.h>
+#include <androidfw/AssetManager.h>
+#include <androidfw/ResourceTypes.h>
 #include <utils/Log.h>
-#include <utils/ResourceTypes.h>
 
 class SkPaint;
 class SkRegion;
@@ -53,7 +53,7 @@ bool RenderSkinNinePatch::decodeAsset(AssetManager* am, const char* filename, Ni
     SkImageDecoder* decoder = SkImageDecoder::Factory(&stream);
     if (!decoder) {
         asset->close();
-        LOGE("RenderSkinNinePatch::Failed to create an image decoder");
+        ALOGE("RenderSkinNinePatch::Failed to create an image decoder");
         return false;
     }
 
@@ -68,13 +68,13 @@ bool RenderSkinNinePatch::decodeAsset(AssetManager* am, const char* filename, Ni
     decoder->setPeeker(&peeker);
     if (!decoder->decode(&stream, &ninepatch->m_bitmap, prefConfig, mode, true)) {
         asset->close();
-        LOGE("RenderSkinNinePatch::Failed to decode nine patch asset");
+        ALOGE("RenderSkinNinePatch::Failed to decode nine patch asset");
         return false;
     }
 
     asset->close();
-    if (!peeker.fPatchIsValid) {
-        LOGE("RenderSkinNinePatch::Patch data not valid");
+    if (!peeker.fPatch) {
+        ALOGE("RenderSkinNinePatch::Patch data not valid");
         return false;
     }
     void** data = &ninepatch->m_serializedPatchData;

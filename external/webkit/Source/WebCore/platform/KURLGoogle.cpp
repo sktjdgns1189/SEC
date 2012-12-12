@@ -593,7 +593,6 @@ String KURL::query() const
 
 String KURL::path() const
 {
-    // Note: KURL.cpp unescapes here.
     return m_url.componentString(m_url.m_parsed.path);
 }
 
@@ -670,16 +669,12 @@ void KURL::setPort(unsigned short i)
 {
     KURLGooglePrivate::Replacements replacements;
     String portStr;
-    if (i) {
-        portStr = String::number(i);
-        replacements.SetPort(
-            reinterpret_cast<const url_parse::UTF16Char*>(portStr.characters()),
-            url_parse::Component(0, portStr.length()));
 
-    } else {
-        // Clear any existing port when it is set to 0.
-        replacements.ClearPort();
-    }
+    portStr = String::number(i);
+    replacements.SetPort(
+        reinterpret_cast<const url_parse::UTF16Char*>(portStr.characters()),
+        url_parse::Component(0, portStr.length()));
+
     m_url.replaceComponents(replacements);
 }
 
@@ -772,7 +767,7 @@ void KURL::setPath(const String& path)
 // On Mac, this just seems to return the same URL, but with "/foo/bar" for
 // file: URLs instead of file:///foo/bar. We don't bother with any of this,
 // at least for now.
-String KURL::prettyURL() const
+String KURL::deprecatedString() const
 {
     if (!m_url.m_isValid)
         return String();

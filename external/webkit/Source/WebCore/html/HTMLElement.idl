@@ -65,7 +65,7 @@ module html {
 
                  attribute boolean spellcheck;
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
                  attribute [Conditional=MICRODATA, Reflect] boolean itemScope;
         readonly attribute [Conditional=MICRODATA] DOMSettableTokenList itemType;
                  attribute [Conditional=MICRODATA, Reflect, URL] DOMString itemId;
@@ -83,7 +83,7 @@ module html {
                      setter raises(DOMException);
 #endif
 #endif
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if defined(LANGUAGE_OBJECTIVE_C) && LANGUAGE_OBJECTIVE_C
         readonly attribute DOMString titleDisplayString;
 #endif

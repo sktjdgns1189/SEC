@@ -62,10 +62,6 @@ public:
     bool ownElementDisabled() const { return HTMLFormControlElement::disabled(); }
 
     virtual bool disabled() const;
-	
-	virtual void setSelectedState(bool);
-	
-	virtual String textIndentedToRespectGroupLabel() const;
 
 private:
     HTMLOptionElement(const QualifiedName&, Document*, HTMLFormElement* = 0);
@@ -80,6 +76,10 @@ private:
     virtual const AtomicString& formControlType() const;
 
     virtual void parseMappedAttribute(Attribute*);
+
+    virtual void setSelectedState(bool);
+
+    virtual String textIndentedToRespectGroupLabel() const;
 
     virtual void insertedIntoTree(bool);
     virtual void accessKeyAction(bool);

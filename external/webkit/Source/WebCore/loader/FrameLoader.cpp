@@ -100,10 +100,12 @@
 #include <wtf/text/CString.h>
 #include <wtf/text/StringConcatenate.h>
 
-//OSS_C1 #include "SecNativeFeature.h"
-//OSS_C1 #include "SecNativeFeatureTagWeb.h"
+// SAMSUNG CHANGE >>
+//#include "SecNativeFeature.h"         // OSS_Modify
+//#include "SecNativeFeatureTagWeb.h"
 #include <cutils/properties.h>
 #include <string>
+// SAMSUNG CHANGE <<
 #if ENABLE(SHARED_WORKERS)
 #include "SharedWorkerRepository.h"
 #endif
@@ -123,19 +125,6 @@
 #include "ArchiveFactory.h"
 #endif
 
-#ifdef ANDROID_INSTRUMENT
-#include "TimeCounter.h"
-#include "RenderArena.h"
-#endif
-
-//[Begin]  Just to enable very few log related to loading 
-#ifdef VZW_LTE
-#include <utils/Log.h>
-#define LOG_NDEBUG 1
-#define LOG_TAG "FrameLoader.cpp"
-#endif
-//[End]
-
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -151,6 +140,9 @@ static const char defaultAcceptHeader[] = "text/html,application/xhtml+xml,appli
 #endif
 
 static double storedTimeOfLastCompletedLoad;
+// SAMSUNG CHANGE : chameleon >>
+static String uaProfileURL;
+// SAMSUNG CHANGE : chameleon <<
 
 bool isBackForwardLoadType(FrameLoadType type)
 {
@@ -801,6 +793,14 @@ void FrameLoader::continueIconLoadWithDecision(IconLoadDecision iconLoadDecision
     if (!m_iconLoader)
         m_iconLoader = IconLoader::create(m_frame);
         
+// SAMSUNG CHANGE : not sending favicon request once 404 not found error received for the favicon.
+    if(m_iconLoader->getUrl() != iconURL())
+	m_iconLoader->setStatus(0);
+
+    if(m_iconLoader->status() == 404)
+		return;
+// SAMSUNG CHANGE
+
     m_iconLoader->startLoading();
 }
 
@@ -1010,7 +1010,8 @@ void FrameLoader::loadArchive(PassRefPtr<Archive> prpArchive)
 ObjectContentType FrameLoader::defaultObjectContentType(const KURL& url, const String& mimeTypeIn, bool shouldPreferPlugInsForImages)
 {
     String mimeType = mimeTypeIn;
-    String extension = url.path().substring(url.path().reverseFind('.') + 1);
+    String decodedPath = decodeURLEscapeSequences(url.path());
+    String extension = decodedPath.substring(decodedPath.reverseFind('.') + 1);
 
     // We don't use MIMETypeRegistry::getMIMETypeForPath() because it returns "application/octet-stream" upon failure
     if (mimeType.isEmpty())
@@ -1080,7 +1081,9 @@ void FrameLoader::checkIfDisplayInsecureContent(SecurityOrigin* context, const K
     if (!isMixedContent(context, url))
         return;
 
-    String message = makeString("The page at ", m_frame->document()->url().string(), " displayed insecure content from ", url.string(), ".\n");
+    // SAMSUNG CHANGE >> block url log because of LogChecker
+    //String message = makeString("The page at ", m_frame->document()->url().string(), " displayed insecure content from ", url.string(), ".\n");
+    String message = makeString("The page displayed insecure content!\n");
     m_frame->domWindow()->console()->addMessage(HTMLMessageSource, LogMessageType, WarningMessageLevel, message, 1, String());
 
     m_client->didDisplayInsecureContent();
@@ -1091,7 +1094,9 @@ void FrameLoader::checkIfRunInsecureContent(SecurityOrigin* context, const KURL&
     if (!isMixedContent(context, url))
         return;
 
-    String message = makeString("The page at ", m_frame->document()->url().string(), " ran insecure content from ", url.string(), ".\n");
+    // SAMSUNG CHANGE >> block url log because of LogChecker
+    //String message = makeString("The page at ", m_frame->document()->url().string(), " ran insecure content from ", url.string(), ".\n");
+    String message = makeString("The page ran insecure content!\n");
     m_frame->domWindow()->console()->addMessage(HTMLMessageSource, LogMessageType, WarningMessageLevel, message, 1, String());
 
     m_client->didRunInsecureContent(context, url);
@@ -1126,11 +1131,7 @@ void FrameLoader::handleFallbackContent()
 }
 
 void FrameLoader::provisionalLoadStarted()
-{    
-#ifdef ANDROID_INSTRUMENT
-    if (!m_frame->tree()->parent())
-        android::TimeCounter::reset();
-#endif
+{
     if (m_stateMachine.firstLayoutDone())
         m_stateMachine.advanceTo(FrameLoaderStateMachine::CommittedFirstRealLoad);
     m_frame->navigationScheduler()->cancel(true);
@@ -1740,7 +1741,7 @@ bool FrameLoader::shouldAllowNavigation(Frame* targetFrame) const
         Document* targetDocument = targetFrame->document();
         // FIXME: this error message should contain more specifics of why the navigation change is not allowed.
         String message = makeString("Unsafe JavaScript attempt to initiate a navigation change for frame with URL ",
-                                    "", " from frame with URL ", "", ".\n");
+                                    targetDocument->url().string(), " from frame with URL ", activeDocument->url().string(), ".\n");
 
         // FIXME: should we print to the console of the activeFrame as well?
         targetFrame->domWindow()->console()->addMessage(JSMessageSource, LogMessageType, ErrorMessageLevel, message, 1, String());
@@ -2254,8 +2255,11 @@ void FrameLoader::open(CachedFrameBase& cachedFrame)
     
     m_frame->setDocument(document);
     m_frame->setDOMWindow(cachedFrame.domWindow());
-    m_frame->domWindow()->setURL(document->url());
-    m_frame->domWindow()->setSecurityOrigin(document->securityOrigin());
+    if(m_frame->domWindow())
+    {
+    	m_frame->domWindow()->setURL(document->url());
+	m_frame->domWindow()->setSecurityOrigin(document->securityOrigin());
+    }	
 
     updateFirstPartyForCookies();
 
@@ -2320,7 +2324,7 @@ void FrameLoader::finishedLoadingDocument(DocumentLoader* loader)
     if (m_stateMachine.creatingInitialEmptyDocument())
         return;
 #endif
-    
+
 #if !ENABLE(WEB_ARCHIVE)
     m_client->finishedLoading(loader);
 #else
@@ -2511,12 +2515,6 @@ void FrameLoader::checkLoadCompleteForThisFrame()
 
             if (Page* page = m_frame->page())
                 page->progress()->progressCompleted(m_frame);
-
-#ifdef ANDROID_INSTRUMENT
-            if (!m_frame->tree()->parent() && m_frame->document()->renderArena())
-                android::TimeCounter::report(m_URL, cache()->getLiveSize(), cache()->getDeadSize(),
-                        m_frame->document()->renderArena()->reportPoolSize());
-#endif
             return;
         }
         
@@ -2766,16 +2764,16 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
             request.setHTTPHeaderField("Pragma", "no-cache");
         }
     }
-
+    
+// SAMSUNG CHANGE >>
     if (mainResource) {
-		/*OSS_C1
-		if (strcmp(SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4), "") != 0 ){
-            const char *sCscValue = SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4); 
-			OSS_C1*/
-            //OSS_C1 const char *WMLAcceptHeader = "text/html,application/xhtml+xml,text/vnd.wap.wml,application/xml;q=0.9,*/*;q=0.8";
+    // OSS_Modify
+    #if 0
+        if (strcmp(SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4), "") != 0 ){
+            const char *sCscValue = SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4);
+            const char *WMLAcceptHeader = "text/html,application/xhtml+xml,text/vnd.wap.wml,application/xml;q=0.9,*/*;q=0.8";
 
-            /*OSS_C1 
-			int length = (int)strlen(sCscValue);
+            int length = (int)strlen(sCscValue);
             char* tokenBuffer = new char[length+1];
             memset(tokenBuffer, 0, sizeof(char)*(length+1));
             strncpy(tokenBuffer, sCscValue ,length);
@@ -2795,10 +2793,11 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
             } else {
                 request.setHTTPAccept(defaultAcceptHeader);
             }
-        } else {
+        } else
+    #endif
+        {
             request.setHTTPAccept(defaultAcceptHeader);
-        } 
-		OSS_C1*/
+        }
     }
 
 	#ifdef VZW_LTE
@@ -2812,8 +2811,32 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
     char UAPStr[100] = {0,};	
     char Model[30] = {0,};
 
-       /*OSS_C1
-	   if(strcmp(SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUAProfile), "") != 0 ){
+// OSS_Modify
+#if 0
+    if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_COMMON_USECHAMELEON) == true) {
+// SAMSUNG CHANGE : chameleon >>
+        XLOGC("Frameloader fetching extra UA String - UAProfURL");
+        String UAProfURL = getUAProfURL();
+		
+        if(UAProfURL.length() != 0){
+            uaProfileURL = UAProfURL;
+        
+            int i;
+            for(i=0; i< uaProfileURL.length();i++)
+            {
+                UAPStr[i] = uaProfileURL[i];
+            }
+            UAPStr[i] = '\0';
+            // XLOGC("UAProfURL = %s", UAPStr);
+
+            request.setHTTPHeaderField("x-wap-profile", UAPStr);
+        }
+// SAMSUNG CHANGE : chameleon <<		
+
+
+    }else {
+
+       if(strcmp(SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUAProfile), "") != 0 ){
 	   	
 	   	if(strcmp(SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUserAgent), "SPR") == 0 ){
 			char Ver[30]={0,};
@@ -2827,6 +2850,7 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
 			ver_pure = ver_temp.substring(ver_temp.length()-3,3);
 			sprintf(UAPStr, SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUAProfile), Model,ver_pure.utf8().data());
 			}
+			
 			request.setHTTPHeaderField("x-wap-profile", UAPStr);
 		}
 		else if((client()->userAgent(request.url())).find("Android") != -1 )
@@ -2843,14 +2867,13 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
 				{
 					sprintf(UAPStr, SecNativeFeature::getInstance()->getString(CSCFeatureTagWeb_SetUAProfile), Model);
 				}
-	        	}		 
-			request.setHTTPHeaderField("x-wap-profile", UAPStr);	 
+				}		 
+				request.setHTTPHeaderField("x-wap-profile", UAPStr);
 	       }	
-       }
-	   OSS_C1*/	 
+       }	 
+    }
 	
 //+Enable DeviceID at Header(USA ATT Requirement) NAGSM_HYKim
-   /*OSS_C1
    if(SecNativeFeature::getInstance()->getEnableStatus(CscFeatureTag_Web_Bool_DeviceID) ==true) {
 		char buf1[PROPERTY_VALUE_MAX];
 		char StrDeviceID[PROPERTY_VALUE_MAX];
@@ -2869,9 +2892,9 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
 		
 		request.setHTTPHeaderField("x-att-deviceid",StrDeviceID);
    }
-   OSS_C1*/
 //-Enable DeviceID at Header(USA ATT Requirement) NAGSM_HYKim
-
+// SAMSUNG CHANGE <<
+#endif
     // Make sure we send the Origin header.
     addHTTPOriginIfNeeded(request, String());
 

@@ -136,7 +136,9 @@ static int os_allocate(void* ctx, ump_dd_mem * descriptor)
 		return 0; /* failure */
 	}
 
-	while (left > 0 && ((info->num_pages_allocated + pages_allocated) < info->num_pages_max))
+	while (left > 0 &&
+		((info->num_pages_allocated + pages_allocated)
+					< info->num_pages_max))
 	{
 		struct page * new_page;
 
@@ -145,14 +147,16 @@ static int os_allocate(void* ctx, ump_dd_mem * descriptor)
 #ifdef CONFIG_SEC_DEBUG_UMP_ALLOC_FAIL
 			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 #else
-			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN);
+			new_page = alloc_page(GFP_HIGHUSER |
+						__GFP_ZERO | __GFP_NOWARN);
 #endif
 		} else
 		{
 #ifdef CONFIG_SEC_DEBUG_UMP_ALLOC_FAIL
 			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_COLD);
 #else
-			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN | __GFP_COLD);
+			new_page = alloc_page(GFP_HIGHUSER | __GFP_ZERO |
+						__GFP_NOWARN | __GFP_COLD);
 #endif
 		}
 		if (NULL == new_page)
@@ -194,7 +198,7 @@ static int os_allocate(void* ctx, ump_dd_mem * descriptor)
 		MSG_ERR(("UMP memory allocated:%dkB left:%dkB\n"
 			"  Configured maximum OS memory usage:%dkB\n",
 			(pages_allocated * _MALI_OSK_CPU_PAGE_SIZE)/1024,
-			(left * _MALI_OSK_CPU_PAGE_SIZE)/1024,
+			left/1024,
 			(info->num_pages_max * _MALI_OSK_CPU_PAGE_SIZE)/1024));
 
 		while(pages_allocated)

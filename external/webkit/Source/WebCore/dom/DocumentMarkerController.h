@@ -65,9 +65,11 @@ public:
     void shiftMarkers(Node*, unsigned startOffset, int delta);
     void setMarkersActive(Range*, bool);
     void setMarkersActive(Node*, unsigned startOffset, unsigned endOffset, bool);
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
 	#if ENABLE(SPELLCHECK)
-    	int  numberOfMarkers(){return m_markers.size();} // SAMSUNG CHANGE - Spell Check
+    	int  numberOfMarkers(){return m_markers.size();}
 	#endif
+	//SAMSUNG CHANGES <<<
     DocumentMarker* markerContainingPoint(const IntPoint&, DocumentMarker::MarkerType);
     Vector<DocumentMarker> markersForNode(Node*);
     Vector<DocumentMarker> markersInRange(Range*, DocumentMarker::MarkerType);

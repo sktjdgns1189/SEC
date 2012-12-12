@@ -35,11 +35,13 @@ using namespace HTMLNames;
 
 HTMLOListElement::HTMLOListElement(const QualifiedName& tagName, Document* document)
     : HTMLElement(tagName, document)
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
     , m_start(0xBADBEEF)
     , m_itemCount(0)
     , m_hasExplicitStart(false)
     , m_isReversed(false)
     , m_shouldRecalculateItemCount(false)
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
 {
     ASSERT(hasTagName(olTag));
 }
@@ -78,6 +80,7 @@ void HTMLOListElement::parseMappedAttribute(Attribute* attr)
         else if (attr->value() == "1")
             addCSSProperty(attr, CSSPropertyListStyleType, CSSValueDecimal);
     } else if (attr->name() == startAttr) {
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
         int oldStart = start();
         bool canParse;
         int parsedStart = attr->value().toInt(&canParse);
@@ -92,6 +95,7 @@ void HTMLOListElement::parseMappedAttribute(Attribute* attr)
             return;
         m_isReversed = reversed;
         updateItemValues();
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE >>
     } else
         HTMLElement::parseMappedAttribute(attr);
 }
@@ -101,6 +105,7 @@ void HTMLOListElement::setStart(int start)
     setAttribute(startAttr, String::number(start));
 }
 
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
 void HTMLOListElement::updateItemValues()
 {
     for (RenderListItem* listItem = RenderListItem::nextListItem(renderer()); listItem; listItem = RenderListItem::nextListItem(renderer(), listItem))
@@ -116,6 +121,7 @@ void HTMLOListElement::recalculateItemCount()
 
     m_shouldRecalculateItemCount = false;
 }
+//SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE >>
 
 }
 

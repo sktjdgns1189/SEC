@@ -44,6 +44,12 @@
 #include "Timer.h"
 #include <wtf/Forward.h>
 #include <wtf/HashSet.h>
+// SAMSUNG CHANGE : chameleon >>
+#include <cutils/log.h>
+#include <wtf/text/CString.h>
+#undef XLOGC
+#define XLOGC(...) android_printLog(ANDROID_LOG_DEBUG, "FRAMELOADER ISSUE :", __VA_ARGS__)
+// SAMSUNG CHANGE : chameleon <<
 
 namespace WebCore {
 
@@ -438,6 +444,13 @@ private:
     mutable SubframeLoader m_subframeLoader;
     mutable FrameLoaderStateMachine m_stateMachine;
 
+// SAMSUNG CHANGE : chameleon >>
+public: 
+    void setUAProfURL(String UAProfURL){	
+        m_UAProfURL = UAProfURL;
+    }	
+    String getUAProfURL() {return m_UAProfURL;}
+// SAMSUNG CHANGE : chameleon <<
     FrameState m_state;
     FrameLoadType m_loadType;
 
@@ -456,6 +469,9 @@ private:
     bool m_inStopAllLoaders;
 
     String m_outgoingReferrer;
+// SAMSUNG CHANGE : chameleon >>
+    String m_UAProfURL;
+// SAMSUNG CHANGE : chameleon <<
 
     bool m_isExecutingJavaScriptFormAction;
 

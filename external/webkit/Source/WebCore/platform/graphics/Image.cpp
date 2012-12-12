@@ -152,10 +152,10 @@ void Image::drawTiled(GraphicsContext* ctxt, const FloatRect& dstRect, const Flo
         return;
     }
     
-    // FIXME: We do not support 'round' yet.  For now just map it to 'repeat'.
-    if (hRule == RoundTile)
+    // FIXME: We do not support 'round' or 'space' yet. For now just map them to 'repeat'.
+    if (hRule == RoundTile || hRule == SpaceTile) // SAMSUNG CHANGE - CSS3 Ring Mark test cases
         hRule = RepeatTile;
-    if (vRule == RoundTile)
+    if (vRule == RoundTile || vRule == SpaceTile) // SAMSUNG CHANGE - CSS3 Ring Mark test cases
         vRule = RepeatTile;
 
     FloatSize scale = calculatePatternScale(dstRect, srcRect, hRule, vRule);

@@ -95,7 +95,7 @@ public:
     void sslClientCert(EVP_PKEY* pkey, net::X509Certificate* chain);
     void requestClientCert(net::SSLCertRequestInfo* cert);
     //SAMSUNG_CHANGES >>
-	WebFrame* frame() const {return m_webFrame;}
+    WebFrame* frame() const {return m_webFrame;}
     //SAMSUNG_CHANGES <<
     // Handle to the chrome IO thread
     static base::Thread* ioThread();
@@ -113,6 +113,7 @@ private:
     bool m_isCertMimeType;
 //SAMSUNG CHANGE >>
     bool m_isDownLoadableContent;
+	bool checkUtfBytes(const char* bytes /*, const char** errorKind */); // SAMSUNG CHANGE : blog.naver.com attachment file crash
 // SAMSUNG CHANGE <<
     bool m_cancelling;
     bool m_sync;

@@ -83,14 +83,6 @@
 #include <wtf/UnusedParam.h>
 #include <wtf/text/StringConcatenate.h>
 
-#ifdef ANDROID_INSTRUMENT
-#include "TimeCounter.h"
-#endif
-
-#if PLATFORM(ANDROID)
-#include <wtf/text/CString.h>
-#endif
-
 namespace WebCore {
 
 // Static list of registered extensions
@@ -174,8 +166,8 @@ void V8Proxy::reportUnsafeAccessTo(Frame* target)
 
     // FIXME: This error message should contain more specifics of why the same
     // origin check has failed.
-    String str = makeString("Unsafe JavaScript attempt to access frame with URL ", "",
-                            " from frame with URL ", "", ". Domains, protocols and ports must match.\n");
+    String str = makeString("Unsafe JavaScript attempt to access frame with URL ", targetDocument->url().string(),
+                            " from frame with URL ", sourceDocument->url().string(), ". Domains, protocols and ports must match.\n");
 
     // Build a console message with fake source ID and line number.
     const String kSourceID = "";
@@ -210,16 +202,6 @@ V8Proxy::~V8Proxy()
 }
 
 v8::Handle<v8::Script> V8Proxy::compileScript(v8::Handle<v8::String> code, const String& fileName, const TextPosition0& scriptStartPosition, v8::ScriptData* scriptData)
-#ifdef ANDROID_INSTRUMENT
-{
-    android::TimeCounter::start(android::TimeCounter::JavaScriptParseTimeCounter);
-    v8::Handle<v8::Script> script = compileScriptInternal(code, fileName, scriptStartPosition, scriptData);
-    android::TimeCounter::record(android::TimeCounter::JavaScriptParseTimeCounter, __FUNCTION__);
-    return script;
-}
-
-v8::Handle<v8::Script> V8Proxy::compileScriptInternal(v8::Handle<v8::String> code, const String& fileName, const TextPosition0& scriptStartPosition, v8::ScriptData* scriptData)
-#endif
 {
     const uint16_t* fileNameString = fromWebCoreString(fileName);
     v8::Handle<v8::String> name = v8::String::New(fileNameString, fileName.length());
@@ -399,16 +381,6 @@ v8::Local<v8::Value> V8Proxy::evaluate(const ScriptSourceCode& source, Node* nod
 }
 
 v8::Local<v8::Value> V8Proxy::runScript(v8::Handle<v8::Script> script, bool isInlineCode)
-#ifdef ANDROID_INSTRUMENT
-{
-    android::TimeCounter::start(android::TimeCounter::JavaScriptExecuteTimeCounter);
-    v8::Local<v8::Value> result = runScriptInternal(script, isInlineCode);
-    android::TimeCounter::record(android::TimeCounter::JavaScriptExecuteTimeCounter, __FUNCTION__);
-    return result;
-}
-
-v8::Local<v8::Value> V8Proxy::runScriptInternal(v8::Handle<v8::Script> script, bool isInlineCode)
-#endif
 {
     if (script.IsEmpty())
         return notHandledByInterceptor();
@@ -473,9 +445,6 @@ v8::Local<v8::Value> V8Proxy::runScriptInternal(v8::Handle<v8::Script> script, b
 
 v8::Local<v8::Value> V8Proxy::callFunction(v8::Handle<v8::Function> function, v8::Handle<v8::Object> receiver, int argc, v8::Handle<v8::Value> args[])
 {
-#ifdef ANDROID_INSTRUMENT
-    android::TimeCounter::start(android::TimeCounter::JavaScriptExecuteTimeCounter);
-#endif
     V8GCController::checkMemoryUsage();
     v8::Local<v8::Value> result;
     {
@@ -522,9 +491,6 @@ v8::Local<v8::Value> V8Proxy::callFunction(v8::Handle<v8::Function> function, v8
     if (v8::V8::IsDead())
         handleFatalErrorInV8();
 
-#ifdef ANDROID_INSTRUMENT
-    android::TimeCounter::record(android::TimeCounter::JavaScriptExecuteTimeCounter, __FUNCTION__);
-#endif
     return result;
 }
 

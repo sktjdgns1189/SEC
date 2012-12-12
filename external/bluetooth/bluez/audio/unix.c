@@ -828,7 +828,7 @@ static void a2dp_config_complete(struct avdtp *session, struct a2dp_sep *sep,
 	uint16_t imtu, omtu;
 	GSList *caps;
 #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
-	struct avdtp_service_capability *protection_cap;
+	struct avdtp_service_capability *protection;
 #endif
 
 	if (!g_slist_find(clients, client)) {
@@ -867,14 +867,15 @@ static void a2dp_config_complete(struct avdtp *session, struct a2dp_sep *sep,
 	rsp->link_mtu = omtu;
 
 #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
-	protection_cap = avdtp_get_protection_cap(stream);
+	protection = avdtp_get_protection_cap(stream);
 
 	/* Initialize to Zero */
 	rsp->content_protection = 0;
 
-	if (protection_cap != NULL) {
-		if (protection_cap->length >= 2) {
-			struct avdtp_cp_cap *prot = (void *)protection_cap->data;
+	if (protection != NULL) {
+		if (protection->length >= 2) {
+			struct avdtp_cp_cap *prot = (void *)protection->data;
+
 			rsp->content_protection = (prot->cp_type_msb << 8) | prot->cp_type_lsb;
 		}
 		rsp->content_protection = 2; //This is SET to SCMS-T if the protection capability is received

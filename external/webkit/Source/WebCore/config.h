@@ -108,7 +108,12 @@
 #endif
 
 #endif /* OS(WINDOWS) */
-
+/* SAMSUNG CHANGE */ 
+#if PLATFORM(ANDROID)
+#include <JavaScriptCore/config.h>
+#define ENABLE_WML 1
+#endif /* PLATFORM(ANDROID) */
+/* SAMSUNG CHANGE */ 
 #ifdef __cplusplus
 
 // These undefs match up with defines in WebCorePrefix.h for Mac OS X.

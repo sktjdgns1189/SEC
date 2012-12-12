@@ -32,7 +32,6 @@
 // Samsung Change - HTML5 Web Notification	>>
 #include "NotificationPresenterImpl.h"
 // Samsung Change - HTML5 Web Notification	<<
-
 #include "PopupMenu.h"
 #include "SearchPopupMenu.h"
 #include "Timer.h"
@@ -60,7 +59,6 @@ namespace android {
                                 // Samsung Change - HTML5 Web Notification	>>
                                 , m_notificationPresenter(0)
                                 // Samsung Change - HTML5 Web Notification	<<
-
                                 { }
         virtual void chromeDestroyed();
         
@@ -112,6 +110,10 @@ namespace android {
         virtual void closeWindowSoon();
         
         virtual void runJavaScriptAlert(Frame*, const String&);
+// Samsung Change - Bing search >>
+        virtual int isBingSearch();
+        virtual bool setBingSearch();
+// Samsung Change - Bing search <<
         virtual bool runJavaScriptConfirm(Frame*, const String&);
         virtual bool runJavaScriptPrompt(Frame*, const String& message, const String& defaultValue, String& result);
         virtual void setStatusbarText(const String&);
@@ -160,10 +162,13 @@ namespace android {
         // Android-specific
         void provideGeolocationPermissions(const String &origin, bool allow, bool remember);
         void storeGeolocationPermissions();
+    // Samsung Change - HTML5 FileSystem API	>>
+	void storeFileSystemQuotaUsage();
+    // Samsung Change - HTML5 FileSystem API	<<
+
 	// Samsung Change - HTML5 Web Notification	>>
   	void storeNotificationPermissions();
 	// Samsung Change - HTML5 Web Notification	<<
-
         void onMainFrameLoadStarted();
 
         virtual void runOpenPanel(Frame*, PassRefPtr<FileChooser>);
@@ -178,7 +183,6 @@ namespace android {
         void setWebFrame(android::WebFrame* webframe);
         android::WebFrame* webFrame() { return m_webFrame; }
         void wakeUpMainThreadWithNewQuota(long long newQuota);
-
 	// Samsung Change - HTML5 Web Notification	>>
         void provideNotificationPermissions(const String &origin, bool allow);
         void dispatchNotificationEvents(const String &eventName, int counter);
@@ -222,10 +226,10 @@ namespace android {
         virtual NotificationPresenter* notificationPresenter() const ;
 #endif
 	// Samsung Change - HTML5 Web Notification	<<
-//SAMSUNG CHANGE HTML5 COLOR <<
-	    virtual void createColorChooser(ColorChooserClient*, const IntRect&);
-//SAMSUNG CHANGE HTML5 COLOR >>
 
+//SAMSUNG CHANGE HTML5 COLOR <<
+        virtual void createColorChooser(ColorChooserClient*, const IntRect&);
+//SAMSUNG CHANGE HTML5 COLOR >>
     private:
         android::WebFrame* m_webFrame;
         // The Geolocation permissions manager.

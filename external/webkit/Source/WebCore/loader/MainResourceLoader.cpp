@@ -52,8 +52,9 @@
 #include "Settings.h"
 #include <wtf/CurrentTime.h>
 
-//OSS_C1 #include "SecNativeFeature.h"
-//OSS_C1 #include "SecNativeFeatureTagWeb.h"
+// OSS_Modify
+//#include "SecNativeFeature.h"
+//#include "SecNativeFeatureTagWeb.h"
 #include <cutils/properties.h>
 #include <string>
 
@@ -399,8 +400,9 @@ void MainResourceLoader::didReceiveResponse(const ResourceResponse& r)
 //+Change xhtml to html (China-Telecom requirement)
     // There are so many Web-Servers that don't follow xhtml standard (parse error on xhtml). But ChinaTelecom requests NOT to display parse error screen.
     // For both mimetype ( "application/xhtml+xml" and "application/vnd.wap.xhtml+xml mime" ), parse document as "text/html"
-    /*OSS_C1
-	if(SecNativeFeature::getInstance()->getEnableStatus(CscFeatureTagWeb_ParseXHtmlToHtml)) {
+// OSS_Modify
+#if 0
+    if(SecNativeFeature::getInstance()->getEnableStatus(CscFeatureTagWeb_ParseXHtmlToHtml)) {
         m_response = r;
         if (r.mimeType() == "application/xhtml+xml") {
             m_response.setMimeType("text/html") ;
@@ -411,13 +413,13 @@ void MainResourceLoader::didReceiveResponse(const ResourceResponse& r)
         m_documentLoader->setResponse(m_response);
     }
     else
+#endif
 //-Change xhtml to html (China-Telecom requirement)
     {
         m_documentLoader->setResponse(r);
 
         m_response = r;
     }
-	OSS_C1*/
 
     ASSERT(!m_waitingForContentPolicy);
     m_waitingForContentPolicy = true;

@@ -26,7 +26,6 @@
 #ifndef FrameLoaderClientAndroid_h
 #define FrameLoaderClientAndroid_h
 
-#include "CacheBuilder.h"
 #include "FrameLoaderClient.h"
 #include "ResourceResponse.h"
 #include "WebIconDatabase.h"
@@ -156,8 +155,8 @@ namespace android {
         virtual bool canHandleRequest(const ResourceRequest&) const;
         virtual bool canShowMIMEType(const String& MIMEType) const;
 //SAMSUNG CHANGE >>
-	virtual bool isOmaorDrmMimeType(const String& mimeType) const;
-	     virtual bool ispdfMimeType(const String& mimeType) const;  //SAMSUNG CHANGE - MPSG4642
+        virtual bool isOmaorDrmMimeType(const String& mimeType) const;
+        virtual bool ispdfMimeType(const String& mimeType) const;  //SAMSUNG CHANGE - MPSG4642
 // SAMSUNG CHANGE <<
         virtual bool canShowMIMETypeAsHTML(const String& MIMEType) const;
         virtual bool representationExistsForURLScheme(const String& URLScheme) const;
@@ -186,9 +185,6 @@ namespace android {
 
         virtual void dispatchDidBecomeFrameset(bool isFrameSet);
 
-		virtual void didSaveToPageCache();
-        virtual void didRestoreFromPageCache();
-        
         virtual bool canCachePage() const;
         virtual void download(ResourceHandle*, const ResourceRequest&, const ResourceRequest&, const ResourceResponse&);
 
@@ -207,14 +203,12 @@ namespace android {
         virtual void documentElementAvailable();
         virtual void didPerformFirstNavigation() const;
 
-#if USE(V8)
-        // TODO(benm): Implement
+        // TODO: Implement
         virtual void didCreateScriptContextForFrame() { }
         virtual void didDestroyScriptContextForFrame() { }
         virtual void didCreateIsolatedScriptContext() { }
 
-         virtual bool allowScriptExtension(const String& extensionName, int extensionGroup) { return false; }
-#endif
+        virtual bool allowScriptExtension(const String& extensionName, int extensionGroup) { return false; }
         
         virtual void registerForIconNotification(bool listen = true);
 
@@ -225,23 +219,21 @@ namespace android {
         // WebIconDatabaseClient api
         virtual void didAddIconForPageUrl(const String& pageUrl);
         
-        // FIXME: this doesn't really go here, but it's better than Frame
-        CacheBuilder& getCacheBuilder() { return m_cacheBuilder; }
-
         void enableOnDemandPlugins() { m_onDemandPluginsEnabled = true; }
 
         void dispatchDidChangeIcons();
         void dispatchWillSendSubmitEvent(HTMLFormElement*);
+		
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-	    void didFinishSpellCheck(int misspelledWordCount); // SAMSUNG CHANGE - Spell Check
+	    void didFinishSpellCheck(int misspelledWordCount);
 #endif
+//SAMSUNG CHANGES <<<	
+    
 
-//SAMSUNG CHANGE +
-        void storeAnimationTimer(Image*);
-//SAMSUNG CHANGE -
-
+        virtual void didSaveToPageCache() { }
+        virtual void didRestoreFromPageCache() { }
     private:
-        CacheBuilder m_cacheBuilder;
         Frame* m_frame;
         WebFrame* m_webFrame;
         PluginManualLoader* m_manualLoader;
@@ -277,7 +269,6 @@ namespace android {
             ErrorFileNotFound          = -14,
             ErrorTooManyRequests       = -15
         };
-        friend class CacheBuilder;
     };
 
 }

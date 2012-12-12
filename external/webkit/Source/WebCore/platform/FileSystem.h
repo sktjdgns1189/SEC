@@ -143,10 +143,8 @@ const PlatformFileHandle invalidPlatformFileHandle = -1;
 
 enum FileOpenMode {
     OpenForRead = 0,
-    OpenForWrite ,
-    //SAMSUNG CHANGE HTML5 FileSystem API >>
-    OpenForWriteOnly
-    //SAMSUNG CHANGE HTML5 FileSystem API <<
+    OpenForWrite,
+    OpenForWriteOnly //SAMSUNG CHANGE HTML5 FILEAPI <<
 };
 
 enum FileSeekOrigin {
@@ -164,8 +162,10 @@ static const char PlatformFilePathSeparator = '/';
 void revealFolderInOS(const String&);
 bool fileExists(const String&);
 bool deleteFile(const String&);
-bool deleteEmptyDirectory(const String&);
+//SAMSUNG CHANGE HTML5 FILEAPI <<
 bool deleteDirectory(const String&);
+//SAMSUNG CHANGE HTML5 FILEAPI >>
+bool deleteEmptyDirectory(const String&);
 bool getFileSize(const String&, long long& result);
 bool getFileModificationTime(const String&, time_t& result);
 String pathByAppendingComponent(const String& path, const String& component);
@@ -194,11 +194,11 @@ bool truncateFile(PlatformFileHandle, long long offset);
 int writeToFile(PlatformFileHandle, const char* data, int length);
 // Returns number of bytes actually written if successful, -1 otherwise.
 int readFromFile(PlatformFileHandle, char* data, int length);
-/*	SISO_HTMLCOMPOSER begin*/
+//SISO_HTMLComposer start
 #if PLATFORM(ANDROID)
 CString openLocalFile(const String& basePath, const String& extension , PlatformFileHandle& handle);
 #endif
-/*SISO_HTMLCOMPOSER  END*/
+//SISO_HTMLComposer end
 
 // Functions for working with loadable modules.
 bool unloadModule(PlatformModule);

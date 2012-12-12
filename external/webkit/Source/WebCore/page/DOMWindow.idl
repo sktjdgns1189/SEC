@@ -79,6 +79,11 @@ module window {
                                            in [Optional] DOMObject dialogArgs,
                                            in [Optional] DOMString featureArgs);
 
+        // Samsung Change - Bing search >>
+        unsigned long isBingCurrentSearchDefault();
+        boolean setBingCurrentSearchDefault();
+        // Samsung Change - Bing search <<
+
         void alert(in DOMString message);
         boolean confirm(in DOMString message);
         [ConvertNullStringTo=Null] DOMString prompt(in DOMString message,
@@ -179,6 +184,7 @@ module window {
 #endif
 #if defined(ENABLE_INDEXED_DATABASE) && ENABLE_INDEXED_DATABASE
         readonly attribute [EnabledAtRuntime] IDBFactory webkitIndexedDB;
+        readonly attribute [EnabledAtRuntime] IDBFactory indexedDB; // SAMSUNG CHANGE Ring Mark Tests
 
         attribute [EnabledAtRuntime] IDBCursorConstructor webkitIDBCursor;
         attribute [EnabledAtRuntime] IDBDatabaseConstructor webkitIDBDatabase;
@@ -424,6 +430,7 @@ module window {
         attribute [Conditional=DATAGRID] HTMLDataGridElementConstructor HTMLDataGridElement;
         attribute [Conditional=DATAGRID] HTMLDataGridCellElementConstructor HTMLDataGridCellElement;
         attribute [Conditional=DATAGRID] HTMLDataGridColElementConstructor HTMLDataGridColElement;
+	attribute [Conditional=DATALIST] HTMLDataListElementConstructor HTMLDataListElement;
         attribute HTMLDListElementConstructor HTMLDListElement;
         attribute HTMLDirectoryElementConstructor HTMLDirectoryElement;
         attribute HTMLDivElementConstructor HTMLDivElement;
@@ -511,7 +518,7 @@ module window {
         attribute [JSCCustomGetter] Int32ArrayConstructor Int32Array; // Usable with new operator
         attribute [JSCCustomGetter] Uint32ArrayConstructor Uint32Array; // Usable with new operator
         attribute [JSCCustomGetter] Float32ArrayConstructor Float32Array; // Usable with new operator
-        attribute [JSCCustomGetter] Float64ArrayConstructor Float64Array; // Usable with new operator
+        attribute [JSCCustomGetter] Float64ArrayConstructor Float64Array; // Usable with new operator 
         attribute [JSCCustomGetter] DataViewConstructor DataView; // Usable with new operator
 
         attribute [JSCCustomGetter,Conditional=WEB_AUDIO,EnabledAtRuntime] AudioContextConstructor webkitAudioContext; // Usable with new operator
@@ -524,6 +531,7 @@ module window {
         attribute MouseEventConstructor MouseEvent;
         attribute MutationEventConstructor MutationEvent;
         attribute OverflowEventConstructor OverflowEvent;
+        attribute PopStateEventConstructor PopStateEvent;
         attribute PageTransitionEventConstructor PageTransitionEvent;
         attribute ProgressEventConstructor ProgressEvent;
         attribute TextEventConstructor TextEvent;

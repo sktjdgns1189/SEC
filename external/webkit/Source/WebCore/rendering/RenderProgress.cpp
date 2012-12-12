@@ -44,9 +44,7 @@ RenderProgress::RenderProgress(HTMLProgressElement* element)
     , m_animationDuration(0)
     , m_animating(false)
     , m_animationTimer(this, &RenderProgress::animationTimerFired)
-//SAMSUNG PROGRESS TAG CHANGES <<
-    , m_progressValue(0)
-//SAMSUNG PROGRESS TAG CHANGES >>
+    , m_progressValue(0) //SAMSUNG CHANGES HTML5 PROGRESS 
 {
 }
 
@@ -104,8 +102,8 @@ HTMLProgressElement* RenderProgress::progressElement() const
 {
     return static_cast<HTMLProgressElement*>(node());
 }    
+//SAMSUNG CHANGES HTML5 PROGRESS <<
 
-//SAMSUNG PROGRESS TAG CHANGES <<
 void RenderProgress::setProgressValue(int val)
 {
     m_progressValue = val;
@@ -115,8 +113,7 @@ int RenderProgress::progressValue()
 {
     return m_progressValue;
 }
-//SAMSUNG PROGRESS TAG CHANGES >>
-
+//SAMSUNG CHANGES HTML5 PROGRESS >>
 } // namespace WebCore
 
 #endif

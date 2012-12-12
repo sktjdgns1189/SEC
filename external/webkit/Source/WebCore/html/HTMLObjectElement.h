@@ -107,13 +107,12 @@ private:
 
     virtual const AtomicString& formControlName() const;
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     AtomicString m_id;
     String m_classId;
     bool m_docNamedItem : 1;

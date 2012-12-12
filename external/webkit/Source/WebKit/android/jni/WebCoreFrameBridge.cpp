@@ -60,6 +60,8 @@
 #include "IconDatabase.h"
 #include "Image.h"
 #include "InspectorClientAndroid.h"
+#include "JavaNPObjectV8.h"
+#include "JavaInstanceJobjectV8.h"
 #include "KURL.h"
 #include "Page.h"
 #include "PageCache.h"
@@ -81,7 +83,6 @@
 #include "WebArchiveAndroid.h"
 #include "WebCache.h"
 #include "WebCoreJni.h"
-#include "WebCoreResourceLoader.h"
 #include "WebHistory.h"
 #include "WebIconDatabase.h"
 #include "WebFrameView.h"
@@ -90,6 +91,8 @@
 #include "android_graphics.h"
 #include "jni.h"
 #include "wds/DebugServer.h"
+#include <AndroidLog.h>
+#include <utils/Log.h>
 
 #include <JNIUtility.h>
 #include <JNIHelp.h>
@@ -99,29 +102,12 @@
 #include <android_runtime/android_util_AssetManager.h>
 #include <openssl/x509.h>
 #include <utils/misc.h>
-#include <utils/AssetManager.h>
+#include <androidfw/AssetManager.h>
 #include <wtf/CurrentTime.h>
 #include <wtf/Platform.h>
 #include <wtf/text/AtomicString.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
-
-#if USE(JSC)
-#include "GCController.h"
-#include "JSDOMWindow.h"
-#include "JavaInstanceJSC.h"
-#include <runtime_object.h>
-#include <runtime_root.h>
-#include <runtime/JSLock.h>
-#elif USE(V8)
-#include "JavaNPObjectV8.h"
-#include "JavaInstanceJobjectV8.h"
-#include "V8Counters.h"
-#endif  // USE(JSC)
-
-#ifdef ANDROID_INSTRUMENT
-#include "TimeCounter.h"
-#endif
 
 #if ENABLE(WEB_AUTOFILL)
 #include "autofill/WebAutofill.h"
@@ -133,12 +119,6 @@ static String* gUploadFileLabel;
 static String* gResetLabel;
 static String* gSubmitLabel;
 static String* gNoFileChosenLabel;
-// Samsung Change - fix for MPSG100004640	>>
-static String* gEmailTextTypeMismatch;
-static String* gEmailMultipleTextTypeMismatch;
-static String* gURLTextMismatch;
-static String* gPatternMismatch;
-// Samsung Change - fix for MPSG100004640	<<
 
 String* WebCore::PlatformBridge::globalLocalizedName(
         WebCore::PlatformBridge::rawResId resId)
@@ -152,16 +132,6 @@ String* WebCore::PlatformBridge::globalLocalizedName(
         return gSubmitLabel;
     case WebCore::PlatformBridge::FileUploadNoFileChosenLabel:
         return gNoFileChosenLabel;
-    // Samsung Change - fix for MPSG100004640	>>
-    case WebCore::PlatformBridge::EmailTextTypeMismatch:
-        return gEmailTextTypeMismatch;
-    case WebCore::PlatformBridge::EmailMultipleTextTypeMismatch:
-        return gEmailMultipleTextTypeMismatch;
-    case WebCore::PlatformBridge::URLTextMismatch:
-        return gURLTextMismatch;
-    case WebCore::PlatformBridge::PatternMismatch:
-        return gPatternMismatch;
-    // Samsung Change - fix for MPSG100004640	<<
 
     default:
         return 0;
@@ -187,20 +157,6 @@ void initGlobalLocalizedName(WebCore::PlatformBridge::rawResId resId,
     case WebCore::PlatformBridge::FileUploadNoFileChosenLabel:
         pointer = &gNoFileChosenLabel;
         break;
-        // Samsung Change - fix for MPSG100004640	>>
-    case WebCore::PlatformBridge::EmailTextTypeMismatch:
-        pointer = &gEmailTextTypeMismatch;
-        break;
-    case WebCore::PlatformBridge::EmailMultipleTextTypeMismatch:
-        pointer = &gEmailMultipleTextTypeMismatch;
-        break;
-    case WebCore::PlatformBridge::URLTextMismatch:
-        pointer = &gURLTextMismatch;
-        break;
-    case WebCore::PlatformBridge::PatternMismatch:
-        pointer = &gPatternMismatch;
-        break;
-        // Samsung Change - fix for MPSG100004640	<<
     default:
         return;
     }
@@ -239,6 +195,10 @@ struct WebFrame::JavaBrowserFrame
     jmethodID   mCloseWindow;
     jmethodID   mDecidePolicyForFormResubmission;
     jmethodID   mRequestFocus;
+// Samsung Change - Bing search >>
+    jmethodID   misBingSearch;
+    jmethodID   msetBingSearch;
+// Samsung Change - Bing search <<
     jmethodID   mGetRawResFilename;
     jmethodID   mDensity;
     jmethodID   mGetFileSize;
@@ -253,12 +213,13 @@ struct WebFrame::JavaBrowserFrame
     jmethodID   mShouldSaveFormData;
     jmethodID   mSaveFormData;
     jmethodID   mAutoLogin;
+	
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-	jmethodID   mSpellCheckFinished; // SAMSUNG CHANGE - Spell Check
+	jmethodID   mSpellCheckFinished;
 #endif
-// SAMSUNG CHANGE HTML5 History <<
-    jmethodID   mUpdateUrl;
-// SAMSUNG CHANGE HTML5 History >>
+//SAMSUNG CHANGES <<<	
+    
     AutoJObject frame(JNIEnv* env) {
         return getRealObject(env, mObj);
     }
@@ -280,8 +241,6 @@ WebFrame::WebFrame(JNIEnv* env, jobject obj, jobject historyList, WebCore::Page*
     mJavaFrame = new JavaBrowserFrame;
     mJavaFrame->mObj = env->NewWeakGlobalRef(obj);
     mJavaFrame->mHistoryList = env->NewWeakGlobalRef(historyList);
-    mJavaFrame->mStartLoadingResource = env->GetMethodID(clazz, "startLoadingResource",
-            "(ILjava/lang/String;Ljava/lang/String;Ljava/util/HashMap;[BJIZZZLjava/lang/String;Ljava/lang/String;)Landroid/webkit/LoadListener;");
     mJavaFrame->mMaybeSavePassword = env->GetMethodID(clazz, "maybeSavePassword",
             "([BLjava/lang/String;Ljava/lang/String;)V");
     mJavaFrame->mShouldInterceptRequest =
@@ -317,6 +276,10 @@ WebFrame::WebFrame(JNIEnv* env, jobject obj, jobject historyList, WebCore::Page*
             "decidePolicyForFormResubmission", "(I)V");
     mJavaFrame->mRequestFocus = env->GetMethodID(clazz, "requestFocus",
             "()V");
+// Samsung Change - Bing search >>
+    mJavaFrame->misBingSearch = env->GetMethodID(clazz, "isBingSearch", "()I");
+    mJavaFrame->msetBingSearch = env->GetMethodID(clazz, "setBingSearch", "()Z");
+// Samsung Change - Bing search <<
     mJavaFrame->mGetRawResFilename = env->GetMethodID(clazz, "getRawResFilename",
             "(I)Ljava/lang/String;");
     mJavaFrame->mDensity = env->GetMethodID(clazz, "density","()F");
@@ -335,54 +298,58 @@ WebFrame::WebFrame(JNIEnv* env, jobject obj, jobject historyList, WebCore::Page*
     mJavaFrame->mSaveFormData = env->GetMethodID(clazz, "saveFormData", "(Ljava/util/HashMap;)V");
     mJavaFrame->mAutoLogin = env->GetMethodID(clazz, "autoLogin",
             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+			
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-    mJavaFrame->mSpellCheckFinished = env->GetMethodID(clazz, "spellCheckFinished", "(I)V"); // SAMSUNG CHANGE - Spell Check
+    mJavaFrame->mSpellCheckFinished = env->GetMethodID(clazz, "spellCheckFinished", "(I)V");
 #endif
-// SAMSUNG CHANGE HTML5 History <<
-    mJavaFrame->mUpdateUrl = env->GetMethodID(clazz, "UpdateUrl","(Ljava/lang/String;)V");
-// SAMSUNG CHANGE HTML5 History >>
-	env->DeleteLocalRef(clazz);
+//SAMSUNG CHANGES <<<	
+    
+    env->DeleteLocalRef(clazz);
 
-    LOG_ASSERT(mJavaFrame->mStartLoadingResource, "Could not find method startLoadingResource");
-    LOG_ASSERT(mJavaFrame->mMaybeSavePassword, "Could not find method maybeSavePassword");
-    LOG_ASSERT(mJavaFrame->mShouldInterceptRequest, "Could not find method shouldInterceptRequest");
-    LOG_ASSERT(mJavaFrame->mLoadStarted, "Could not find method loadStarted");
-    LOG_ASSERT(mJavaFrame->mTransitionToCommitted, "Could not find method transitionToCommitted");
-    LOG_ASSERT(mJavaFrame->mLoadFinished, "Could not find method loadFinished");
-    LOG_ASSERT(mJavaFrame->mReportError, "Could not find method reportError");
-    LOG_ASSERT(mJavaFrame->mSetTitle, "Could not find method setTitle");
-    LOG_ASSERT(mJavaFrame->mWindowObjectCleared, "Could not find method windowObjectCleared");
-    LOG_ASSERT(mJavaFrame->mSetProgress, "Could not find method setProgress");
-    LOG_ASSERT(mJavaFrame->mDidReceiveIcon, "Could not find method didReceiveIcon");
-    LOG_ASSERT(mJavaFrame->mDidReceiveTouchIconUrl, "Could not find method didReceiveTouchIconUrl");
-    LOG_ASSERT(mJavaFrame->mUpdateVisitedHistory, "Could not find method updateVisitedHistory");
-    LOG_ASSERT(mJavaFrame->mHandleUrl, "Could not find method handleUrl");
-    LOG_ASSERT(mJavaFrame->mCreateWindow, "Could not find method createWindow");
-    LOG_ASSERT(mJavaFrame->mCloseWindow, "Could not find method closeWindow");
-    LOG_ASSERT(mJavaFrame->mDecidePolicyForFormResubmission, "Could not find method decidePolicyForFormResubmission");
-    LOG_ASSERT(mJavaFrame->mRequestFocus, "Could not find method requestFocus");
-    LOG_ASSERT(mJavaFrame->mGetRawResFilename, "Could not find method getRawResFilename");
-    LOG_ASSERT(mJavaFrame->mDensity, "Could not find method density");
-    LOG_ASSERT(mJavaFrame->mGetFileSize, "Could not find method getFileSize");
-    LOG_ASSERT(mJavaFrame->mGetFile, "Could not find method getFile");
-    LOG_ASSERT(mJavaFrame->mDidReceiveAuthenticationChallenge, "Could not find method didReceiveAuthenticationChallenge");
-    LOG_ASSERT(mJavaFrame->mReportSslCertError, "Could not find method reportSslCertError");
-    LOG_ASSERT(mJavaFrame->mRequestClientCert, "Could not find method requestClientCert");
-    LOG_ASSERT(mJavaFrame->mDownloadStart, "Could not find method downloadStart");
-    LOG_ASSERT(mJavaFrame->mDidReceiveData, "Could not find method didReceiveData");
-    LOG_ASSERT(mJavaFrame->mDidFinishLoading, "Could not find method didFinishLoading");
-    LOG_ASSERT(mJavaFrame->mSetCertificate, "Could not find method setCertificate");
-    LOG_ASSERT(mJavaFrame->mShouldSaveFormData, "Could not find method shouldSaveFormData");
-    LOG_ASSERT(mJavaFrame->mSaveFormData, "Could not find method saveFormData");
-    LOG_ASSERT(mJavaFrame->mAutoLogin, "Could not find method autoLogin");
+    ALOG_ASSERT(mJavaFrame->mMaybeSavePassword, "Could not find method maybeSavePassword");
+    ALOG_ASSERT(mJavaFrame->mShouldInterceptRequest, "Could not find method shouldInterceptRequest");
+    ALOG_ASSERT(mJavaFrame->mLoadStarted, "Could not find method loadStarted");
+    ALOG_ASSERT(mJavaFrame->mTransitionToCommitted, "Could not find method transitionToCommitted");
+    ALOG_ASSERT(mJavaFrame->mLoadFinished, "Could not find method loadFinished");
+    ALOG_ASSERT(mJavaFrame->mReportError, "Could not find method reportError");
+    ALOG_ASSERT(mJavaFrame->mSetTitle, "Could not find method setTitle");
+    ALOG_ASSERT(mJavaFrame->mWindowObjectCleared, "Could not find method windowObjectCleared");
+    ALOG_ASSERT(mJavaFrame->mSetProgress, "Could not find method setProgress");
+    ALOG_ASSERT(mJavaFrame->mDidReceiveIcon, "Could not find method didReceiveIcon");
+    ALOG_ASSERT(mJavaFrame->mDidReceiveTouchIconUrl, "Could not find method didReceiveTouchIconUrl");
+    ALOG_ASSERT(mJavaFrame->mUpdateVisitedHistory, "Could not find method updateVisitedHistory");
+    ALOG_ASSERT(mJavaFrame->mHandleUrl, "Could not find method handleUrl");
+    ALOG_ASSERT(mJavaFrame->mCreateWindow, "Could not find method createWindow");
+    ALOG_ASSERT(mJavaFrame->mCloseWindow, "Could not find method closeWindow");
+    ALOG_ASSERT(mJavaFrame->mDecidePolicyForFormResubmission, "Could not find method decidePolicyForFormResubmission");
+    ALOG_ASSERT(mJavaFrame->mRequestFocus, "Could not find method requestFocus");
+// Samsung Change - Bing search >>
+    ALOG_ASSERT(mJavaFrame->misBingSearch, "Could not find method isBingSearch");
+    ALOG_ASSERT(mJavaFrame->setBingSearch, "Could not find method setBingSearch");
+// Samsung Change - Bing search <<
+    ALOG_ASSERT(mJavaFrame->mGetRawResFilename, "Could not find method getRawResFilename");
+    ALOG_ASSERT(mJavaFrame->mDensity, "Could not find method density");
+    ALOG_ASSERT(mJavaFrame->mGetFileSize, "Could not find method getFileSize");
+    ALOG_ASSERT(mJavaFrame->mGetFile, "Could not find method getFile");
+    ALOG_ASSERT(mJavaFrame->mDidReceiveAuthenticationChallenge, "Could not find method didReceiveAuthenticationChallenge");
+    ALOG_ASSERT(mJavaFrame->mReportSslCertError, "Could not find method reportSslCertError");
+    ALOG_ASSERT(mJavaFrame->mRequestClientCert, "Could not find method requestClientCert");
+    ALOG_ASSERT(mJavaFrame->mDownloadStart, "Could not find method downloadStart");
+    ALOG_ASSERT(mJavaFrame->mDidReceiveData, "Could not find method didReceiveData");
+    ALOG_ASSERT(mJavaFrame->mDidFinishLoading, "Could not find method didFinishLoading");
+    ALOG_ASSERT(mJavaFrame->mSetCertificate, "Could not find method setCertificate");
+    ALOG_ASSERT(mJavaFrame->mShouldSaveFormData, "Could not find method shouldSaveFormData");
+    ALOG_ASSERT(mJavaFrame->mSaveFormData, "Could not find method saveFormData");
+    ALOG_ASSERT(mJavaFrame->mAutoLogin, "Could not find method autoLogin");
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-    LOG_ASSERT(mJavaFrame->mSpellCheckFinished, "Could not find method spellCheckFinished");
+    ALOG_ASSERT(mJavaFrame->mSpellCheckFinished, "Could not find method spellCheckFinished");
 #endif	
-// SAMSUNG CHANGE HTML5 History <<
-    LOG_ASSERT(mJavaFrame->mUpdateUrl, "Could not find method UpdateUrl");
-// SAMSUNG CHANGE HTML5 History >>
+//SAMSUNG CHANGES <<<	
+    
     mUserAgent = WTF::String();
-    mUserInitiatedAction = false;
     mBlockNetworkLoads = false;
     m_renderSkins = 0;
 }
@@ -409,14 +376,14 @@ WebFrame* WebFrame::getWebFrame(const WebCore::Frame* frame)
 static jobject createJavaMapFromHTTPHeaders(JNIEnv* env, const WebCore::HTTPHeaderMap& map)
 {
     jclass mapClass = env->FindClass("java/util/HashMap");
-    LOG_ASSERT(mapClass, "Could not find HashMap class!");
+    ALOG_ASSERT(mapClass, "Could not find HashMap class!");
     jmethodID init = env->GetMethodID(mapClass, "<init>", "(I)V");
-    LOG_ASSERT(init, "Could not find constructor for HashMap");
+    ALOG_ASSERT(init, "Could not find constructor for HashMap");
     jobject hashMap = env->NewObject(mapClass, init, map.size());
-    LOG_ASSERT(hashMap, "Could not create a new HashMap");
+    ALOG_ASSERT(hashMap, "Could not create a new HashMap");
     jmethodID put = env->GetMethodID(mapClass, "put",
             "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
-    LOG_ASSERT(put, "Could not find put method on HashMap");
+    ALOG_ASSERT(put, "Could not find put method on HashMap");
 
     WebCore::HTTPHeaderMap::const_iterator end = map.end();
     for (WebCore::HTTPHeaderMap::const_iterator i = map.begin(); i != end; ++i) {
@@ -463,104 +430,10 @@ private:
     int m_size;
 };
 
-PassRefPtr<WebCore::ResourceLoaderAndroid>
-WebFrame::startLoadingResource(WebCore::ResourceHandle* loader,
-                                  const WebCore::ResourceRequest& request,
-                                  bool mainResource,
-                                  bool synchronous)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOGV("::WebCore:: startLoadingResource(%p, %s)",
-            loader, request.url().string().latin1().data());
-
-    JNIEnv* env = getJNIEnv();
-    AutoJObject javaFrame = mJavaFrame->frame(env);
-    if (!javaFrame.get())
-        return 0;
-
-    WTF::String method = request.httpMethod();
-    WebCore::HTTPHeaderMap headers = request.httpHeaderFields();
-
-    WTF::String urlStr = request.url().string();
-    int colon = urlStr.find(':');
-    bool allLower = true;
-    for (int index = 0; index < colon; index++) {
-        UChar ch = urlStr[index];
-        if (!WTF::isASCIIAlpha(ch))
-            break;
-        allLower &= WTF::isASCIILower(ch);
-        if (index == colon - 1 && !allLower) {
-            urlStr = urlStr.substring(0, colon).lower()
-                    + urlStr.substring(colon);
-        }
-    }
-    LOGV("%s lower=%s", __FUNCTION__, urlStr.latin1().data());
-    jstring jUrlStr = wtfStringToJstring(env, urlStr);
-    jstring jMethodStr = NULL;
-    if (!method.isEmpty())
-        jMethodStr = wtfStringToJstring(env, method);
-    WebCore::FormData* formdata = request.httpBody();
-    jbyteArray jPostDataStr = getPostData(request);
-    jobject jHeaderMap = createJavaMapFromHTTPHeaders(env, headers);
-
-    // Convert the WebCore Cache Policy to a WebView Cache Policy.
-    int cacheMode = 0;  // WebSettings.LOAD_NORMAL
-    switch (request.cachePolicy()) {
-        case WebCore::ReloadIgnoringCacheData:
-            cacheMode = 2; // WebSettings.LOAD_NO_CACHE
-            break;
-        case WebCore::ReturnCacheDataDontLoad:
-            cacheMode = 3; // WebSettings.LOAD_CACHE_ONLY
-            break;
-        case WebCore::ReturnCacheDataElseLoad:
-            cacheMode = 1;   // WebSettings.LOAD_CACHE_ELSE_NETWORK
-            break;
-        case WebCore::UseProtocolCachePolicy:
-        default:
-            break;
-    }
-
-    LOGV("::WebCore:: startLoadingResource %s with cacheMode %d", urlStr.ascii().data(), cacheMode);
-
-    ResourceHandleInternal* loaderInternal = loader->getInternal();
-    jstring jUsernameString = loaderInternal->m_user.isEmpty() ?
-            NULL : wtfStringToJstring(env, loaderInternal->m_user);
-    jstring jPasswordString = loaderInternal->m_pass.isEmpty() ?
-            NULL : wtfStringToJstring(env, loaderInternal->m_pass);
-
-    bool isUserGesture = UserGestureIndicator::processingUserGesture();
-    jobject jLoadListener =
-        env->CallObjectMethod(javaFrame.get(), mJavaFrame->mStartLoadingResource,
-                (int)loader, jUrlStr, jMethodStr, jHeaderMap,
-                jPostDataStr, formdata ? formdata->identifier(): 0,
-                cacheMode, mainResource, isUserGesture,
-                synchronous, jUsernameString, jPasswordString);
-
-    env->DeleteLocalRef(jUrlStr);
-    env->DeleteLocalRef(jMethodStr);
-    env->DeleteLocalRef(jPostDataStr);
-    env->DeleteLocalRef(jHeaderMap);
-    env->DeleteLocalRef(jUsernameString);
-    env->DeleteLocalRef(jPasswordString);
-    if (checkException(env))
-        return 0;
-
-    PassRefPtr<WebCore::ResourceLoaderAndroid> h;
-    if (jLoadListener)
-        h = WebCoreResourceLoader::create(env, jLoadListener);
-    env->DeleteLocalRef(jLoadListener);
-    return h;
-}
-
 UrlInterceptResponse*
 WebFrame::shouldInterceptRequest(const WTF::String& url)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOGV("::WebCore:: shouldInterceptRequest(%s)", url.latin1().data());
+    ALOGV("::WebCore:: shouldInterceptRequest(%s)", url.latin1().data());
 
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
@@ -581,10 +454,7 @@ void
 WebFrame::reportError(int errorCode, const WTF::String& description,
         const WTF::String& failingUrl)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOGV("::WebCore:: reportError(%d, %s)", errorCode, description.ascii().data());
+    ALOGV("::WebCore:: reportError(%d, %s)", errorCode, description.ascii().data());
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -600,7 +470,6 @@ WebFrame::reportError(int errorCode, const WTF::String& description,
 WTF::String
 WebFrame::convertIDNToUnicode(const WebCore::KURL& url) {
     WTF::String converted = url.string();
-#if USE(CHROME_NETWORK_STACK)
     const WTF::String host = url.host();
     if (host.find("xn--") == notFound)  // no punycode IDN found.
         return converted;
@@ -613,27 +482,24 @@ WebFrame::convertIDNToUnicode(const WebCore::KURL& url) {
         newUrl.setHost(convertedHost);
         converted = newUrl.string();
     }
-#endif
     return converted;
 }
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-// SAMSUNG CHANGE + Spell Check
 void 
 WebFrame::didFinishSpellCheck( int misspelledWordCount)
 {
-    DBG_NAV_LOGD("::WebCore:: didFinishSpellCheck %d", misspelledWordCount);
     JNIEnv* env = getJNIEnv();
     env->CallVoidMethod(mJavaFrame->frame(env).get(), mJavaFrame->mSpellCheckFinished, misspelledWordCount);
     checkException(env);
 }
-// SAMSUNG CHANGE -
 #endif
+//SAMSUNG CHANGES <<<	
+    
 void
 WebFrame::loadStarted(WebCore::Frame* frame)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -647,7 +513,7 @@ WebFrame::loadStarted(WebCore::Frame* frame)
     const WebCore::KURL& url = documentLoader->url();
     if (url.isEmpty())
         return;
-    LOGV("::WebCore:: loadStarted %s", url.string().ascii().data());
+    ALOGV("::WebCore:: loadStarted %s", url.string().ascii().data());
 
     bool isMainFrame = (!frame->tree() || !frame->tree()->parent());
     WebCore::FrameLoadType loadType = frame->loader()->loadType();
@@ -667,7 +533,7 @@ WebFrame::loadStarted(WebCore::Frame* frame)
         WebCore::Image* icon = WebCore::iconDatabase().synchronousIconForPageURL(urlString, WebCore::IntSize(16, 16));
         if (icon)
             favicon = webcoreImageToJavaBitmap(env, icon);
-        LOGV("favicons", "Starting load with icon %p for %s", icon, url.string().utf8().data());
+        ALOGV("favicons", "Starting load with icon %p for %s", icon, url.string().utf8().data());
     }
     jstring urlStr = wtfStringToJstring(env, urlString);
 
@@ -691,9 +557,6 @@ WebFrame::loadStarted(WebCore::Frame* frame)
 void
 WebFrame::transitionToCommitted(WebCore::Frame* frame)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -708,9 +571,6 @@ WebFrame::transitionToCommitted(WebCore::Frame* frame)
 void
 WebFrame::didFinishLoad(WebCore::Frame* frame)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -725,7 +585,7 @@ WebFrame::didFinishLoad(WebCore::Frame* frame)
     const WebCore::KURL& url = documentLoader->url();
     if (url.isEmpty())
         return;
-    LOGV("::WebCore:: didFinishLoad %s", url.string().ascii().data());
+    ALOGV("::WebCore:: didFinishLoad %s", url.string().ascii().data());
 
     bool isMainFrame = (!frame->tree() || !frame->tree()->parent());
     WebCore::FrameLoadType loadType = loader->loadType();
@@ -739,10 +599,7 @@ WebFrame::didFinishLoad(WebCore::Frame* frame)
 void
 WebFrame::addHistoryItem(WebCore::HistoryItem* item)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOGV("::WebCore:: addHistoryItem");
+    ALOGV("::WebCore:: addHistoryItem");
     JNIEnv* env = getJNIEnv();
     WebHistory::AddItem(mJavaFrame->history(env), item);
 }
@@ -750,10 +607,7 @@ WebFrame::addHistoryItem(WebCore::HistoryItem* item)
 void
 WebFrame::removeHistoryItem(int index)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOGV("::WebCore:: removeHistoryItem at %d", index);
+    ALOGV("::WebCore:: removeHistoryItem at %d", index);
     JNIEnv* env = getJNIEnv();
     WebHistory::RemoveItem(mJavaFrame->history(env), index);
 }
@@ -761,10 +615,7 @@ WebFrame::removeHistoryItem(int index)
 void
 WebFrame::updateHistoryIndex(int newIndex)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOGV("::WebCore:: updateHistoryIndex to %d", newIndex);
+    ALOGV("::WebCore:: updateHistoryIndex to %d", newIndex);
     JNIEnv* env = getJNIEnv();
     WebHistory::UpdateHistoryIndex(mJavaFrame->history(env), newIndex);
 }
@@ -772,11 +623,8 @@ WebFrame::updateHistoryIndex(int newIndex)
 void
 WebFrame::setTitle(const WTF::String& title)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
 #ifndef NDEBUG
-    LOGV("setTitle(%s)", title.ascii().data());
+    ALOGV("setTitle(%s)", title.ascii().data());
 #endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
@@ -793,10 +641,7 @@ WebFrame::setTitle(const WTF::String& title)
 void
 WebFrame::windowObjectCleared(WebCore::Frame* frame)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOGV("::WebCore:: windowObjectCleared");
+    ALOGV("::WebCore:: windowObjectCleared");
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -809,9 +654,6 @@ WebFrame::windowObjectCleared(WebCore::Frame* frame)
 void
 WebFrame::setProgress(float newProgress)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -831,10 +673,7 @@ WebFrame::userAgentForURL(const WebCore::KURL* url)
 void
 WebFrame::didReceiveIcon(WebCore::Image* icon)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    LOG_ASSERT(icon, "DidReceiveIcon called without an image!");
+    ALOG_ASSERT(icon, "DidReceiveIcon called without an image!");
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -852,9 +691,6 @@ WebFrame::didReceiveIcon(WebCore::Image* icon)
 void
 WebFrame::didReceiveTouchIconURL(const WTF::String& url, bool precomposed)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -870,9 +706,6 @@ WebFrame::didReceiveTouchIconURL(const WTF::String& url, bool precomposed)
 void
 WebFrame::updateVisitedHistory(const WebCore::KURL& url, bool reload)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -889,9 +722,6 @@ WebFrame::updateVisitedHistory(const WebCore::KURL& url, bool reload)
 bool
 WebFrame::canHandleRequest(const WebCore::ResourceRequest& request)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -917,33 +747,6 @@ WebFrame::canHandleRequest(const WebCore::ResourceRequest& request)
     return ret == JNI_FALSE;
 }
 
-// SAMSUNG CHANGE HTML5 History <<
-void
-WebFrame::UpdateUrl(const WTF::String& url)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
-    JNIEnv* env = getJNIEnv();
-    AutoJObject javaFrame = mJavaFrame->frame(env);
-    if (!javaFrame.get())
-        return;
-
-    if (url.isEmpty())
-        return;
-    jstring jUrlStr = wtfStringToJstring(env, url);
-
-    // Delegate to the Java side to make the decision. Note that the sense of
-    // the return value of the Java method is reversed. It will return true if
-    // the embedding application wishes to hijack the load and hence the WebView
-    // should _not_ proceed with the load.
-    LOGV("WebFrame::UpdateUrl %s",url().latin1().data());
-    env->CallVoidMethod(javaFrame.get(), mJavaFrame->mUpdateUrl, jUrlStr);
-    checkException(env);
-    env->DeleteLocalRef(jUrlStr);
-}
-// SAMSUNG CHANGE HTML5 History >>
-
 bool
 WebFrame::shouldSaveFormData()
 {
@@ -959,9 +762,6 @@ WebFrame::shouldSaveFormData()
 WebCore::Frame*
 WebFrame::createWindow(bool dialog, bool userGesture)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -975,9 +775,6 @@ WebFrame::createWindow(bool dialog, bool userGesture)
 void
 WebFrame::requestFocus() const
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -986,12 +783,41 @@ WebFrame::requestFocus() const
     checkException(env);
 }
 
-void
-WebFrame::closeWindow(WebViewCore* webViewCore)
+// Samsung Change - Bing search >>
+int
+WebFrame::isBingSearch()
 {
 #ifdef ANDROID_INSTRUMENT
     TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
 #endif
+    JNIEnv* env = getJNIEnv();
+    AutoJObject javaFrame = mJavaFrame->frame(env);
+    if (!javaFrame.get())
+        return 0;
+   jint result = env->CallIntMethod(javaFrame.get(), mJavaFrame->misBingSearch);
+
+    return result;
+}
+
+bool 
+WebFrame::setBingSearch()
+{
+#ifdef ANDROID_INSTRUMENT
+    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
+#endif
+    JNIEnv* env = getJNIEnv();
+    AutoJObject javaFrame = mJavaFrame->frame(env);
+    if (!javaFrame.get())
+        return 0;
+    jboolean result = env->CallBooleanMethod(javaFrame.get(), mJavaFrame->msetBingSearch);
+
+    return result;
+}
+// Samsung Change - Bing search <<
+
+void
+WebFrame::closeWindow(WebViewCore* webViewCore)
+{
     assert(webViewCore);
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
@@ -1010,9 +836,6 @@ struct PolicyFunctionWrapper {
 void
 WebFrame::decidePolicyForFormResubmission(WebCore::FramePolicyFunction func)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1046,13 +869,9 @@ WebFrame::density() const
     return dpi;
 }
 
-#if USE(CHROME_NETWORK_STACK)
 void
 WebFrame::didReceiveAuthenticationChallenge(WebUrlLoaderClient* client, const std::string& host, const std::string& realm, bool useCachedCredentials, bool suppressDialog)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1070,9 +889,6 @@ WebFrame::didReceiveAuthenticationChallenge(WebUrlLoaderClient* client, const st
 void
 WebFrame::reportSslCertError(WebUrlLoaderClient* client, int error, const std::string& cert, const std::string& url)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1093,9 +909,6 @@ WebFrame::reportSslCertError(WebUrlLoaderClient* client, int error, const std::s
 void
 WebFrame::requestClientCert(WebUrlLoaderClient* client, const std::string& hostAndPort)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     int jHandle = reinterpret_cast<int>(client);
 
@@ -1109,9 +922,6 @@ WebFrame::requestClientCert(WebUrlLoaderClient* client, const std::string& hostA
 void
 WebFrame::downloadStart(const std::string& url, const std::string& userAgent, const std::string& contentDisposition, const std::string& mimetype, long long contentLength)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1132,9 +942,6 @@ WebFrame::downloadStart(const std::string& url, const std::string& userAgent, co
 
 void
 WebFrame::didReceiveData(const char* data, int size) {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1149,9 +956,6 @@ WebFrame::didReceiveData(const char* data, int size) {
 
 void
 WebFrame::didFinishLoading() {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1163,9 +967,6 @@ WebFrame::didFinishLoading() {
 
 void WebFrame::setCertificate(const std::string& cert)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1179,13 +980,9 @@ void WebFrame::setCertificate(const std::string& cert)
 
     checkException(env);
 }
-#endif // USE(CHROME_NETWORK_STACK)
 
 void WebFrame::autoLogin(const std::string& loginHeader)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimerCoutner::JavaCallbackTimeCounter);
-#endif
     JNIEnv* env = getJNIEnv();
     AutoJObject javaFrame = mJavaFrame->frame(env);
     if (!javaFrame.get())
@@ -1259,7 +1056,7 @@ void WebFrame::maybeSavePassword(WebCore::Frame* frame, const WebCore::ResourceR
 bool WebFrame::getUsernamePasswordFromDom(WebCore::Frame* frame, WTF::String& username, WTF::String& password)
 {
     bool found = false;
-    WTF::PassRefPtr<WebCore::HTMLCollection> form = frame->document()->forms();
+    WTF::RefPtr<WebCore::HTMLCollection> form = frame->document()->forms();
     WebCore::Node* node = form->firstItem();
     while (node && !found && !node->namespaceURI().isNull() &&
            !node->namespaceURI().isEmpty()) {
@@ -1356,13 +1153,10 @@ jbyteArray WebFrame::getPostData(const WebCore::ResourceRequest& request)
 
 static void CallPolicyFunction(JNIEnv* env, jobject obj, jint func, jint decision)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeCallPolicyFunction must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativeCallPolicyFunction must take a valid frame pointer!");
     PolicyFunctionWrapper* pFunc = (PolicyFunctionWrapper*)func;
-    LOG_ASSERT(pFunc, "nativeCallPolicyFunction must take a valid function pointer!");
+    ALOG_ASSERT(pFunc, "nativeCallPolicyFunction must take a valid function pointer!");
 
     // If we are resending the form then we should reset the multiple submission protection.
     if (decision == WebCore::PolicyUse)
@@ -1375,17 +1169,9 @@ static void CreateFrame(JNIEnv* env, jobject obj, jobject javaview, jobject jAss
 {
     ScriptController::initializeThreading();
 
-#if USE(CHROME_NETWORK_STACK)
     // needs to be called before any other chromium code
     initChromium();
-#endif
 
-#ifdef ANDROID_INSTRUMENT
-#if USE(V8)
-    V8Counters::initCounters();
-#endif
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     // Create a new page
     ChromeClientAndroid* chromeC = new ChromeClientAndroid;
     EditorClientAndroid* editorC = new EditorClientAndroid;
@@ -1447,7 +1233,7 @@ static void CreateFrame(JNIEnv* env, jobject obj, jobject javaview, jobject jAss
     WebCore::SecurityOrigin::setLocalLoadPolicy(
             WebCore::SecurityOrigin::AllowLocalLoadsForLocalAndSubstituteData);
 
-    LOGV("::WebCore:: createFrame %p", frame);
+    ALOGV("::WebCore:: createFrame %p", frame);
 
     // Set the mNativeFrame field in Frame
     SET_NATIVE_FRAME(env, obj, (int)frame);
@@ -1455,30 +1241,24 @@ static void CreateFrame(JNIEnv* env, jobject obj, jobject javaview, jobject jAss
     String directory = webFrame->getRawResourceFilename(
             WebCore::PlatformBridge::DrawableDir);
     if (directory.isEmpty())
-        LOGE("Can't find the drawable directory");
+        ALOGE("Can't find the drawable directory");
     else {
         // Initialize our skinning classes
         webFrame->setRenderSkins(new WebCore::RenderSkinAndroid(directory));
     }
 
     for (int i = WebCore::PlatformBridge::FileUploadLabel;
-        // Samsung Change - fix for MPSG100004640	>>
-            //i <= WebCore::PlatformBridge::FileUploadNoFileChosenLabel; i++)
-			i <= WebCore::PlatformBridge::PatternMismatch; i++)
-        // Samsung Change - fix for MPSG100004640	<<
+            i <= WebCore::PlatformBridge::FileUploadNoFileChosenLabel; i++)
         initGlobalLocalizedName(
                 static_cast<WebCore::PlatformBridge::rawResId>(i), webFrame);
 }
 
 static void DestroyFrame(JNIEnv* env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeDestroyFrame must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativeDestroyFrame must take a valid frame pointer!");
 
-    LOGV("::WebCore:: deleting frame %p", pFrame);
+    ALOGV("::WebCore:: deleting frame %p", pFrame);
 
     WebCore::FrameView* view = pFrame->view();
     view->ref();
@@ -1503,11 +1283,8 @@ static void DestroyFrame(JNIEnv* env, jobject obj)
 
 static void LoadUrl(JNIEnv *env, jobject obj, jstring url, jobject headers)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeLoadUrl must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativeLoadUrl must take a valid frame pointer!");
 
     WTF::String webcoreUrl = jstringToWtfString(env, url);
     WebCore::KURL kurl(WebCore::KURL(), webcoreUrl);
@@ -1551,17 +1328,14 @@ static void LoadUrl(JNIEnv *env, jobject obj, jstring url, jobject headers)
         env->DeleteLocalRef(set);
         env->DeleteLocalRef(mapClass);
     }
-    LOGV("LoadUrl %s", kurl.string().latin1().data());
+    ALOGV("LoadUrl %s", kurl.string().latin1().data());
     pFrame->loader()->load(request, false);
 }
 
 static void PostUrl(JNIEnv *env, jobject obj, jstring url, jbyteArray postData)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativePostUrl must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativePostUrl must take a valid frame pointer!");
 
     WebCore::KURL kurl(WebCore::KURL(), jstringToWtfString(env, url));
     WebCore::ResourceRequest request(kurl);
@@ -1579,7 +1353,7 @@ static void PostUrl(JNIEnv *env, jobject obj, jstring url, jbyteArray postData)
         env->ReleaseByteArrayElements(postData, bytes, 0);
     }
 
-    LOGV("PostUrl %s", kurl.string().latin1().data());
+    ALOGV("PostUrl %s", kurl.string().latin1().data());
     WebCore::FrameLoadRequest frameRequest(pFrame->document()->securityOrigin(), request);
     pFrame->loader()->loadFrameRequest(frameRequest, false, false, 0, 0, WebCore::SendReferrer);
 }
@@ -1587,22 +1361,19 @@ static void PostUrl(JNIEnv *env, jobject obj, jstring url, jbyteArray postData)
 static void LoadData(JNIEnv *env, jobject obj, jstring baseUrl, jstring data,
         jstring mimeType, jstring encoding, jstring failUrl)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeLoadData must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativeLoadData must take a valid frame pointer!");
 
     // Setup the resource request
     WebCore::ResourceRequest request(jstringToWtfString(env, baseUrl));
 
     // Setup the substituteData
-    const char* dataStr = env->GetStringUTFChars(data, NULL);
-    WTF::PassRefPtr<WebCore::SharedBuffer> sharedBuffer =
+    WTF::CString cData = jstringToWtfString(env, data).utf8();
+    const char* dataStr = cData.data();
+    WTF::RefPtr<WebCore::SharedBuffer> sharedBuffer =
         WebCore::SharedBuffer::create();
-    LOG_ASSERT(dataStr, "nativeLoadData has a null data string.");
-    sharedBuffer->append(dataStr, strlen(dataStr));
-    env->ReleaseStringUTFChars(data, dataStr);
+    ALOG_ASSERT(dataStr, "nativeLoadData has a null data string.");
+    sharedBuffer->append(dataStr, strlen(dataStr)); // copy dataStr
 
     WebCore::SubstituteData substituteData(sharedBuffer,
             jstringToWtfString(env, mimeType), jstringToWtfString(env, encoding),
@@ -1614,12 +1385,9 @@ static void LoadData(JNIEnv *env, jobject obj, jstring baseUrl, jstring data,
 
 static void StopLoading(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeStopLoading must take a valid frame pointer!");
-    LOGV("::WebCore:: stopLoading %p", pFrame);
+    ALOG_ASSERT(pFrame, "nativeStopLoading must take a valid frame pointer!");
+    ALOGV("::WebCore:: stopLoading %p", pFrame);
 
     // Stop loading the page and do not send an unload event
     pFrame->loader()->stopForUserCancel();
@@ -1667,7 +1435,7 @@ static jstring SaveWebArchive(JNIEnv *env, jobject obj, jstring basename, jboole
 {
 #if ENABLE(WEB_ARCHIVE)
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeSaveWebArchive must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativeSaveWebArchive must take a valid frame pointer!");
     String mimeType = pFrame->loader()->documentLoader()->mainResource()->mimeType();
     if ((mimeType != "text/html") && (mimeType != "application/xhtml+xml"))
         return NULL;
@@ -1685,7 +1453,7 @@ static jstring SaveWebArchive(JNIEnv *env, jobject obj, jstring basename, jboole
     }
 
     if (filename.isNull() || filename.isEmpty()) {
-        LOGD("saveWebArchive: Failed to select a filename to save.");
+        ALOGD("saveWebArchive: Failed to select a filename to save.");
         releaseCharactersForJStringInEnv(env, basename, basenameNative);
         return NULL;
     }
@@ -1693,7 +1461,7 @@ static jstring SaveWebArchive(JNIEnv *env, jobject obj, jstring basename, jboole
     const int noCompression = 0;
     xmlTextWriterPtr writer = xmlNewTextWriterFilename(filename.utf8().data(), noCompression);
     if (writer == NULL) {
-        LOGD("saveWebArchive: Failed to initialize xml writer.");
+        ALOGD("saveWebArchive: Failed to initialize xml writer.");
         releaseCharactersForJStringInEnv(env, basename, basenameNative);
         return NULL;
     }
@@ -1714,11 +1482,8 @@ static jstring SaveWebArchive(JNIEnv *env, jobject obj, jstring basename, jboole
 
 static jstring ExternalRepresentation(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "android_webcore_nativeExternalRepresentation must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "android_webcore_nativeExternalRepresentation must take a valid frame pointer!");
 
     // Request external representation of the render tree
     WTF::String renderDump = WebCore::externalRepresentation(pFrame);
@@ -1749,11 +1514,8 @@ static StringBuilder FrameAsText(WebCore::Frame *pFrame, jboolean dumpChildFrame
 
 static jstring DocumentAsText(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "android_webcore_nativeDocumentAsText must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "android_webcore_nativeDocumentAsText must take a valid frame pointer!");
 
     WTF::String renderDump = FrameAsText(pFrame, false /* dumpChildFrames */).toString();
     return wtfStringToJstring(env, renderDump);
@@ -1761,11 +1523,8 @@ static jstring DocumentAsText(JNIEnv *env, jobject obj)
 
 static jstring ChildFramesAsText(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "android_webcore_nativeDocumentAsText must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "android_webcore_nativeDocumentAsText must take a valid frame pointer!");
 
     StringBuilder renderDumpBuilder;
     for (unsigned i = 0; i < pFrame->tree()->childCount(); ++i) {
@@ -1777,11 +1536,8 @@ static jstring ChildFramesAsText(JNIEnv *env, jobject obj)
 
 static void Reload(JNIEnv *env, jobject obj, jboolean allowStale)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeReload must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativeReload must take a valid frame pointer!");
 
     WebCore::FrameLoader* loader = pFrame->loader();
     if (allowStale) {
@@ -1791,22 +1547,17 @@ static void Reload(JNIEnv *env, jobject obj, jboolean allowStale)
         WebCore::HistoryItem* item = page->backForwardList()->currentItem();
         if (item)
             page->goToItem(item, FrameLoadTypeIndexedBackForward);
-    } else
-        loader->reload(true);
+    } else {
+        // SAMSUNG CHANGE : revalidate cache instead of reload it
+        //loader->reload(true);
+        loader->reload(false);
+    }
 }
 
 static void GoBackOrForward(JNIEnv *env, jobject obj, jint pos)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "nativeGoBackOrForward must take a valid frame pointer!");
-
-
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-	pFrame->document()->setBackOrForward(true);
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
+    ALOG_ASSERT(pFrame, "nativeGoBackOrForward must take a valid frame pointer!");
 
     if (pos == 1)
         pFrame->page()->goForward();
@@ -1818,11 +1569,8 @@ static void GoBackOrForward(JNIEnv *env, jobject obj, jint pos)
 
 static jobject StringByEvaluatingJavaScriptFromString(JNIEnv *env, jobject obj, jstring script)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "stringByEvaluatingJavaScriptFromString must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "stringByEvaluatingJavaScriptFromString must take a valid frame pointer!");
 
     WebCore::ScriptValue value =
             pFrame->script()->executeScript(jstringToWtfString(env, script), true);
@@ -1836,32 +1584,16 @@ static jobject StringByEvaluatingJavaScriptFromString(JNIEnv *env, jobject obj, 
 // Wrap the JavaInstance used when binding custom javascript interfaces. Use a
 // weak reference so that the gc can collect the WebView. Override virtualBegin
 // and virtualEnd and swap the weak reference for the real object.
-#if USE(JSC)
-class WeakJavaInstance : public JavaInstance {
-#elif USE(V8)
 class WeakJavaInstance : public JavaInstanceJobject {
-#endif
 public:
-#if USE(JSC)
-    static PassRefPtr<WeakJavaInstance> create(jobject obj, PassRefPtr<RootObject> root)
-    {
-        return adoptRef(new WeakJavaInstance(obj, root));
-    }
-#elif USE(V8)
     static PassRefPtr<WeakJavaInstance> create(jobject obj)
     {
         return adoptRef(new WeakJavaInstance(obj));
     }
-#endif
 
 private:
-#if USE(JSC)
-    WeakJavaInstance(jobject instance, PassRefPtr<RootObject> rootObject)
-        : JavaInstance(instance, rootObject)
-#elif USE(V8)
     WeakJavaInstance(jobject instance)
         : JavaInstanceJobject(instance)
-#endif
         , m_beginEndDepth(0)
     {
         JNIEnv* env = getJNIEnv();
@@ -1873,7 +1605,7 @@ private:
     }
     ~WeakJavaInstance()
     {
-        LOG_ASSERT(!m_beginEndDepth, "Unbalanced calls to WeakJavaInstance::begin() / end()");
+        ALOG_ASSERT(!m_beginEndDepth, "Unbalanced calls to WeakJavaInstance::begin() / end()");
         JNIEnv* env = getJNIEnv();
         // The JavaInstance destructor attempts to delete the global ref stored
         // in m_instance. Since we replaced it in our constructor with a weak
@@ -1911,11 +1643,7 @@ private:
     }
 
 private:
-#if USE(JSC)
-    typedef JavaInstance INHERITED;
-#elif USE(V8)
     typedef JavaInstanceJobject INHERITED;
-#endif
     jweak m_weakRef;
     // The current depth of nested calls to virtualBegin and virtualEnd.
     int m_beginEndDepth;
@@ -1924,42 +1652,17 @@ private:
 static void AddJavascriptInterface(JNIEnv *env, jobject obj, jint nativeFramePointer,
         jobject javascriptObj, jstring interfaceName)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = 0;
     if (nativeFramePointer == 0)
         pFrame = GET_NATIVE_FRAME(env, obj);
     else
         pFrame = (WebCore::Frame*)nativeFramePointer;
-    LOG_ASSERT(pFrame, "nativeAddJavascriptInterface must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "nativeAddJavascriptInterface must take a valid frame pointer!");
 
     JavaVM* vm;
     env->GetJavaVM(&vm);
-    LOGV("::WebCore:: addJSInterface: %p", pFrame);
+    ALOGV("::WebCore:: addJSInterface: %p", pFrame);
 
-#if USE(JSC)
-    // Copied from qwebframe.cpp
-    JSC::JSLock lock(JSC::SilenceAssertionsOnly);
-    WebCore::JSDOMWindow *window = WebCore::toJSDOMWindow(pFrame, mainThreadNormalWorld());
-    if (window) {
-        RootObject *root = pFrame->script()->bindingRootObject();
-        setJavaVM(vm);
-        // Add the binding to JS environment
-        JSC::ExecState* exec = window->globalExec();
-        JSC::JSObject* addedObject = WeakJavaInstance::create(javascriptObj,
-                root)->createRuntimeObject(exec);
-        const jchar* s = env->GetStringChars(interfaceName, NULL);
-        if (s) {
-            // Add the binding name to the window's table of child objects.
-            JSC::PutPropertySlot slot;
-            window->put(exec, JSC::Identifier(exec, (const UChar *)s,
-                    env->GetStringLength(interfaceName)), addedObject, slot);
-            env->ReleaseStringChars(interfaceName, s);
-            checkException(env);
-        }
-    }
-#elif USE(V8)
     if (pFrame) {
         RefPtr<JavaInstance> addedObject = WeakJavaInstance::create(javascriptObj);
         const char* name = getCharactersFromJStringInEnv(env, interfaceName);
@@ -1980,24 +1683,6 @@ static void AddJavascriptInterface(JNIEnv *env, jobject obj, jint nativeFramePoi
         NPN_ReleaseObject(npObject);
         releaseCharactersForJString(interfaceName, name);
     }
-#endif
-
-}
-
-static void SetCacheDisabled(JNIEnv *env, jobject obj, jboolean disabled)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
-    WebCore::memoryCache()->setDisabled(disabled);
-}
-
-static jboolean CacheDisabled(JNIEnv *env, jobject obj)
-{
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
-    return WebCore::memoryCache()->disabled();
 }
 
 static void ClearWebCoreCache()
@@ -2019,59 +1704,32 @@ static void ClearWebCoreCache()
 
 static void ClearWebViewCache()
 {
-#if USE(CHROME_NETWORK_STACK)
     WebCache::get(false /*privateBrowsing*/)->clear();
-#else
-    // The Android network stack provides a WebView cache in CacheManager.java.
-    // Clearing this is handled entirely Java-side.
-#endif
 }
 
 static void ClearCache(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#if USE(JSC)
-    JSC::JSLock lock(false);
-    JSC::Heap::Statistics jsHeapStatistics = WebCore::JSDOMWindow::commonJSGlobalData()->heap.statistics();
-    LOGD("About to gc and JavaScript heap size is %d and has %d bytes free",
-            jsHeapStatistics.size, jsHeapStatistics.free);
-#endif  // USE(JSC)
-    LOGD("About to clear cache and current cache has %d bytes live and %d bytes dead",
-            memoryCache()->getLiveSize(), memoryCache()->getDeadSize());
-#endif  // ANDROID_INSTRUMENT
     ClearWebCoreCache();
     ClearWebViewCache();
-#if USE(JSC)
-    // force JavaScript to GC when clear cache
-    WebCore::gcController().garbageCollectSoon();
-#elif USE(V8)
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
     pFrame->script()->lowMemoryNotification();
-#endif  // USE(JSC)
 }
 
 static jboolean DocumentHasImages(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "DocumentHasImages must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "DocumentHasImages must take a valid frame pointer!");
 
     return pFrame->document()->images()->length() > 0;
 }
 
 static jboolean HasPasswordField(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "HasPasswordField must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "HasPasswordField must take a valid frame pointer!");
 
     bool found = false;
-    WTF::PassRefPtr<WebCore::HTMLCollection> form = pFrame->document()->forms();
+    WTF::RefPtr<WebCore::HTMLCollection> form = pFrame->document()->forms();
     WebCore::Node* node = form->firstItem();
     // Null/Empty namespace means that node is not created in HTMLFormElement
     // class, but just normal Element class.
@@ -2081,16 +1739,16 @@ static jboolean HasPasswordField(JNIEnv *env, jobject obj)
 		if(!node->isWMLElement())
 #endif
 		{
-			const WTF::Vector<WebCore::FormAssociatedElement*>& elements =
-				((WebCore::HTMLFormElement*)node)->associatedElements();
-			size_t size = elements.size();
-			for (size_t i = 0; i< size && !found; i++) {
-				WebCore::HTMLElement* e = toHTMLElement(elements[i]);
-				if (e->hasLocalName(WebCore::HTMLNames::inputTag)) {
-					if (static_cast<WebCore::HTMLInputElement*>(e)->isPasswordField())
-						found = true;
-				}
-			}
+        const WTF::Vector<WebCore::FormAssociatedElement*>& elements =
+            ((WebCore::HTMLFormElement*)node)->associatedElements();
+        size_t size = elements.size();
+        for (size_t i = 0; i< size && !found; i++) {
+            WebCore::HTMLElement* e = toHTMLElement(elements[i]);
+            if (e->hasLocalName(WebCore::HTMLNames::inputTag)) {
+                if (static_cast<WebCore::HTMLInputElement*>(e)->isPasswordField())
+                    found = true;
+            }
+        }
 		}
         node = form->nextItem();
     }
@@ -2099,11 +1757,8 @@ static jboolean HasPasswordField(JNIEnv *env, jobject obj)
 
 static jobjectArray GetUsernamePassword(JNIEnv *env, jobject obj)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "GetUsernamePassword must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "GetUsernamePassword must take a valid frame pointer!");
     jobjectArray strArray = NULL;
     WTF::String username;
     WTF::String password;
@@ -2120,16 +1775,13 @@ static jobjectArray GetUsernamePassword(JNIEnv *env, jobject obj)
 static void SetUsernamePassword(JNIEnv *env, jobject obj,
     jstring username, jstring password)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOG_ASSERT(pFrame, "SetUsernamePassword must take a valid frame pointer!");
+    ALOG_ASSERT(pFrame, "SetUsernamePassword must take a valid frame pointer!");
 
     WebCore::HTMLInputElement* usernameEle = NULL;
     WebCore::HTMLInputElement* passwordEle = NULL;
     bool found = false;
-    WTF::PassRefPtr<WebCore::HTMLCollection> form = pFrame->document()->forms();
+    WTF::RefPtr<WebCore::HTMLCollection> form = pFrame->document()->forms();
     WebCore::Node* node = form->firstItem();
     while (node && !found && !node->namespaceURI().isNull() &&
            !node->namespaceURI().isEmpty()) {
@@ -2169,14 +1821,14 @@ WebFrame::saveFormData(HTMLFormElement* form)
     if (form->autoComplete()) {
         JNIEnv* env = getJNIEnv();
         jclass mapClass = env->FindClass("java/util/HashMap");
-        LOG_ASSERT(mapClass, "Could not find HashMap class!");
+        ALOG_ASSERT(mapClass, "Could not find HashMap class!");
         jmethodID init = env->GetMethodID(mapClass, "<init>", "(I)V");
-        LOG_ASSERT(init, "Could not find constructor for HashMap");
+        ALOG_ASSERT(init, "Could not find constructor for HashMap");
         jobject hashMap = env->NewObject(mapClass, init, 1);
-        LOG_ASSERT(hashMap, "Could not create a new HashMap");
+        ALOG_ASSERT(hashMap, "Could not create a new HashMap");
         jmethodID put = env->GetMethodID(mapClass, "put",
                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
-        LOG_ASSERT(put, "Could not find put method on HashMap");
+        ALOG_ASSERT(put, "Could not find put method on HashMap");
         WTF::Vector<WebCore::FormAssociatedElement*> elements = form->associatedElements();
         size_t size = elements.size();
         for (size_t i = 0; i < size; i++) {
@@ -2191,7 +1843,7 @@ WebFrame::saveFormData(HTMLFormElement* form)
                         const WTF::AtomicString& name = input->name();
                         jstring key = wtfStringToJstring(env, name);
                         jstring val = wtfStringToJstring(env, value);
-                        LOG_ASSERT(key && val, "name or value not set");
+                        ALOG_ASSERT(key && val, "name or value not set");
                         env->CallObjectMethod(hashMap, put, key, val);
                         env->DeleteLocalRef(key);
                         env->DeleteLocalRef(val);
@@ -2207,11 +1859,8 @@ WebFrame::saveFormData(HTMLFormElement* form)
 
 static void OrientationChanged(JNIEnv *env, jobject obj, int orientation)
 {
-#ifdef ANDROID_INSTRUMENT
-    TimeCounterAuto counter(TimeCounter::NativeCallbackTimeCounter);
-#endif
     WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
-    LOGV("Sending orientation: %d", orientation);
+    ALOGV("Sending orientation: %d", orientation);
     pFrame->sendOrientationChangeEvent(orientation);
 }
 
@@ -2224,8 +1873,9 @@ static jboolean GetShouldStartScrolledRight(JNIEnv *env, jobject obj,
     if (document) {
         RenderStyle* style = document->renderer()->style();
         WritingMode writingMode = style->writingMode();
-        LOG_ASSERT(writingMode != WebCore::BottomToTopWritingMode,
-                "BottomToTopWritingMode isn't supported");
+        ALOG_ASSERT(writingMode != WebCore::BottomToTopWritingMode,
+                "BottomToTopWritingMode isn't possible in any "
+                "language and cannot be specified in w3c writing-mode.");
         if (writingMode == WebCore::RightToLeftWritingMode)
             startScrolledRight = true; // vertical-rl pages start scrolled right
         else if (writingMode == WebCore::TopToBottomWritingMode)
@@ -2233,8 +1883,16 @@ static jboolean GetShouldStartScrolledRight(JNIEnv *env, jobject obj,
     }
     return startScrolledRight;
 }
-
-#if USE(CHROME_NETWORK_STACK)
+// SAMSUNG CHANGE : chameleon >>
+static void setUAProfURL(JNIEnv *env, jobject obj, jstring jUAProfURL){
+	WebCore::Frame* pFrame = GET_NATIVE_FRAME(env, obj);
+	WTF::String uaProfURLHeader = jstringToWtfString(env, jUAProfURL);
+	//LOGV("::frameloader:: setUAProfURL %s",uaProfURLHeader);
+	//LOG_ASSERT(pFrame, "setUAProfURL must take a valid frame pointer!");
+	WebCore::FrameLoader* fl = pFrame->loader();
+	fl->setUAProfURL(uaProfURLHeader);
+}
+// SAMSUNG CHANGE : chameleon <<
 
 static void AuthenticationProceed(JNIEnv *env, jobject obj, int handle, jstring jUsername, jstring jPassword)
 {
@@ -2262,7 +1920,49 @@ static void SslCertErrorCancel(JNIEnv *env, jobject obj, int handle, int cert_er
     client->cancelSslCertError(cert_error);
 }
 
-static void SslClientCert(JNIEnv *env, jobject obj, int handle, jbyteArray pkey, jobjectArray chain)
+static scoped_refptr<net::X509Certificate> getX509Cert(JNIEnv *env, jobjectArray chain)
+{
+    // Based on Android's NativeCrypto_SSL_use_certificate
+    int length = env->GetArrayLength(chain);
+    if (length == 0) {
+        return NULL;
+    }
+
+    base::ScopedOpenSSL<X509, X509_free> first;
+    ScopedVector<base::ScopedOpenSSL<X509, X509_free> > rest;
+    for (int i = 0; i < length; i++) {
+        ScopedLocalRef<jbyteArray> cert(env,
+                reinterpret_cast<jbyteArray>(env->GetObjectArrayElement(chain, i)));
+        if (cert.get() == NULL) {
+            return NULL;
+        }
+        ScopedByteArrayRO certBytes(env, cert.get());
+        if (certBytes.get() == NULL) {
+            return NULL;
+        }
+        const char* data = reinterpret_cast<const char*>(certBytes.get());
+        int length = certBytes.size();
+        X509* x509 = net::X509Certificate::CreateOSCertHandleFromBytes(data, length);
+        if (x509 == NULL) {
+            return NULL;
+        }
+        if (i == 0) {
+            first.reset(x509);
+        } else {
+            rest.push_back(new base::ScopedOpenSSL<X509, X509_free>(x509));
+        }
+    }
+
+    std::vector<X509*> certChain(rest.size());
+    for (size_t i = 0; i < rest.size(); i++) {
+        certChain[i] = rest[i]->get();
+    }
+    return net::X509Certificate::CreateFromHandle(first.get(),
+                                                  net::X509Certificate::SOURCE_FROM_NETWORK,
+                                                  certChain);
+}
+
+static void SslClientCertPKCS8(JNIEnv *env, jobject obj, int handle, jbyteArray pkey, jobjectArray chain)
 {
     WebUrlLoaderClient* client = reinterpret_cast<WebUrlLoaderClient*>(handle);
     if (pkey == NULL || chain == NULL) {
@@ -2289,50 +1989,7 @@ static void SslClientCert(JNIEnv *env, jobject obj, int handle, jbyteArray pkey,
         client->sslClientCert(NULL, NULL);
         return;
     }
-
-    // Based on Android's NativeCrypto_SSL_use_certificate
-    int length = env->GetArrayLength(chain);
-    if (length == 0) {
-        client->sslClientCert(NULL, NULL);
-        return;
-    }
-
-    base::ScopedOpenSSL<X509, X509_free> first;
-    ScopedVector<base::ScopedOpenSSL<X509, X509_free> > rest;
-    for (int i = 0; i < length; i++) {
-        ScopedLocalRef<jbyteArray> cert(env,
-                reinterpret_cast<jbyteArray>(env->GetObjectArrayElement(chain, i)));
-        if (cert.get() == NULL) {
-            client->sslClientCert(NULL, NULL);
-            return;
-        }
-        ScopedByteArrayRO certBytes(env, cert.get());
-        if (certBytes.get() == NULL) {
-            client->sslClientCert(NULL, NULL);
-            return;
-        }
-        const char* data = reinterpret_cast<const char*>(certBytes.get());
-        int length = certBytes.size();
-        X509* x509 = net::X509Certificate::CreateOSCertHandleFromBytes(data, length);
-        if (x509 == NULL) {
-            client->sslClientCert(NULL, NULL);
-            return;
-        }
-        if (i == 0) {
-            first.reset(x509);
-        } else {
-            rest.push_back(new base::ScopedOpenSSL<X509, X509_free>(x509));
-        }
-    }
-
-    std::vector<X509*> certChain(rest.size());
-    for (size_t i = 0; i < rest.size(); i++) {
-        certChain[i] = rest[i]->get();
-    }
-    net::X509Certificate* certificate
-            = net::X509Certificate::CreateFromHandle(first.get(),
-                                                     net::X509Certificate::SOURCE_FROM_NETWORK,
-                                                     certChain);
+    scoped_refptr<net::X509Certificate> certificate = getX509Cert(env, chain);
     if (certificate == NULL) {
         client->sslClientCert(NULL, NULL);
         return;
@@ -2340,33 +1997,22 @@ static void SslClientCert(JNIEnv *env, jobject obj, int handle, jbyteArray pkey,
     client->sslClientCert(privateKey.release(), certificate);
 }
 
-#else
-
-static void AuthenticationProceed(JNIEnv *env, jobject obj, int handle, jstring jUsername, jstring jPassword)
+static void SslClientCertCtx(JNIEnv *env, jobject obj, int handle, jint ctx, jobjectArray chain)
 {
-    LOGW("Chromium authentication API called, but libchromium is not available");
+    WebUrlLoaderClient* client = reinterpret_cast<WebUrlLoaderClient*>(handle);
+    EVP_PKEY* pkey = reinterpret_cast<EVP_PKEY*>(static_cast<uintptr_t>(ctx));
+    if (pkey == NULL || chain == NULL) {
+        client->sslClientCert(NULL, NULL);
+        return;
+    }
+    scoped_refptr<net::X509Certificate> certificate = getX509Cert(env, chain);
+    if (certificate == NULL) {
+        client->sslClientCert(NULL, NULL);
+        return;
+    }
+    CRYPTO_add(&pkey->references, 1, CRYPTO_LOCK_EVP_PKEY);
+    client->sslClientCert(pkey, certificate);
 }
-
-static void AuthenticationCancel(JNIEnv *env, jobject obj, int handle)
-{
-    LOGW("Chromium authentication API called, but libchromium is not available");
-}
-
-static void SslCertErrorProceed(JNIEnv *env, jobject obj, int handle)
-{
-    LOGW("Chromium SSL API called, but libchromium is not available");
-}
-
-static void SslCertErrorCancel(JNIEnv *env, jobject obj, int handle, int cert_error)
-{
-    LOGW("Chromium SSL API called, but libchromium is not available");
-}
-
-static void SslClientCert(JNIEnv *env, jobject obj, int handle, jbyteArray privateKey, jobjectArray chain)
-{
-    LOGW("Chromium SSL API called, but libchromium is not available");
-}
-#endif // USE(CHROME_NETWORK_STACK)
 
 // ----------------------------------------------------------------------------
 
@@ -2406,10 +2052,6 @@ static JNINativeMethod gBrowserFrameNativeMethods[] = {
     { "stringByEvaluatingJavaScriptFromString",
             "(Ljava/lang/String;)Ljava/lang/String;",
         (void*) StringByEvaluatingJavaScriptFromString },
-    { "setCacheDisabled", "(Z)V",
-        (void*) SetCacheDisabled },
-    { "cacheDisabled", "()Z",
-        (void*) CacheDisabled },
     { "clearCache", "()V",
         (void*) ClearCache },
     { "documentHasImages", "()Z",
@@ -2430,18 +2072,24 @@ static JNINativeMethod gBrowserFrameNativeMethods[] = {
         (void*) SslCertErrorProceed },
     { "nativeSslCertErrorCancel", "(II)V",
         (void*) SslCertErrorCancel },
+    { "nativeSslClientCert", "(II[[B)V",
+        (void*) SslClientCertCtx },
     { "nativeSslClientCert", "(I[B[[B)V",
-        (void*) SslClientCert },
+        (void*) SslClientCertPKCS8 },
     { "nativeGetShouldStartScrolledRight", "(I)Z",
         (void*) GetShouldStartScrolledRight },
+// SAMSUNG CHANGE : chameleon >>
+	{ "nativeSetUAProfURL", "(Ljava/lang/String;)V",
+        (void*) setUAProfURL },
+// SAMSUNG CHANGE : chameleon <<
 };
 
 int registerWebFrame(JNIEnv* env)
 {
     jclass clazz = env->FindClass("android/webkit/BrowserFrame");
-    LOG_ASSERT(clazz, "Cannot find BrowserFrame");
+    ALOG_ASSERT(clazz, "Cannot find BrowserFrame");
     gFrameField = env->GetFieldID(clazz, "mNativeFrame", "I");
-    LOG_ASSERT(gFrameField, "Cannot find mNativeFrame on BrowserFrame");
+    ALOG_ASSERT(gFrameField, "Cannot find mNativeFrame on BrowserFrame");
     env->DeleteLocalRef(clazz);
 
     return jniRegisterNativeMethods(env, "android/webkit/BrowserFrame",

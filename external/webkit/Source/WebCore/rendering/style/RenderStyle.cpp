@@ -38,6 +38,8 @@
 
 using namespace std;
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 inline RenderStyle* defaultStyle()
@@ -280,72 +282,6 @@ bool RenderStyle::inheritedNotEqual(const RenderStyle* other) const
            || rareInheritedData != other->rareInheritedData;
 }
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-inline unsigned computeFontHash(const Font& font)
-{
-    unsigned hashCodes[2] = {
-        CaseFoldingHash::hash(font.fontDescription().family().family().impl()),
-        font.fontDescription().specifiedSize()
-    };
-    return StringHasher::computeHash(reinterpret_cast<UChar*>(hashCodes), 2 * sizeof(unsigned) / sizeof(UChar));
-}
-
-uint32_t RenderStyle::hashForTextAutosizing() const
-{
-    // Not a very smart hash.  Could be improved upon.
-    uint32_t hash = 0;
-    
-    hash ^= rareNonInheritedData->m_appearance;
-    hash ^= rareNonInheritedData->marginBeforeCollapse;
-    hash ^= rareNonInheritedData->marginAfterCollapse;
-    hash ^= rareNonInheritedData->lineClamp.value();
-    hash ^= rareInheritedData->wordWrap;
-    hash ^= rareInheritedData->nbspMode;
-    hash ^= rareInheritedData->khtmlLineBreak;
-    hash ^= inherited->specified_line_height.rawValue();
-    hash ^= computeFontHash(inherited->font);
-    hash ^= inherited->horizontal_border_spacing;
-    hash ^= inherited->vertical_border_spacing;
-    hash ^= inherited_flags._box_direction;
-    hash ^= inherited_flags._visuallyOrdered;
-    hash ^= noninherited_flags._position;
-    hash ^= noninherited_flags._floating;
-    hash ^= rareNonInheritedData->m_counterIncrement;
-    hash ^= rareNonInheritedData->m_counterReset;
-    hash ^= rareNonInheritedData->textOverflow;
-    hash ^= rareInheritedData->textSecurity;
-    return hash;
-}
-
-bool RenderStyle::equalForTextAutosizing(const RenderStyle *other) const
-{
-    if ( rareNonInheritedData->m_appearance == other->rareNonInheritedData->m_appearance &&
-         rareNonInheritedData->marginBeforeCollapse == other->rareNonInheritedData->marginBeforeCollapse &&
-         rareNonInheritedData->marginAfterCollapse == other->rareNonInheritedData->marginAfterCollapse &&
-         (rareNonInheritedData->lineClamp == other->rareNonInheritedData->lineClamp) &&
-         (rareInheritedData->textSizeAdjust == other->rareInheritedData->textSizeAdjust) &&
-         (rareInheritedData->wordWrap == other->rareInheritedData->wordWrap) &&
-         (rareInheritedData->nbspMode == other->rareInheritedData->nbspMode) &&
-         (rareInheritedData->khtmlLineBreak == other->rareInheritedData->khtmlLineBreak) &&
-         (inherited->specified_line_height == other->inherited->specified_line_height) &&
-         (inherited->font.equalForTextAutoSizing(other->inherited->font)) &&
-         (inherited->horizontal_border_spacing == other->inherited->horizontal_border_spacing) &&
-         (inherited->vertical_border_spacing == other->inherited->vertical_border_spacing) &&
-         (inherited_flags._box_direction == other->inherited_flags._box_direction) &&
-         (inherited_flags._visuallyOrdered == other->inherited_flags._visuallyOrdered) &&
-         (noninherited_flags._position == other->noninherited_flags._position) &&
-         (noninherited_flags._floating == other->noninherited_flags._floating) &&
-         rareNonInheritedData->m_counterIncrement == other->rareNonInheritedData->m_counterIncrement &&
-         rareNonInheritedData->m_counterReset == other->rareNonInheritedData->m_counterReset &&
-         rareNonInheritedData->textOverflow == other->rareNonInheritedData->textOverflow &&
-         (rareInheritedData->textSecurity == other->rareInheritedData->textSecurity))
-        return true;
-    return false;
-}
-//SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
-
 static bool positionedObjectMoved(const LengthBox& a, const LengthBox& b)
 {
     // If any unit types are different, then we can't guarantee
@@ -481,12 +417,7 @@ StyleDifference RenderStyle::diff(const RenderStyle* other, unsigned& changedCon
             return StyleDifferenceLayout;
     }
 
-    if (inherited->line_height != other->inherited->line_height 
-	#ifdef WEBKIT_TEXT_SIZE_ADJUST
-        //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-	|| inherited->specified_line_height != other->inherited->specified_line_height
-        //SAMSUNG CHANGE END webkit-text-size-adjust >>
-	#endif
+    if (inherited->line_height != other->inherited->line_height
         || inherited->list_style_image != other->inherited->list_style_image
         || inherited->font != other->inherited->font
         || inherited->horizontal_border_spacing != other->inherited->horizontal_border_spacing
@@ -1602,4 +1533,24 @@ TextEmphasisMark RenderStyle::textEmphasisMark() const
     return TextEmphasisMarkSesame;
 }
 
+void RenderStyle::getImageOutsets(const NinePieceImage& image, int& top, int& right, int& bottom, int& left) const
+{
+    top = NinePieceImage::computeOutset(image.outset().top(), borderTopWidth());
+    right = NinePieceImage::computeOutset(image.outset().right(), borderRightWidth());
+    bottom = NinePieceImage::computeOutset(image.outset().bottom(), borderBottomWidth());
+    left = NinePieceImage::computeOutset(image.outset().left(), borderLeftWidth());
+}
+
+void RenderStyle::getImageHorizontalOutsets(const NinePieceImage& image, int& left, int& right) const
+{
+    right = NinePieceImage::computeOutset(image.outset().right(), borderRightWidth());
+    left = NinePieceImage::computeOutset(image.outset().left(), borderLeftWidth());
+}
+
+void RenderStyle::getImageVerticalOutsets(const NinePieceImage& image, int& top, int& bottom) const
+{
+    top = NinePieceImage::computeOutset(image.outset().top(), borderTopWidth());
+    bottom = NinePieceImage::computeOutset(image.outset().bottom(), borderBottomWidth());
+}
+    
 } // namespace WebCore

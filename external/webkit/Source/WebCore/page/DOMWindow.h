@@ -149,6 +149,11 @@ namespace WebCore {
         void showModalDialog(const String& urlString, const String& dialogFeaturesString,
             DOMWindow* activeWindow, DOMWindow* firstWindow, PrepareDialogFunction, void* functionContext);
 
+        // Samsung Change - Bing search >>
+        int isBingCurrentSearchDefault() const;
+        bool setBingCurrentSearchDefault() const;
+        // Samsung Change - Bing search <<
+
         void alert(const String& message);
         bool confirm(const String& message);
         String prompt(const String& message, const String& defaultValue);
@@ -398,6 +403,7 @@ namespace WebCore {
 
 #if ENABLE(INDEXED_DATABASE)
         IDBFactory* webkitIndexedDB() const;
+        IDBFactory* indexedDB() const; // SAMSUNG CHANGE Ring Mark Tests
 #endif
 
 #if ENABLE(NOTIFICATIONS)

@@ -25,6 +25,8 @@
 #include "RenderOverflow.h"
 #include "ShadowData.h"
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 class HitTestRequest;
@@ -271,6 +273,7 @@ public:
 
 private:
     void addBoxShadowVisualOverflow(IntRect& logicalVisualOverflow);
+    void addBorderOutsetVisualOverflow(IntRect& logicalVisualOverflow);
     void addTextBoxVisualOverflow(InlineTextBox*, GlyphOverflowAndFallbackFontsMap&, IntRect& logicalVisualOverflow);
     void addReplacedChildOverflow(const InlineBox*, IntRect& logicalLayoutOverflow, IntRect& logicalVisualOverflow);
 

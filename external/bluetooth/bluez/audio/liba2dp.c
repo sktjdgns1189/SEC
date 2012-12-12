@@ -42,12 +42,6 @@
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
 
-/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
-// to switch role to Master
-#ifdef GLOBALCONFIG_BLUETOOTH_USE_CSR
-#include <bluetooth/hci.h>
-#endif
-/* SS_BLUETOOTH(is80.hwang) End */
 #include "ipc.h"
 #include "sbc.h"
 /* SS_BLUETOOTH(changeon.park) 2012.02.07 */
@@ -69,13 +63,13 @@
 #define BUFFER_SIZE 2048
 
 #ifdef ENABLE_DEBUG
-#define DBG LOGD
+#define DBG ALOGD
 #else
 #define DBG(fmt, arg...)
 #endif
 
 #ifdef ENABLE_VERBOSE
-#define VDBG LOGV
+#define VDBG ALOGV
 #else
 #define VDBG(fmt, arg...)
 #endif
@@ -91,7 +85,7 @@
 #define MAX_BITPOOL 64
 #define MIN_BITPOOL 2
 
-#define ERR LOGE
+#define ERR ALOGE
 
 /* Number of packets to buffer in the stream socket */
 #define PACKET_BUFFER_COUNT		10
@@ -232,16 +226,6 @@ static int bluetooth_a2dp_aptx_hw_params(struct bluetooth_data *data);
 static int bluetooth_a2dp_hw_params(struct bluetooth_data *data);
 static void set_state(struct bluetooth_data *data, a2dp_state_t state);
 
-/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
-// to switch role to Master
-#ifdef GLOBALCONFIG_BLUETOOTH_USE_CSR
-
-int hci_open_dev(int dev_id);
-int hci_close_dev(int dd);
-int hci_switch_role(int dd, bdaddr_t *bdaddr, uint8_t role, int to);
-
-#endif
-/* SS_BLUETOOTH(is80.hwang) End */
 
 static void bluetooth_close(struct bluetooth_data *data)
 {
@@ -318,13 +302,6 @@ static int bluetooth_start(struct bluetooth_data *data)
 	struct bt_start_stream_rsp *start_rsp = (void*) buf;
 	struct bt_new_stream_ind *streamfd_ind = (void*) buf;
 	int opt_name, err, bytes;
-/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
-// to switch role to Master
-#ifdef GLOBALCONFIG_BLUETOOTH_USE_CSR
-        int dd, dev_id = 0;
-        bdaddr_t bdaddr;
-#endif
-/* SS_BLUETOOTH(is80.hwang) End */
 
 	DBG("bluetooth_start");
 	data->state = A2DP_STATE_STARTING;
@@ -380,29 +357,6 @@ static int bluetooth_start(struct bluetooth_data *data)
         /* SS_BLUETOOTH(jiyoung93.hwang) 2012.04.27 -delay 200ms when a2dp_start */
         data->mStandby = 1;
 
-/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
-// to switch role to Master
-#ifdef GLOBALCONFIG_BLUETOOTH_USE_CSR
-
-	str2ba(data->address, &bdaddr);
-
-	DBG("bluetooth_start: hci_open_dev");
-	
-	dd = hci_open_dev(dev_id);
-	if (dd < 0) {
-		perror("HCI device open failed");
-	}
-	else {
-		if (hci_switch_role(dd, &bdaddr, 0, 10000) < 0) {
-			perror("Switch role request failed");
-		} else
-			DBG("bluetooth_start:: hci_switch_role");
-
-		hci_close_dev(dd);
-	}
-/////////////////
-#endif
-/* SS_BLUETOOTH(is80.hwang) End */
 	return 0;
 
 error:
@@ -904,7 +858,8 @@ static int bluetooth_a2dp_hw_params(struct bluetooth_data *data)
 
 	data->link_mtu = setconf_rsp->link_mtu;
 #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
-	if (setconf_rsp->content_protection == SCMS_T_CP) {
+	//if (setconf_rsp->content_protection == SCMS_T_CP) {
+	if (setconf_rsp->content_protection > 0) {
 		data->sizeof_scms_t = 1;
 		data->scms_t_cp_header = SCMS_T_COPY_NOT_ALLOWED;
 	} else {
@@ -939,7 +894,7 @@ static int bluetooth_a2dp_aptx_hw_params(struct bluetooth_data *data)
 	struct bt_set_configuration_rsp *setconf_rsp = (void*) buf;
 	int err;
 
-	LOGD("We are in bluetooth_a2dp_aptx_hw_params()\n");
+	ALOGD("We are in bluetooth_a2dp_aptx_hw_params()\n");
 
 	memset(open_req, 0, BT_SUGGESTED_BUFFER_SIZE);
 	open_req->h.type = BT_REQUEST;
@@ -986,65 +941,65 @@ static int bluetooth_a2dp_aptx_hw_params(struct bluetooth_data *data)
  DBG("bluetooth_a2dp_aptx_hw_params sending configuration:\n");
 	switch (data->aptx_capabilities.channel_mode) {
 		case BT_A2DP_CHANNEL_MODE_MONO:
-			LOGD("\tchannel_mode: MONO\n");
+			ALOGD("\tchannel_mode: MONO\n");
 			break;
 		case BT_A2DP_CHANNEL_MODE_DUAL_CHANNEL:
-			LOGD("\tchannel_mode: DUAL CHANNEL\n");
+			ALOGD("\tchannel_mode: DUAL CHANNEL\n");
 			break;
 		case BT_A2DP_CHANNEL_MODE_STEREO:
-			LOGD("\tchannel_mode: STEREO\n");
+			ALOGD("\tchannel_mode: STEREO\n");
 			break;
 		case BT_A2DP_CHANNEL_MODE_JOINT_STEREO:
-			LOGD("\tchannel_mode: JOINT STEREO\n");
+			ALOGD("\tchannel_mode: JOINT STEREO\n");
 			break;
 		default:
-			LOGD("\tchannel_mode: UNKNOWN (%d)\n",
+			ALOGD("\tchannel_mode: UNKNOWN (%d)\n",
 				data->aptx_capabilities.channel_mode);
 	}
 	switch (data->aptx_capabilities.frequency) {
 		case BT_APTX_SAMPLING_FREQ_16000:
-			LOGD("\tfrequency: 16000\n");
+			ALOGD("\tfrequency: 16000\n");
 			break;
 		case BT_APTX_SAMPLING_FREQ_32000:
-			LOGD("\tfrequency: 32000\n");
+			ALOGD("\tfrequency: 32000\n");
 			break;
 		case BT_APTX_SAMPLING_FREQ_44100:
-			LOGD("\tfrequency: 44100\n");
+			ALOGD("\tfrequency: 44100\n");
 			break;
 		case BT_APTX_SAMPLING_FREQ_48000:
-			LOGD("\tfrequency: 48000\n");
+			ALOGD("\tfrequency: 48000\n");
 			break;
 		default:
-			LOGD("\tfrequency: UNKNOWN (%d)\n",
+			ALOGD("\tfrequency: UNKNOWN (%d)\n",
 				data->aptx_capabilities.frequency);
 	}
 	
 				
 	err = audioservice_send(data, &setconf_req->h);
 	
-	LOGD("bluetooth_a2dp_aptx_hw_params called audioservice_send() from \n");
+	ALOGD("bluetooth_a2dp_aptx_hw_params called audioservice_send() from \n");
 
 	if (err < 0)
 		return err;
 
 	err = audioservice_expect(data, &setconf_rsp->h, BT_SET_CONFIGURATION);
-	LOGD("bluetooth_a2dp_aptx_hw_params called audioservice_expect()\n");
+	ALOGD("bluetooth_a2dp_aptx_hw_params called audioservice_expect()\n");
 	if (err < 0)
 		return err;
 
 	data->link_mtu = setconf_rsp->link_mtu;
-	LOGD("MTU: %d", data->link_mtu);
+	ALOGD("MTU: %d", data->link_mtu);
 
 	/* Setup APTX encoder now we agree on parameters */
 
-	LOGD("bluetooth_a2dp_aptx_hw_params called bluetooth_a2dp_aptx_setup(data)\n");
+	ALOGD("bluetooth_a2dp_aptx_hw_params called bluetooth_a2dp_aptx_setup(data)\n");
 
 	bluetooth_a2dp_aptx_setup(data);
 	/*
 	DBG("\taptX Frequency=%u\n\taptX Channel mode=%u\n",
 			data->aptx.frequency, data->aptx.mode);
 	*/
-	LOGD("end of bluetooth_a2dp_aptx_hw_btaptx_params()\n");
+	ALOGD("end of bluetooth_a2dp_aptx_hw_btaptx_params()\n");
 		
 	return 0;
 }
@@ -1389,13 +1344,13 @@ static int bluetooth_parse_capabilities(struct bluetooth_data *data,
 		if ((codec->type == BT_A2DP_SBC_SINK) &&
 				!(codec->lock & BT_WRITE_LOCK)) {
 			psbccodec = codec;
-			LOGD("bluetooth_parse_capabilities:: detect SBC");
+			ALOGD("bluetooth_parse_capabilities:: detect SBC");
 		}
 
 		if ((codec->type == BT_A2DP_APTX_SINK) &&
 				!(codec->lock & BT_WRITE_LOCK)) {
 			paptxcodec = codec;
-			LOGD("bluetooth_parse_capabilities:: detect APTX");
+			ALOGD("bluetooth_parse_capabilities:: detect APTX");
 		}
 
 		bytes_left -= codec->length;
@@ -1407,40 +1362,40 @@ static int bluetooth_parse_capabilities(struct bluetooth_data *data,
 	}
 
    if (paptxcodec && paptxcodec->length == sizeof(data->aptx_capabilities)) {
-      LOGD("~~~~~~~~~~~~~ codec type set to aptx");
+      ALOGD("~~~~~~~~~~~~~ codec type set to aptx");
 	  memset(bt_a2dp_foundCodecs, 0,3);
 	  memcpy(bt_a2dp_foundCodecs, "aptx", 3);
 	  codec_priority=1;
 
         memcpy(&data->aptx_capabilities, paptxcodec, paptxcodec->length);
-		LOGD ("paptxcodec->length=%u\n",paptxcodec->length);
-		LOGD("aptx codec ID0 = %x ",  data->aptx_capabilities.codec_id0); 
-		LOGD("aptx codec ID1 = %x ",  data->aptx_capabilities.codec_id1); 
-		LOGD("aptx Vendor ID0 = %x ", data->aptx_capabilities.vender_id0); 
-		LOGD("aptx Vendor ID1 = %x ", data->aptx_capabilities.vender_id1); 
-		LOGD("aptx Vendor ID2 = %x ", data->aptx_capabilities.vender_id2); 
-		LOGD("aptx Vendor ID3 = %x ", data->aptx_capabilities.vender_id3); 
-		LOGD("aptx channel mode = %u", data->aptx_capabilities.channel_mode); 
-		LOGD("aptx frequency = %u ",  data->aptx_capabilities.frequency); 
+		ALOGD ("paptxcodec->length=%u\n",paptxcodec->length);
+		ALOGD("aptx codec ID0 = %x ",  data->aptx_capabilities.codec_id0); 
+		ALOGD("aptx codec ID1 = %x ",  data->aptx_capabilities.codec_id1); 
+		ALOGD("aptx Vendor ID0 = %x ", data->aptx_capabilities.vender_id0); 
+		ALOGD("aptx Vendor ID1 = %x ", data->aptx_capabilities.vender_id1); 
+		ALOGD("aptx Vendor ID2 = %x ", data->aptx_capabilities.vender_id2); 
+		ALOGD("aptx Vendor ID3 = %x ", data->aptx_capabilities.vender_id3); 
+		ALOGD("aptx channel mode = %u", data->aptx_capabilities.channel_mode); 
+		ALOGD("aptx frequency = %u ",  data->aptx_capabilities.frequency); 
 
 		data->isEdrCapable = rsp->isEdrCapable;
 		return 0;
    }
 
    if (psbccodec && psbccodec->length == sizeof(data->sbc_capabilities)) {
-      	LOGD("~~~~~~~~~~~~~ codec type set to sbc");
+      	ALOGD("~~~~~~~~~~~~~ codec type set to sbc");
 		memset(bt_a2dp_foundCodecs, 0,3);
 		memcpy(bt_a2dp_foundCodecs, "sbc", 2);
 		codec_priority=0;
         memcpy(&data->sbc_capabilities, psbccodec, psbccodec->length);
-		LOGD("psbccodec->length = %u\n\n ",	psbccodec->length); 
-		LOGD("SBC channel mode = %u\n ",	data->sbc_capabilities.channel_mode); 
-		LOGD("SBC frequency = %u\n ",		data->sbc_capabilities.frequency); 
-		LOGD("SBC allocation_method = %u\n ", data->sbc_capabilities.allocation_method); 
-		LOGD("SBC subbands = %u\n ",	data->sbc_capabilities.subbands); 
-		LOGD("SBC block_length = %u\n ", data->sbc_capabilities.block_length); 
-		LOGD("SBC min_bitpool = %u\n ", data->sbc_capabilities.min_bitpool); 
-		LOGD("SBC max_bitpool = %u\n ", data->sbc_capabilities.max_bitpool);
+		ALOGD("psbccodec->length = %u\n\n ",	psbccodec->length); 
+		ALOGD("SBC channel mode = %u\n ",	data->sbc_capabilities.channel_mode); 
+		ALOGD("SBC frequency = %u\n ",		data->sbc_capabilities.frequency); 
+		ALOGD("SBC allocation_method = %u\n ", data->sbc_capabilities.allocation_method); 
+		ALOGD("SBC subbands = %u\n ",	data->sbc_capabilities.subbands); 
+		ALOGD("SBC block_length = %u\n ", data->sbc_capabilities.block_length); 
+		ALOGD("SBC min_bitpool = %u\n ", data->sbc_capabilities.min_bitpool); 
+		ALOGD("SBC max_bitpool = %u\n ", data->sbc_capabilities.max_bitpool);
 
 		data->isEdrCapable = rsp->isEdrCapable;
 		return 0;
@@ -1914,7 +1869,7 @@ int a2dp_write(a2dpData d, const void* buffer, int count)
 	  codesize = 16;
       written = 4;
       encoded = 8;
-//      LOGD("aptx encoding");
+//      ALOGD("aptx encoding");
       while (frames_left >= codesize) {
          // get the next 4 PCM samples per channel from the buffer
          for (t = 0; t < 4; t++) {
@@ -1946,7 +1901,7 @@ int a2dp_write(a2dpData d, const void* buffer, int count)
 			if( (data->count + 4 >= 370) || (data->count + 4 >= data->link_mtu) ||
              (data->count + 4 >= BUFFER_SIZE)) {
 
-//		      LOGD("from btaptx sending packet %d, data->samples=%d, count %d, link_mtu %u",
+//		      ALOGD("from btaptx sending packet %d, data->samples=%d, count %d, link_mtu %u",
 //                  data->seq_num, data->samples, data->count,
 //                  data->link_mtu);
 	   
@@ -1964,7 +1919,7 @@ int a2dp_write(a2dpData d, const void* buffer, int count)
   } 
   //else if ((strncmp(bt_a2dp_foundCodecs,"sbc",2))==0 && (codec_priority==0)) {
   else {  /* SS_BLUETOOTH(changeon.park) 2012.04.23 - changed for SBC legacy */
-//	LOGD("SBC encoding");
+//	ALOGD("SBC encoding");
 
 	while (frames_left >= codesize) {
 		/* Enough data to encode (sbc wants 512 byte blocks) */
@@ -1976,7 +1931,7 @@ int a2dp_write(a2dpData d, const void* buffer, int count)
 			ERR("Encoding error %d", encoded);
 			goto done;
 		}
-//		LOGD("aptX enabled but sbc_encode is used, returned %d, codesize: %d, written: %d\n",
+//		ALOGD("aptX enabled but sbc_encode is used, returned %d, codesize: %d, written: %d\n",
 //			encoded, codesize, written);
 
 		src += encoded;
@@ -1988,7 +1943,7 @@ int a2dp_write(a2dpData d, const void* buffer, int count)
 		/* No space left for another frame then send */
 		if ((data->count + written >= data->link_mtu) ||
 				(data->count + written >= BUFFER_SIZE)) {
-//			LOGD("sending packet %d, count %d, link_mtu %u",
+//			ALOGD("sending packet %d, count %d, link_mtu %u",
 //					data->seq_num, data->count,
 //					data->link_mtu);
 			err = avdtp_write(data);
@@ -2001,7 +1956,7 @@ int a2dp_write(a2dpData d, const void* buffer, int count)
 	}
     }
 //else {
-//LOGD ("No suported codec encoder\n");
+//ALOGD ("No suported codec encoder\n");
 //	}
 
 	if (frames_left > 0)

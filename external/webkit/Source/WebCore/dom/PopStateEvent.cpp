@@ -31,6 +31,13 @@
 
 namespace WebCore {
 
+//SAMSUNG CHANGES HISTORY POP STATE rng.io <<
+PopStateEvent::PopStateEvent()
+    : Event(eventNames().popstateEvent, false, true)
+    , m_stateObject(0)
+{
+}
+//SAMSUNG CHANGES HISTORY POP STATE rng.io >>
 PopStateEvent::PopStateEvent(PassRefPtr<SerializedScriptValue> stateObject)
     : Event(eventNames().popstateEvent, false, true)
     , m_stateObject(stateObject)

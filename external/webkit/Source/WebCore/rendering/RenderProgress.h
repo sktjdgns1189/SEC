@@ -40,11 +40,11 @@ public:
     bool isDeterminate() const;
 
     HTMLProgressElement* progressElement() const;
-//SAMSUNG PROGRESS TAG CHANGES <<
+
+//SAMSUNG CHANGES HTML5 PROGRESS <<
     void setProgressValue(int val);
     int progressValue();
-//SAMSUNG PROGRESS TAG CHANGES >>
-
+//SAMSUNG CHANGES HTML5 PROGRESS >>
 private:
     virtual const char* renderName() const { return "RenderProgress"; }
     virtual bool isProgress() const { return true; }
@@ -61,9 +61,7 @@ private:
     double m_animationDuration;
     bool m_animating;
     Timer<RenderProgress> m_animationTimer;
-//SAMSUNG PROGRESS TAG CHANGES <<
-    int m_progressValue;
-//SAMSUNG PROGRESS TAG CHANGES >>
+    int m_progressValue; //SAMSUNG CHANGES HTML5 PROGRESS 
 };
 
 inline RenderProgress* toRenderProgress(RenderObject* object)

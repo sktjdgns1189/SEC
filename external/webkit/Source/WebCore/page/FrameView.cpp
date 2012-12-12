@@ -62,11 +62,6 @@
 #include "TextResourceDecoder.h"
 #include <wtf/CurrentTime.h>
 
-#ifdef ANDROID_INSTRUMENT
-#include "FrameTree.h"
-#include "TimeCounter.h"
-#endif
-
 #if USE(ACCELERATED_COMPOSITING)
 #include "RenderLayerCompositor.h"
 #endif
@@ -87,14 +82,6 @@
 
 #if PLATFORM(ANDROID)
 #include "WebCoreFrameBridge.h"
-#endif
-
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-#define WVGA 480
-#define HD 720
-#define WXGA 800
-//SAMSUNG CHANGE END webkit-text-size-adjust >>
 #endif
 
 namespace WebCore {
@@ -565,14 +552,8 @@ void FrameView::calculateScrollbarModesForLayout(ScrollbarMode& hMode, Scrollbar
         Node* body = document->body();
         if (body && body->renderer()) {
             if (body->hasTagName(framesetTag) && m_frame->settings() && !m_frame->settings()->frameFlatteningEnabled()) {
-		// SAMSUNG CHANGE + MPSG100004183
-		Element* ownerElement = document->ownerElement();
-                if (!ownerElement || !ownerElement->hasTagName(iframeTag)) 
-		// SAMSUNG CHANGE -
-		{
-	                vMode = ScrollbarAlwaysOff;
-	                hMode = ScrollbarAlwaysOff;
-                }
+                vMode = ScrollbarAlwaysOff;
+                hMode = ScrollbarAlwaysOff;
             } else if (body->hasTagName(bodyTag)) {
                 // It's sufficient to just check the X overflow,
                 // since it's illegal to have visible in only one direction.
@@ -886,11 +867,6 @@ void FrameView::layout(bool allowSubtree)
         return;
     }
 
-#ifdef ANDROID_INSTRUMENT
-    if (!m_frame->tree() || !m_frame->tree()->parent())
-        android::TimeCounter::start(android::TimeCounter::LayoutTimeCounter);
-#endif
-
     m_nestedLayoutCount++;
 
     if (!m_layoutRoot) {
@@ -986,35 +962,6 @@ void FrameView::layout(bool allowSubtree)
     m_inLayout = true;
     beginDeferredRepaints();
     root->layout();
-	#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    if(frame()->settings() && frame()->settings()->TextReadability()){
-        if((!(frame()->settings()->viewportWidth() == 0)) && (!(document->didLayoutWithPendingStylesheets()))){
-            int minZoomFontSize = frame()->settings()->defaultFontSize();
-	    FloatRect wr = frame()->page()->chrome()->client()->windowRect();
-            float scaleFactor = frame()->page()->chrome()->client()->scaleFactor();
-            float w = (wr.width())/(scaleFactor);
-            float h = ((wr.height())+wr.y())/(scaleFactor);	
-            float visWidth = std::min(w,h);
-      	   float resolution = std::min(wr.width(),(wr.height()+wr.y()));
-            if(frame()->settings()->TextReadabilityRatio() == 0.0){
-                if(visWidth == WVGA)
-                    frame()->settings()->setTextReadabilityRatio(1.55);
-                else if (visWidth == HD)	
-                    frame()->settings()->setTextReadabilityRatio(1.45);
-                else if (visWidth == WXGA)
-                    frame()->settings()->setTextReadabilityRatio(1.35);
-               } 
-            if (minZoomFontSize && visWidth && !root->view()->printing()) {
-                root->adjustComputedFontSizesOnBlocks(minZoomFontSize, visWidth);    
-                bool needsLayout = root->needsLayout();
-                if (needsLayout)
-                    root->layout();
-            }
-	}
-    }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-	#endif
     endDeferredRepaints();
     m_inLayout = false;
 
@@ -1057,10 +1004,6 @@ void FrameView::layout(bool allowSubtree)
     updateDashboardRegions();
 #endif
 
-#ifdef ANDROID_INSTRUMENT
-    if (!m_frame->tree()->parent())
-        android::TimeCounter::record(android::TimeCounter::LayoutTimeCounter, __FUNCTION__);
-#endif
     ASSERT(!root->needsLayout());
 
     updateCanBlitOnScrollRecursively();
@@ -1593,12 +1536,7 @@ const unsigned cRepaintRectUnionThreshold = 25;
 void FrameView::repaintContentRectangle(const IntRect& r, bool immediate)
 {
     ASSERT(!m_frame->ownerElement());
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-	Node * focusedDNode = m_frame->document()->focusedNode();
-	Node * checkDNode = m_frame->document()->checkNode();
-	if(focusedDNode && checkDNode && (checkDNode == focusedDNode) && !m_frame->document()->getBackOrForward() && m_frame->settings() && m_frame->settings()->getWebTextViewOnOffStatus() && m_frame->settings()->isBrowserApp())
-		return;
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
+
     double delay = m_deferringRepaints ? 0 : adjustedDeferredRepaintDelay();
     if ((m_deferringRepaints || m_deferredRepaintTimer.isActive() || delay) && !immediate) {
         IntRect paintRect = r;
@@ -1715,12 +1653,6 @@ void FrameView::checkStopDelayingDeferredRepaints()
 void FrameView::doDeferredRepaints()
 {
     ASSERT(!m_deferringRepaints);
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-	Node * focusedDNode = m_frame->document()->focusedNode();
-	Node * checkDNode = m_frame->document()->checkNode();
-	if(focusedDNode && checkDNode && (checkDNode == focusedDNode) && !m_frame->document()->getBackOrForward() && m_frame->settings() && m_frame->settings()->getWebTextViewOnOffStatus() && m_frame->settings()->isBrowserApp())
-		return;
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
     if (!shouldUpdate()) {
         m_repaintRects.clear();
         m_repaintCount = 0;
@@ -1806,17 +1738,17 @@ void FrameView::scheduleRelayout()
     if (!m_frame->document()->shouldScheduleLayout())
         return;
 
-#ifdef ANDROID_FLATTEN_FRAMESET
-    if (m_frame->ownerRenderer())
-        m_frame->ownerRenderer()->setNeedsLayoutAndPrefWidthsRecalc();
-#endif
-
     // When frame flattening is enabled, the contents of the frame affects layout of the parent frames.
     // Also invalidate parent frame starting from the owner element of this frame.
     if (m_frame->settings() && m_frame->settings()->frameFlatteningEnabled() && m_frame->ownerRenderer()) {
         if (m_frame->ownerElement()->hasTagName(iframeTag) || m_frame->ownerElement()->hasTagName(frameTag))
             m_frame->ownerRenderer()->setNeedsLayout(true, true);
     }
+
+#ifdef ANDROID_FLATTEN_FRAMESET
+    if (m_frame->ownerRenderer() && m_frame->ownerElement()->hasTagName(frameTag))
+        m_frame->ownerRenderer()->setNeedsLayoutAndPrefWidthsRecalc();
+#endif
 
     int delay = m_frame->document()->minimumLayoutDelay();
     if (m_layoutTimer.isActive() && m_delayedLayout && !delay)
@@ -2131,12 +2063,8 @@ void FrameView::performPostLayoutTasks()
         bool resized = !m_firstLayout && (currentSize != m_lastLayoutSize || currentZoomFactor != m_lastZoomFactor);
         m_lastLayoutSize = currentSize;
         m_lastZoomFactor = currentZoomFactor;
-        if (resized) {
+        if (resized)
             m_frame->eventHandler()->sendResizeEvent();
-#if ENABLE(WEBGL)
-            root->forceRelayoutChildren();
-#endif
-        }
     }
 }
 

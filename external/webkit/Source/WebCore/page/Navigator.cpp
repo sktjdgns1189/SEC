@@ -174,8 +174,8 @@ Geolocation* Navigator::geolocation() const
 #if PLATFORM(ANDROID)
 Connection* Navigator::connection() const
 {
-    if (!m_connection)
-        m_connection = Connection::create();
+    if (!m_connection && m_frame)
+        m_connection = Connection::create(m_frame->document());  //SAMSUNG CHANGE - MPSG6020
     return m_connection.get();
 }
 #endif

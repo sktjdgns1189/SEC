@@ -33,6 +33,9 @@
 #include "TextIterator.h"
 #include "VisiblePosition.h"
 #include "visible_units.h"
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
+#if ENABLE(SPELLCHECK)
 #include <wtf/text/CString.h>
 
 #ifdef DEBUG
@@ -48,6 +51,8 @@
 #define XLOG(...)
 
 #endif // DEBUG
+#endif
+//SAMSUNG CHANGES <<<
 
 namespace WebCore {
 
@@ -177,6 +182,7 @@ TextCheckingHelper::TextCheckingHelper(EditorClient* client, PassRefPtr<Range> r
 TextCheckingHelper::~TextCheckingHelper()
 {
 }
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
 #if ENABLE(SPELLCHECK)
 long presentWordEndIndex(char* sentence)
 {
@@ -247,14 +253,15 @@ bool hasCharacters(char* sentence)
 
 }
 #endif
+//SAMSUNG CHANGES <<<
 String TextCheckingHelper::findFirstMisspelling(int& firstMisspellingOffset, bool markAll, RefPtr<Range>& firstMisspellingRange)
 {
     WordAwareIterator it(m_range.get());
     firstMisspellingOffset = 0;
     
     String firstMisspelling;
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 	long currentChunkOffset = 0;
-
 #if ENABLE(SPELLCHECK)
 	String findmisspellingText = m_range->text();
 	String findmisspellingTextCopy = m_range->text();
@@ -355,6 +362,7 @@ String TextCheckingHelper::findFirstMisspelling(int& firstMisspellingOffset, boo
 	else
 	{ 
 #endif
+//SAMSUNG CHANGES <<<
     while (!it.atEnd()) {
         const UChar* chars = it.characters();
         int len = it.length();
@@ -362,9 +370,11 @@ String TextCheckingHelper::findFirstMisspelling(int& firstMisspellingOffset, boo
         // Skip some work for one-space-char hunks
         if (!(len == 1 && chars[0] == ' ')) {
             
-				int misspellingLocation = -1;
-				int misspellingLength = 0;
-				m_client->checkSpellingOfString(chars, len, &misspellingLocation, &misspellingLength);
+			int misspellingLocation = -1;
+			int misspellingLength = 0;
+			//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+			m_client->checkSpellingOfString(chars, len, &misspellingLocation, &misspellingLength);
+			//SAMSUNG CHANGES <<<
 
             // 5490627 shows that there was some code path here where the String constructor below crashes.
             // We don't know exactly what combination of bad input caused this, so we're making this much
@@ -402,10 +412,11 @@ String TextCheckingHelper::findFirstMisspelling(int& firstMisspellingOffset, boo
 			currentChunkOffset += len;
 			it.advance();
 		}
-	
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
 #if ENABLE(SPELLCHECK)
 	}
 #endif
+//SAMSUNG CHANGES <<<
     return firstMisspelling;
 }
 

@@ -57,8 +57,10 @@ public:
     void dirtyLineBoxes(bool fullLayout);
 
     virtual void absoluteRects(Vector<IntRect>&, int tx, int ty);
-    // SAMSUNG CHANGE - extra parameter added for text selection issue incase of BR elements
+	
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     void absoluteRectsForRange(Vector<IntRect>&, unsigned startOffset = 0, unsigned endOffset = UINT_MAX, bool useSelectionHeight = false, bool includeBr = false);
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
     virtual void absoluteQuads(Vector<FloatQuad>&);
     void absoluteQuadsForRange(Vector<FloatQuad>&, unsigned startOffset = 0, unsigned endOffset = UINT_MAX, bool useSelectionHeight = false);
@@ -98,9 +100,9 @@ public:
     virtual bool canBeSelectionLeaf() const { return true; }
     virtual void setSelectionState(SelectionState s);
     virtual IntRect selectionRectForRepaint(RenderBoxModelObject* repaintContainer, bool clipToVisibleContent = true);
-// Samsung Adding for multicolumn text selection - Begin
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     virtual IntRect localCaretRect(InlineBox*, int caretOffset, int* extraWidthToEndOfLine = 0,bool bTextSelection=false);
-// Samsung Adding for multicolumn text selection - End 
+//SAMSUNG ADVANCED TEXT SELECTION - END
     virtual int marginLeft() const { return style()->marginLeft().calcMinValue(0); }
     virtual int marginRight() const { return style()->marginRight().calcMinValue(0); }
 
@@ -119,6 +121,9 @@ public:
 
     bool containsReversedText() const { return m_containsReversedText; }
 
+    bool isSecure() const { return style()->textSecurity() != TSNONE; }
+    void momentarilyRevealLastTypedCharacter(unsigned lastTypedCharacterOffset);
+
     InlineTextBox* findNextInlineTextBox(int offset, int& pos) const;
 
     bool allowTabs() const { return !style()->collapseWhiteSpace(); }
@@ -136,12 +141,7 @@ public:
     bool knownToHaveNoOverflowAndNoFallbackFonts() const { return m_knownToHaveNoOverflowAndNoFallbackFonts; }
 
     void removeAndDestroyTextBoxes();
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    float candidateComputedTextSize() const { return m_candidateComputedTextSize; }
-    void setCandidateComputedTextSize(float s) { m_candidateComputedTextSize = s; }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
+
 protected:
     virtual void styleWillChange(StyleDifference, const RenderStyle*) { }
     virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle);
@@ -152,7 +152,7 @@ protected:
     virtual InlineTextBox* createTextBox(); // Subclassed by SVG.
 
 private:
-    bool m_rtl; //SISO: for cursor alignment	
+    bool m_rtl; //SISO: for cursor alignment
     void computePreferredLogicalWidths(float leadWidth, HashSet<const SimpleFontData*>& fallbackFonts, GlyphOverflow&);
 
     // Make length() private so that callers that have a RenderText*
@@ -171,6 +171,7 @@ private:
     void updateNeedsTranscoding();
 
     inline void transformText(String&) const;
+    void secureText(UChar mask);
 
     float m_minWidth; // here to minimize padding in 64-bit.
 
@@ -196,13 +197,6 @@ private:
     bool m_isAllASCII : 1;
     mutable bool m_knownToHaveNoOverflowAndNoFallbackFonts : 1;
     bool m_needsTranscoding : 1;
-
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-   //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    // FIXME: This should probably be part of the text sizing structures in Document instead. That would save some memory.
-    float m_candidateComputedTextSize;
-    //SAMSUNG CHANGE END webkit-text-size-adjust <<
-#endif
 };
 
 inline RenderText* toRenderText(RenderObject* object)

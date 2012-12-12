@@ -118,13 +118,6 @@ void TextControlInnerTextElement::defaultEventHandler(Event* event)
         // To prevent an infinite loop, we must check for this case before sending the event up the chain.
         if (shadowAncestor && shadowAncestor != this)
             shadowAncestor->defaultEventHandler(event);
-		// SAMSUNG CHANGE + // incase of WML pages, when we delete text from input box, 
-		// the text is not updated to renderer, always it shows the old text
-		if (document() && document()->isWMLDocument()) {
-			if (event->type() == eventNames().webkitEditableContentChangedEvent && shadowAncestor && shadowAncestor->renderer())
-	            toRenderTextControl(shadowAncestor->renderer())->subtreeHasChanged();
-		}
-		// SAMSUNG CHANGE -
     }
     if (!event->defaultHandled())
         HTMLDivElement::defaultEventHandler(event);

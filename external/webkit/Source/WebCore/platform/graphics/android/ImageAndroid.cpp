@@ -44,12 +44,8 @@
 #include "SkTemplates.h"
 #include "SkiaUtils.h"
 
-#include <utils/AssetManager.h>
+#include <androidfw/AssetManager.h>
 
-#if ENABLE(ACCELERATED_2D_CANVAS)
-#include "GLES2Canvas.h"
-#include "Texture.h"
-#endif
 //#define TRACE_SUBSAMPLED_BITMAPS
 //#define TRACE_SKIPPED_BITMAPS
 
@@ -176,51 +172,9 @@ static void round_scaled(SkIRect* dst, const WebCore::FloatRect& src,
              SkScalarRound(SkFloatToScalar((src.y() + src.height()) * sy)));
 }
 
-static inline void fixPaintForBitmapsThatMaySeam(SkPaint* paint) {
-    /*  Bitmaps may be drawn to seem next to other images. If we are drawn
-        zoomed, or at fractional coordinates, we may see cracks/edges if
-        we antialias, because that will cause us to draw the same pixels
-        more than once (e.g. from the left and right bitmaps that share
-        an edge).
-
-        Disabling antialiasing fixes this, and since so far we are never
-        rotated at non-multiple-of-90 angles, this seems to do no harm
-     */
-    paint->setAntiAlias(false);
-}
-
-#if ENABLE(ACCELERATED_2D_CANVAS)
-
-static void drawBitmapGLES2(GraphicsContext* ctxt, NativeImagePtr bitmapRef, const FloatRect& srcRect, const FloatRect& dstRect, ColorSpace styleColorSpace, CompositeOperator compositeOp)
-{
-    ctxt->prepareForHardwareDraw();
-    GLES2Canvas* gpuCanvas = ctxt->gpuCanvas();
-
-    SkBitmap& bitmap = bitmapRef->bitmap();
-	
-    Texture* texture = gpuCanvas->getTexture(bitmapRef);
-    if (!texture) {
-        ASSERT(bitmap.config() == SkBitmap::kARGB_8888_Config);
-        ASSERT(bitmap.rowBytes() == bitmap.width() * 4);
-//        texture = gpuCanvas->createTexture(bitmapRef, Texture::BGRA8, bitmap.width(), bitmap.height());
-        texture = gpuCanvas->createTexture(bitmapRef, Texture::RGBA8, bitmap.width(), bitmap.height());		
-        SkAutoLockPixels lock(bitmap);
-        ASSERT(bitmap.getPixels());
-        texture->load(bitmap.getPixels());
-    }
-    gpuCanvas->drawTexturedRect(texture, srcRect, dstRect, styleColorSpace, compositeOp);
-}
-
-#endif
-#if ENABLE(ACCELERATED_2D_CANVAS)
-void BitmapImage::draw(GraphicsContext* ctxt, const FloatRect& dstRect,
-                   const FloatRect& srcRect, ColorSpace colorSpace,
-                   CompositeOperator compositeOp)
-#else
-void BitmapImage::draw(GraphicsContext* ctxt, const FloatRect& dstRect,
+void BitmapImage::draw(GraphicsContext* gc, const FloatRect& dstRect,
                    const FloatRect& srcRect, ColorSpace,
                    CompositeOperator compositeOp)
- #endif                  
 {
     startAnimation();
 
@@ -255,26 +209,7 @@ void BitmapImage::draw(GraphicsContext* ctxt, const FloatRect& dstRect,
         return;
     }
 
-#if ENABLE(ACCELERATED_2D_CANVAS)
-
-    if (ctxt->useGPU() && ctxt->canAccelerate()) {
-
-	FloatRect srcRect(srcR.fLeft , srcR.fTop , srcR.width() , srcR.height());
-	FloatRect desRect(dstR.fLeft , dstR.fTop , dstR.width() , dstR.height());
-        drawBitmapGLES2(ctxt, image, srcRect, desRect, colorSpace, compositeOp);
-        return;
-    }
-	
-    ctxt->prepareForSoftwareDraw();
-#endif
-    SkCanvas*   canvas = ctxt->platformContext()->mCanvas;
-    SkPaint     paint;
-
-    ctxt->setupBitmapPaint(&paint);   // need global alpha among other things
-    paint.setFilterBitmap(true);
-    paint.setXfermodeMode(WebCoreCompositeToSkiaComposite(compositeOp));
-    fixPaintForBitmapsThatMaySeam(&paint);
-    canvas->drawBitmapRect(bitmap, &srcR, dstR, &paint);
+    gc->platformContext()->drawBitmapRect(bitmap, &srcR, dstR, compositeOp);
 
 #ifdef TRACE_SUBSAMPLED_BITMAPS
     if (bitmap.width() != image->origWidth() ||
@@ -293,26 +228,19 @@ void BitmapImage::setURL(const String& str)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void Image::drawPattern(GraphicsContext* ctxt, const FloatRect& srcRect,
+void Image::drawPattern(GraphicsContext* gc, const FloatRect& srcRect,
                         const AffineTransform& patternTransform,
                         const FloatPoint& phase, ColorSpace,
                         CompositeOperator compositeOp, const FloatRect& destRect)
 {
     SkBitmapRef* image = this->nativeImageForCurrentFrame();
-    if (!image) { // If it's too early we won't have an image yet.
+    if (!image || destRect.isEmpty())
         return;
-    }
 
     // in case we get called with an incomplete bitmap
     const SkBitmap& origBitmap = image->bitmap();
-    if (origBitmap.getPixels() == NULL && origBitmap.pixelRef() == NULL) {
+    if (origBitmap.getPixels() == NULL && origBitmap.pixelRef() == NULL)
         return;
-    }
-
-    SkRect  dstR(destRect);
-    if (dstR.isEmpty()) {
-        return;
-    }
 
     SkIRect srcR;
     // we may have to scale if the image has been subsampled (so save RAM)
@@ -323,11 +251,9 @@ void Image::drawPattern(GraphicsContext* ctxt, const FloatRect& srcRect,
     if (imageIsSubSampled) {
         scaleX = (float)image->origWidth() / origBitmap.width();
         scaleY = (float)image->origHeight() / origBitmap.height();
-//        SkDebugf("----- subsampled %g %g\n", scaleX, scaleY);
         round_scaled(&srcR, srcRect, 1 / scaleX, 1 / scaleY);
-    } else {
+    } else
         round(&srcR, srcRect);
-    }
 
     // now extract the proper subset of the src image
     SkBitmap bitmap;
@@ -335,19 +261,6 @@ void Image::drawPattern(GraphicsContext* ctxt, const FloatRect& srcRect,
         SkDebugf("--- Image::drawPattern calling extractSubset failed\n");
         return;
     }
-
-    SkCanvas*   canvas = ctxt->platformContext()->mCanvas;
-    SkPaint     paint;
-    ctxt->setupBitmapPaint(&paint);   // need global alpha among other things
-
-    SkShader* shader = SkShader::CreateBitmapShader(bitmap,
-                                                    SkShader::kRepeat_TileMode,
-                                                    SkShader::kRepeat_TileMode);
-    paint.setShader(shader)->unref();
-    // now paint is the only owner of shader
-    paint.setXfermodeMode(WebCoreCompositeToSkiaComposite(compositeOp));
-    paint.setFilterBitmap(true);
-    fixPaintForBitmapsThatMaySeam(&paint);
 
     SkMatrix matrix(patternTransform);
 
@@ -361,26 +274,8 @@ void Image::drawPattern(GraphicsContext* ctxt, const FloatRect& srcRect,
     float tx = phase.x() + srcRect.x() * patternTransform.a();
     float ty = phase.y() + srcRect.y() * patternTransform.d();
     matrix.postTranslate(SkFloatToScalar(tx), SkFloatToScalar(ty));
-    shader->setLocalMatrix(matrix);
-#if 0
-    SkDebugf("--- drawPattern: src [%g %g %g %g] dst [%g %g %g %g] transform [%g %g %g %g %g %g] matrix [%g %g %g %g %g %g]\n",
-             srcRect.x(), srcRect.y(), srcRect.width(), srcRect.height(),
-             destRect.x(), destRect.y(), destRect.width(), destRect.height(),
-             patternTransform.a(), patternTransform.b(), patternTransform.c(),
-             patternTransform.d(), patternTransform.e(), patternTransform.f(),
-             matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
-#endif
-    canvas->drawRect(dstR, paint);
 
-#ifdef TRACE_SUBSAMPLED_BITMAPS
-    if (bitmap.width() != image->origWidth() ||
-        bitmap.height() != image->origHeight()) {
-        SkDebugf("--- Image::drawPattern [%d %d] orig [%d %d] dst [%g %g]\n",
-                 bitmap.width(), bitmap.height(),
-                 image->origWidth(), image->origHeight(),
-                 SkScalarToFloat(dstR.width()), SkScalarToFloat(dstR.height()));
-    }
-#endif
+    gc->platformContext()->drawBitmapPattern(bitmap, matrix, compositeOp, destRect);
 }
 
 // missingImage, textAreaResizeCorner

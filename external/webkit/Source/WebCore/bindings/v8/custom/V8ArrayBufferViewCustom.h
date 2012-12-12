@@ -43,7 +43,6 @@
 #include "V8Proxy.h"
 
 namespace WebCore {
-
 #if ENABLE(SAMSUNG_WEBKIT_PERFORMANCE_PATCH)
 // SAMSUNG CHANGE : Webkit Performance Patch Merge + r95157
 // Copy the elements from the source array to the typed destination array by
@@ -181,7 +180,6 @@ v8::Handle<v8::Value> constructWebGLArray(const v8::Arguments& args, WrapperType
         copyElements(args.Holder(), srcArray);
 // SAMSUNG CHANGE : Webkit Performance Patch Merge -
 #endif
-
     return toV8(array.release(), args.Holder());
 }
 

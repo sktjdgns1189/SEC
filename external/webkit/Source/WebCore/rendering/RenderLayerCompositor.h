@@ -187,6 +187,8 @@ public:
     GraphicsLayer* layerForHorizontalScrollbar() const { return m_layerForHorizontalScrollbar.get(); }
     GraphicsLayer* layerForVerticalScrollbar() const { return m_layerForVerticalScrollbar.get(); }
     GraphicsLayer* layerForScrollCorner() const { return m_layerForScrollCorner.get(); }
+	
+	const char* reasonForCompositing(const RenderLayer* layer);
 
 private:
     // GraphicsLayerClient Implementation
@@ -219,7 +221,7 @@ private:
     void updateCompositingLayersTimerFired(Timer<RenderLayerCompositor>*);
 
 #if ENABLE(COMPOSITED_FIXED_ELEMENTS)
-    bool checkForFixedLayers(Vector<RenderLayer*>* list, bool stopAtFixedLayer);
+    bool checkForPositionedElements(Vector<RenderLayer*>* list);
 #endif
 
     // Returns true if any layer's compositing changed

@@ -119,7 +119,7 @@ String HTMLMetaElement::name() const
 {
     return getAttribute(nameAttr);
 }
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLMetaElement::itemValueText() const
 {
@@ -131,6 +131,6 @@ void HTMLMetaElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(contentAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 }

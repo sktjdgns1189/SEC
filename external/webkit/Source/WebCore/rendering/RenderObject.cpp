@@ -62,9 +62,6 @@
 #ifdef ANDROID_LAYOUT
 #include "Settings.h"
 #endif
-//SISO_HTMLCOMPOSER begin
-#include "HTMLElement.h"
-//SISO_HTMLCOMPOSER end	
 #include <stdio.h>
 #include <wtf/RefCountedLeakCounter.h>
 #include <wtf/UnusedParam.h>
@@ -82,23 +79,7 @@
 #include "SVGRenderSupport.h"
 #endif
 
-#include "FrameLoaderClient.h" // SAMSUNG CHANGE
-
 using namespace std;
-
-// SAMSUNG CHANGE +
-#ifdef DEBUG
-
-#undef XLOG
-#define XLOG(...) android_printLog(ANDROID_LOG_DEBUG, "RenderObject", __VA_ARGS__)
-
-#else
-
-#undef XLOG
-#define XLOG(...)
-
-#endif // DEBUG
-// SAMSUNG CHANGE -
 
 namespace WebCore {
 
@@ -452,196 +433,6 @@ RenderObject* RenderObject::lastLeafChild() const
     }
     return r;
 }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-// Inspired by Node::traverseNextNode.
-RenderObject *RenderObject::traverseNext(const RenderObject *stayWithin) const
-{
-    if (firstChild()) {
-        ASSERT(!stayWithin || firstChild()->isDescendantOf(stayWithin));
-        return firstChild();
-    }
-    if (this == stayWithin)
-        return 0;
-    if (nextSibling()) {
-        ASSERT(!stayWithin || nextSibling()->isDescendantOf(stayWithin));
-        return nextSibling();
-    }
-    const RenderObject *n = this;
-    while (n && !n->nextSibling() && (!stayWithin || n->parent() != stayWithin))
-        n = n->parent();
-    if (n) {
-        ASSERT(!stayWithin || !n->nextSibling() || n->nextSibling()->isDescendantOf(stayWithin));
-        return n->nextSibling();
-    }
-    return 0;
-}
-
-// Non-recursive version of the DFS search.
-RenderObject* RenderObject::traverseNext(const RenderObject* stayWithin, HeightTypeTraverseNextInclusionFunction inclusionFunction, int &currentDepth, int &newFixedDepth) const
-{
-    BlockContentHeightType overflowType;
-
-    // Check for suitable children.
-    for (RenderObject* child = firstChild(); child; child = child->nextSibling()) {
-        overflowType = inclusionFunction(child);
-        if (overflowType != FixedHeight) {
-            currentDepth++;
-            if (overflowType == OverflowHeight)
-                 newFixedDepth = currentDepth;
-            ASSERT(!stayWithin || child->isDescendantOf(stayWithin));
-            return child;
-        }
-    }
-
-    if (this == stayWithin)
-        return 0;
-
-    // Now we traverse other nodes if they exist, otherwise
-    // we go to the parent node and try doing the same.
-    const RenderObject* n = this;
-    while (n) {
-        while (n && !n->nextSibling() && (!stayWithin || n->parent() != stayWithin)) {
-            n = n->parent();
-            currentDepth--;
-        }
-        if (!n)
-            return 0;
-        for (RenderObject* sibling = n->nextSibling(); sibling; sibling = sibling->nextSibling()) {
-            overflowType = inclusionFunction(sibling);
-            if (overflowType != FixedHeight) {
-                if (overflowType == OverflowHeight)
-                    newFixedDepth = currentDepth;
-                ASSERT(!stayWithin || !n->nextSibling() || n->nextSibling()->isDescendantOf(stayWithin));
-                return sibling;
-            }
-        }
-        if (!stayWithin || n->parent() != stayWithin) {
-            n = n->parent();
-            currentDepth--;
-        } else
-            return 0;
-    }
-    return 0;
-}
-
-RenderObject* RenderObject::traverseNext(const RenderObject *stayWithin, TraverseNextInclusionFunction inclusionFunction) const
-{
-    for (RenderObject *child = firstChild(); child; child = child->nextSibling()) {
-        if (inclusionFunction(child)) {
-            ASSERT(!stayWithin || child->isDescendantOf(stayWithin));
-            return child;
-        }
-    }
-
-    if (this == stayWithin)
-        return 0;
-
-    for (RenderObject *sibling = nextSibling(); sibling; sibling = sibling->nextSibling()) {
-        if (inclusionFunction(sibling)) {
-            ASSERT(!stayWithin || sibling->isDescendantOf(stayWithin));
-            return sibling;
-        }
-    }
-
-    const RenderObject *n = this;
-    while (n) {
-        while (n && !n->nextSibling() && (!stayWithin || n->parent() != stayWithin))
-            n = n->parent();
-        if (n) {
-            for (RenderObject *sibling = n->nextSibling(); sibling; sibling = sibling->nextSibling()) {
-                if (inclusionFunction(sibling)) {
-                    ASSERT(!stayWithin || !n->nextSibling() || n->nextSibling()->isDescendantOf(stayWithin));
-                    return sibling;
-                }
-            }
-            if ((!stayWithin || n->parent() != stayWithin))
-                n = n->parent();
-            else
-                return 0;
-        }
-    }
-    return 0;
-}
-
-static RenderObject::BlockContentHeightType includeNonFixedHeight(const RenderObject *render)
-{
-    RenderStyle* style = render->style();
-    if (style) {
-        if (style->height().type() == Fixed) {
-            if (render->isRenderBlock()) {
-                const RenderBlock* block = static_cast<const RenderBlock*>(render);
-                // For fixed height styles, if the overflow size of the element spills out of the specified
-                // height, assume we can apply text auto-sizing.
-                if (style->overflowY() == OVISIBLE && style->height().value() < block->maxYLayoutOverflow())
-                    return RenderObject::OverflowHeight;
-            }
-            return RenderObject::FixedHeight;
-        }
-    }
-    return RenderObject::FlexibleHeight;
-}
-
-
-void RenderObject::adjustComputedFontSizesOnBlocks(float size, float visibleWidth)
-{
-    Document* document = view()->frameView()->frame()->document();
-    if (!document)
-        return;
-
-    Vector<int> depthStack;
-    int currentDepth = 0;
-    int newFixedDepth = 0;
-
-    // We don't apply autosizing to nodes with fixed height normally.
-    // But we apply it to nodes which are located deep enough
-    // (nesting depth is greater than some const) inside of a parent block
-    // which has fixed height but its content overflows intentionally.
-    for (RenderObject* descendent = traverseNext(this, includeNonFixedHeight, currentDepth, newFixedDepth); descendent; descendent = descendent->traverseNext(this, includeNonFixedHeight, currentDepth, newFixedDepth)) {
-        while (depthStack.size() > 0 && currentDepth <= depthStack[depthStack.size() - 1])
-            depthStack.remove(depthStack.size() - 1);
-        if (newFixedDepth)
-            depthStack.append(newFixedDepth);
-
-        int stackSize = depthStack.size();
-        if (descendent->isRenderBlock() && !descendent->isListItem() && (!stackSize || currentDepth - depthStack[stackSize - 1] > TextAutoSizingFixedHeightDepth))
-            static_cast<RenderBlock*>(descendent)->adjustComputedFontSizes(size, visibleWidth);
-        newFixedDepth = 0;
-    }
-
-    // Remove style from auto-sizing table that are no longer valid.
-    document->validateAutoSizingNodes();
-}
-
-void RenderObject::resetTextAutosizing()
-{
-    Document* document = view()->frameView()->frame()->document();
-    if (!document)
-        return;
-
-    document->resetAutoSizingNodes();
-
-    Vector<int> depthStack;
-    int currentDepth = 0;
-    int newFixedDepth = 0;
-
-    for (RenderObject* descendent = traverseNext(this, includeNonFixedHeight, currentDepth, newFixedDepth); descendent; descendent = descendent->traverseNext(this, includeNonFixedHeight, currentDepth, newFixedDepth)) {
-        while (depthStack.size() > 0 && currentDepth <= depthStack[depthStack.size() - 1])
-            depthStack.remove(depthStack.size() - 1);
-        if (newFixedDepth)
-            depthStack.append(newFixedDepth);
-
-        int stackSize = depthStack.size();
-        if (descendent->isRenderBlock() && !descendent->isListItem() && (!stackSize || currentDepth - depthStack[stackSize - 1] > TextAutoSizingFixedHeightDepth))
-            static_cast<RenderBlock*>(descendent)->resetComputedFontSize();
-        newFixedDepth = 0;
-    }
-
-    // Remove style from auto-sizing table that are no longer valid.
-    document->validateAutoSizingNodes();
-}
-//SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
 
 static void addLayers(RenderObject* obj, RenderLayer* parentLayer, RenderObject*& newObject,
                       RenderLayer*& beforeChild)
@@ -1656,19 +1447,18 @@ void RenderObject::showRenderTreeAndMark(const RenderObject* markedObject1, cons
 Color RenderObject::selectionBackgroundColor() const
 {
     Color color;
-
-    if (style()->userSelect() != SELECT_NONE ) {
+    if (style()->userSelect() != SELECT_NONE) {
         RefPtr<RenderStyle> pseudoStyle = getUncachedPseudoStyle(SELECTION);
         if (pseudoStyle && pseudoStyle->visitedDependentColor(CSSPropertyBackgroundColor).isValid())
             color = pseudoStyle->visitedDependentColor(CSSPropertyBackgroundColor).blendWithWhite();
         else
             color = frame()->selection()->isFocusedAndActive() ?
-                    // SAMSUNG CHANGE : >>
-		    // WAS : theme()->activeSelectionBackgroundColor() :
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+                    // WAS : theme()->activeSelectionBackgroundColor() :
                     // WAS : theme()->inactiveSelectionBackgroundColor();
                     theme()->activeSelectionBackgroundColor(document()->settings()) :
                     theme()->inactiveSelectionBackgroundColor(document()->settings());
-                    // SAMSUNG CHANGE : <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
     }
 
     return color;
@@ -2008,6 +1798,23 @@ void RenderObject::styleDidChange(StyleDifference diff, const RenderStyle* oldSt
     }
 }
 
+void RenderObject::propagateStyleToAnonymousChildren()
+{
+    for (RenderObject* child = firstChild(); child; child = child->nextSibling()) {
+        if (child->isAnonymous() && !child->isBeforeOrAfterContent()) {
+            RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(style());
+            if (style()->specifiesColumns()) {
+                if (child->style()->specifiesColumns())
+                    newStyle->inheritColumnPropertiesFrom(style());
+                if (child->style()->columnSpan())
+                    newStyle->setColumnSpan(true);
+            }
+            newStyle->setDisplay(child->style()->display());
+            child->setStyle(newStyle.release());
+        }
+    }
+}
+
 void RenderObject::updateFillImages(const FillLayer* oldLayers, const FillLayer* newLayers)
 {
     // Optimize the common case
@@ -2176,16 +1983,17 @@ IntSize RenderObject::offsetFromAncestorContainer(RenderObject* container) const
     return offset;
 }
 
-IntRect RenderObject::localCaretRect(InlineBox*, int, int* extraWidthToEndOfLine, /*SAMSUNG CHANGE*/bool bTextSelection/*SAMSUNG CHANGE*/)
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+IntRect RenderObject::localCaretRect(InlineBox*, int, int* extraWidthToEndOfLine, bool bTextSelection)
 {
+//SAMSUNG ADVANCED TEXT SELECTION - END
     if (extraWidthToEndOfLine)
         *extraWidthToEndOfLine = 0;
 
     return IntRect();
 }
 
-// Adding for Multicolumn text selection - Begin
-
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 bool RenderObject::GetMultiColumnInfo(Node* pNode)
 {
 	Node* node = pNode;
@@ -2205,11 +2013,10 @@ bool RenderObject::GetMultiColumnInfo(Node* pNode)
 
 		node = node->parentNode();
 	}
-
 	return bHasColumn;
 }
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
-// Adding for Multicolumn text selection - End
 RenderView* RenderObject::view() const
 {
     return toRenderView(document()->renderer());
@@ -2276,6 +2083,10 @@ RenderObject* RenderObject::container(RenderBoxModelObject* repaintContainer, bo
         while (o && o->style()->position() == StaticPosition && !o->isRenderView() && !(o->hasTransform() && o->isRenderBlock())) {
             if (repaintContainerSkipped && o == repaintContainer)
                 *repaintContainerSkipped = true;
+#if ENABLE(SVG)
+                if (o->isSVGForeignObject()) // foreignObject is the containing block for contents inside it
+                    break;
+#endif
             o = o->parent();
         }
     }
@@ -2658,26 +2469,6 @@ bool RenderObject::willRenderImage(CachedImage*)
     // then we don't want to render either.
     return !document()->inPageCache() && !document()->view()->isOffscreen();
 }
-
-// SAMSUNG CHANGE +
-bool RenderObject::isImageOffScreen(CachedImage* image, bool storeAnimation)
-{
-    bool isOffScreen = false;
-    IntRect visibleRect = viewRect();
-    IntRect imageRect = absoluteBoundingBoxRect();
-    IntRect visibleImageRect = intersection(visibleRect, imageRect);
-    XLOG("isImageOffScreen : VisibleRect: [%d, %d, %d, %d]", visibleRect.x(), visibleRect.y(), visibleRect.maxX(), visibleRect.maxY());
-    XLOG("isImageOffScreen : ImageRect: [%d, %d, %d, %d]", imageRect.x(), imageRect.y(), imageRect.maxX(), imageRect.maxY());
-    XLOG("isImageOffScreen : VisibleImageRect: [%d, %d, %d, %d]", visibleImageRect.x(), visibleImageRect.y(), visibleImageRect.maxX(), visibleImageRect.maxY());
-    if (visibleImageRect.width() == 0 && visibleImageRect.height() == 0) {
-        isOffScreen = true;
-	 if (storeAnimation && frame()) {
-	 	frame()->loader()->client()->storeAnimationTimer(image->image());
-	 }
-    }
-    return isOffScreen;
-}
-// SAMSUNG CHANGE -
 
 int RenderObject::maximalOutlineSize(PaintPhase p) const
 {

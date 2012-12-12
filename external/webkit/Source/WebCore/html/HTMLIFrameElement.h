@@ -45,12 +45,12 @@ private:
     virtual RenderObject* createRenderer(RenderArena*, RenderStyle*);
     
     virtual bool isURLAttribute(Attribute*) const;
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
     AtomicString m_name;
 };

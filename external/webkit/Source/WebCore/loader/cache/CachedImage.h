@@ -83,15 +83,11 @@ public:
     virtual void didDraw(const Image*);
 
     virtual bool shouldPauseAnimation(const Image*);
-
-    // SAMSUNG CHANGE +
-    virtual bool isImageOffScreen(const Image*, bool);
-    // SAMSUNG CHANGE -
-
     virtual void animationAdvanced(const Image*);
     virtual void changedInRect(const Image*, const IntRect&);
 
     void setAutoLoadWasPreventedBySettings(bool prevented) { m_autoLoadWasPreventedBySettings = prevented; }
+    bool willPaintBrokenImage(); //SAMSUNG_CHANGES -- MPSG6322 & MPSG6356
 
 private:
     void createImage();
@@ -106,6 +102,7 @@ private:
     Timer<CachedImage> m_decodedDataDeletionTimer;
     bool m_shouldPaintBrokenImage;
     bool m_autoLoadWasPreventedBySettings;
+    int m_calledCount;
 };
 
 }

@@ -39,7 +39,8 @@
 #include "PlatformString.h"
 #include "WebViewCore.h"
 #include "WindowsKeyboardCodes.h"
-// SAMSUNG CHANGE - Spell Check
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
 #include "Settings.h"
 #include <wtf/text/CString.h>
 #include <cutils/log.h>
@@ -55,8 +56,9 @@
 #define XLOG(...)
 
 #endif // DEBUG
+#endif
+//SAMSUNG CHANGES <<<
 
-// SAMSUNG CHANGE - Spell Check
 using namespace WebCore::HTMLNames;
 
 namespace android {
@@ -71,8 +73,9 @@ bool EditorClientAndroid::shouldDeleteRange(Range*) { return true; }
 bool EditorClientAndroid::shouldShowDeleteInterface(HTMLElement*) { notImplemented(); return false; }
 bool EditorClientAndroid::smartInsertDeleteEnabled() { notImplemented(); return false; } 
 bool EditorClientAndroid::isSelectTrailingWhitespaceEnabled(){ notImplemented(); return false; }
-//SAMSUNG CHANGES +
-bool EditorClientAndroid::isContinuousSpellCheckingEnabled() 
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+ bool EditorClientAndroid::isContinuousSpellCheckingEnabled() 
 {
 #if ENABLE(SPELLCHECK)
 	Frame* frame = m_page->focusController()->focusedOrMainFrame();
@@ -82,7 +85,8 @@ bool EditorClientAndroid::isContinuousSpellCheckingEnabled()
 #endif
 	
 }
-//SAMSUNG CHANGES -
+//SAMSUNG CHANGES <<<	
+    
 void EditorClientAndroid::toggleContinuousSpellChecking() { notImplemented(); }
 bool EditorClientAndroid::isGrammarCheckingEnabled() { notImplemented(); return false; }
 void EditorClientAndroid::toggleGrammarChecking() { notImplemented(); }
@@ -240,6 +244,17 @@ void EditorClientAndroid::handleKeyboardEvent(KeyboardEvent* event) {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // we just don't support Undo/Redo at the moment
 //SISO_HTMLCOMPOSER begin  
+/*void EditorClientAndroid::registerCommandForUndo(PassRefPtr<EditCommand>) {}
+void EditorClientAndroid::registerCommandForRedo(PassRefPtr<EditCommand>) {}
+void EditorClientAndroid::clearUndoRedoOperations() {}
+bool EditorClientAndroid::canUndo() const { return false; }
+bool EditorClientAndroid::canRedo() const { return false; }
+void EditorClientAndroid::undo() {}
+void EditorClientAndroid::redo() {}
+bool EditorClientAndroid::canCopyCut(bool defaultValue) const { return defaultValue; }
+bool EditorClientAndroid::canPaste(bool defaultValue) const { return defaultValue; }
+*/
+
 void EditorClientAndroid::registerCommandForUndo(PassRefPtr<EditCommand> command) 
 {
     if (m_undoStack.size() == maximumUndoStackDepth)
@@ -300,12 +315,26 @@ bool EditorClientAndroid::spellingUIIsShowing() { return false; }
 void EditorClientAndroid::checkGrammarOfString(unsigned short const*, int, WTF::Vector<GrammarDetail>&, int*, int*) {}
 String EditorClientAndroid::getAutoCorrectSuggestionForMisspelledWord(const String&) { return String(); }
 void EditorClientAndroid::textFieldDidEndEditing(Element*) {}
-void EditorClientAndroid::textDidChangeInTextArea(Element*) {}
-void EditorClientAndroid::textDidChangeInTextField(Element*) {}
+void EditorClientAndroid::textDidChangeInTextArea(Element* element)
+{
+    Frame* frame = m_page->focusController()->focusedOrMainFrame();
+    if (!frame || !frame->view())
+        return;
+    WebViewCore* webViewCore = WebViewCore::getWebViewCore(frame->view());
+    webViewCore->updateTextSizeAndScroll(element);
+}
+void EditorClientAndroid::textDidChangeInTextField(Element* element)
+{
+    Frame* frame = m_page->focusController()->focusedOrMainFrame();
+    if (!frame || !frame->view())
+        return;
+    WebViewCore* webViewCore = WebViewCore::getWebViewCore(frame->view());
+    webViewCore->updateTextSizeAndScroll(element);
+}
 void EditorClientAndroid::textFieldDidBeginEditing(Element*) {}
 void EditorClientAndroid::ignoreWordInSpellDocument(String const&) {}
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-//SAMSUNG CHANGES + SpellCheck
 int isalphabet(UChar ch)
 {
 	if((ch >= 97 && ch <=122)||(ch >= 65 && ch <=90))
@@ -328,16 +357,14 @@ static int wordLength(const UChar* text)
 	return cursor - text;
 }
 #endif
-
-void EditorClientAndroid::checkSpellingOfString(const UChar* text, int length, int* misspellingLocation, int* misspellingLength)
-{
+void EditorClientAndroid::checkSpellingOfString(const UChar* text, int length, int* misspellingLocation, int* misspellingLength){
 	#if ENABLE(SPELLCHECK)
 	if(!m_page->getDictionary())
 	{
 		android_printLog(ANDROID_LOG_DEBUG, "EditorClientAndroid","EditorClientAndroid:checkSpellingOfString Dictionary not available");
 		return;
 	}
-
+	
 	int wordStart,wordlen;
 	String word;
 	String textString = String(text,length);
@@ -346,6 +373,10 @@ void EditorClientAndroid::checkSpellingOfString(const UChar* text, int length, i
 		return ;
 	wordlen = wordLength(textString.characters()+ wordStart);
 	word = textString.substring(wordStart,wordlen);
+	// here we are checking the original word valid or not. if its valid we are returning hereitself. If its not valid then we are
+	// converting it to lowercase and checking it
+	if(m_page->getDictionary()->isValidWord(const_cast<unsigned short*>(word.characters()),word.length()))
+		return;
 	word.makeLower();
 	XLOG("EditorClientAndroid:checkSpellingOfString checking %s valid or not",word.utf8().data());
 	if (!(word.length() == 1) && !m_page->getDictionary()->isValidWord(const_cast<unsigned short*>(word.characters()),word.length()) && notFound == unmarkwords.find(word)){
@@ -354,8 +385,7 @@ void EditorClientAndroid::checkSpellingOfString(const UChar* text, int length, i
 			XLOG("EditorClientAndroid::checkSpellingOfString missepelled word in word checking is %s of len %d",word.utf8().data(),*misspellingLength);
 		}
 		
-	#endif
-}
+	#endif}
 #if ENABLE(SPELLCHECK)
 bool EditorClientAndroid::isWordChecking()
 {
@@ -377,7 +407,7 @@ int EditorClientAndroid::getNumberOfMisspelledWords(){
     return m_page->focusController()->focusedOrMainFrame()->document()->markers()->numberOfMarkers();
 }
 #endif
-//SAMSUNG CHANGES - SpellCheck
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 
 // We need to pass the selection up to the WebTextView
 void EditorClientAndroid::respondToChangedSelection() {
@@ -426,3 +456,4 @@ WebAutofill* EditorClientAndroid::getAutofill()
 #endif
 
 }
+

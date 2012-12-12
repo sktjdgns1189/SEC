@@ -25,13 +25,22 @@
 
 #ifndef Connection_h
 #define Connection_h
-
+#include "ActiveDOMObject.h"
+#include "DOMStringList.h"
+#include "Event.h"
+#include "EventListener.h"
+#include "EventNames.h"
+#include "EventTarget.h"
+#include <wtf/Forward.h>
+#include <wtf/text/WTFString.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
+#include <limits>
+#include <math.h>
 
 namespace WebCore {
 
-class Connection : public RefCounted<Connection> {
+class Connection : public RefCounted<Connection>, public EventTarget, public ActiveDOMObject{  //SAMSUNG CHANGE - MPSG6020
 public:
     enum ConnectionType {
         UNKNOWN = 0,
@@ -41,12 +50,56 @@ public:
         CELL_3G = 4,
     };
 
-    static PassRefPtr<Connection> create() { return adoptRef(new Connection()); }
+//SAMSUNG CHANGE - MPSG6020 >>
+     static PassRefPtr<Connection> create(ScriptExecutionContext* context) { 
+		return adoptRef(new Connection(context)); 
+	}
+//SAMSUNG CHANGE - MPSG6020 <<
 
-    ConnectionType type() const;
+     ConnectionType type() const;
+
+//SAMSUNG CHANGE - MPSG6020 >>
+
+     bool metered() const;
+     double bandwidth() const;
+
+
+	 
+	 DEFINE_ATTRIBUTE_EVENT_LISTENER(change);
+	 
+     virtual Connection* toConnection() { return this; }
+	 virtual ScriptExecutionContext* scriptExecutionContext() const;
+	 	void fireEvent(const AtomicString& type); 
+
+
+    // ActiveDOMObject
+    virtual bool hasPendingActivity() const;
+    virtual bool canSuspend() const;
+    virtual void stop() const;
+
+    using RefCounted<Connection>::ref;
+    using RefCounted<Connection>::deref;
+
+//SAMSUNG CHANGE - MPSG6020 <<
 
 private:
-    Connection() { }
+
+//SAMSUNG CHANGE - MPSG6020 >>
+    Connection(ScriptExecutionContext* context):ActiveDOMObject(context, this) { }
+	
+
+     
+
+
+    // EventTarget
+    virtual void refEventTarget() { ref(); }
+    virtual void derefEventTarget() { deref(); }
+    virtual EventTargetData* eventTargetData() { return &m_eventTargetData; }
+    virtual EventTargetData* ensureEventTargetData() { return &m_eventTargetData; }
+ 
+	
+    EventTargetData m_eventTargetData;
+//SAMSUNG CHANGE - MPSG6020 <<
 };
 
 } // namespace WebCore

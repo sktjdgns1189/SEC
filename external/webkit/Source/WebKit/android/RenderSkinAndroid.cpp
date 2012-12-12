@@ -27,14 +27,11 @@
 
 #include "config.h"
 #include "RenderSkinAndroid.h"
-#include "RenderSkinButton.h"
-#include "RenderSkinCombo.h"
 #include "RenderSkinMediaButton.h"
-#include "RenderSkinRadio.h"
 #include "SkImageDecoder.h"
 
-#include <utils/AssetManager.h>
-#include <utils/Asset.h>
+#include <androidfw/AssetManager.h>
+#include <androidfw/Asset.h>
 
 namespace WebCore {
 
@@ -43,7 +40,6 @@ RenderSkinAndroid::Resolution RenderSkinAndroid::s_drawableResolution = RenderSk
 
 RenderSkinAndroid::~RenderSkinAndroid()
 {
-    delete m_button;
 }
 RenderSkinAndroid::RenderSkinAndroid(String drawableDirectory)
 {
@@ -56,7 +52,6 @@ RenderSkinAndroid::RenderSkinAndroid(String drawableDirectory)
 
         s_drawableDirectory = drawableDirectory;
     }
-    m_button = new RenderSkinButton(drawableDirectory);
 }
 
 bool RenderSkinAndroid::DecodeBitmap(android::AssetManager* am, const char* fileName, SkBitmap* bitmap)
@@ -65,14 +60,14 @@ bool RenderSkinAndroid::DecodeBitmap(android::AssetManager* am, const char* file
     if (!asset) {
         asset = am->openNonAsset(fileName, android::Asset::ACCESS_BUFFER);
         if (!asset) {
-            LOGD("RenderSkinAndroid: File \"%s\" not found.\n", fileName);
+            ALOGD("RenderSkinAndroid: File \"%s\" not found.\n", fileName);
             return false;
         }
     }
     
     bool success = SkImageDecoder::DecodeMemory(asset->getBuffer(false), asset->getLength(), bitmap);
     if (!success) {
-        LOGD("RenderSkinAndroid: Failed to decode %s\n", fileName);
+        ALOGD("RenderSkinAndroid: Failed to decode %s\n", fileName);
     }
 
     delete asset;

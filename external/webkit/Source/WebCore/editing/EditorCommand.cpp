@@ -412,14 +412,13 @@ static bool executeFontName(Frame* frame, Event*, EditorCommandSource source, co
 static bool executeFontSize(Frame* frame, Event*, EditorCommandSource source, const String& value)
 {
     int size;
-//HTML Composer Begin
+//SISO_HTMLComposer start
     String bckClr = frame->editor()->selectionStartCSSPropertyValue(CSSPropertyBackgroundColor);
-//HTML Composer End
-
+//SISO_HTMLComposer end
     if (!HTMLFontElement::cssValueFromFontSizeNumber(value, size))
         return false;
 
-//HTML Composer Begin
+//SISO_HTMLComposer start
 	if(frame->selection()->isCaret()
 		&& bckClr.length()){
         RefPtr<CSSMutableStyleDeclaration> style = CSSMutableStyleDeclaration::create();
@@ -428,11 +427,11 @@ static bool executeFontSize(Frame* frame, Event*, EditorCommandSource source, co
             executeApplyStyle(frame, source, EditActionSetBackgroundColor, CSSPropertyBackgroundColor, bckClr);
         }
     }
-//HTML Composer End
+//SISO_HTMLComposer end
 
     return executeApplyStyle(frame, source, EditActionChangeAttributes, CSSPropertyFontSize, size);
 }
-//HTMLComposer start
+//SISO_HTMLComposer start
 static bool executeFontValue(Frame* frame, Event*, EditorCommandSource source, const String& value)
 {
 	String bckClr = frame->editor()->selectionStartCSSPropertyValue(CSSPropertyBackgroundColor);
@@ -447,7 +446,7 @@ static bool executeFontValue(Frame* frame, Event*, EditorCommandSource source, c
 	}
     return executeApplyStyle(frame, source, EditActionChangeAttributes, CSSPropertyFontSize, value);
 }
-//HTMLComposer end
+//SISO_HTMLComposer start
 static bool executeFontSizeDelta(Frame* frame, Event*, EditorCommandSource source, const String& value)
 {
     return executeApplyStyle(frame, source, EditActionChangeAttributes, CSSPropertyWebkitFontSizeDelta, value);
@@ -1399,7 +1398,7 @@ static String valueFontSize(Frame* frame, Event*)
 {
     return valueStyle(frame, CSSPropertyFontSize);
 }
-//HTMLComposer start
+//SISO_HTMLComposer start
 static String valueFontValue(Frame* frame, Event*)
 {
 	if(!frame || !frame->selection() || frame->selection()->isNone())
@@ -1419,7 +1418,7 @@ static String valueFontValue(Frame* frame, Event*)
 	}
 	return String();
 }
-//HTMLComposer end
+//SISO_HTMLComposer end
 static String valueFontSizeDelta(Frame* frame, Event*)
 {
     return valueStyle(frame, CSSPropertyWebkitFontSizeDelta);
@@ -1475,9 +1474,9 @@ static const CommandMap& createCommandMap()
         { "FindString", { executeFindString, supported, enabled, stateNone, valueNull, notTextInsertion, doNotAllowExecutionWhenDisabled } },
         { "FontName", { executeFontName, supported, enabledInEditableText, stateNone, valueFontName, notTextInsertion, doNotAllowExecutionWhenDisabled } },
         { "FontSize", { executeFontSize, supported, enabledInEditableText, stateNone, valueFontSize, notTextInsertion, doNotAllowExecutionWhenDisabled } },
-//HTMLComposer start
+//SISO_HTMLComposer start
         { "FontValue", { executeFontValue, supported, enabledInEditableText, stateNone, valueFontValue, notTextInsertion, doNotAllowExecutionWhenDisabled } },
-//HTMLComposer end
+//SISO_HTMLComposer end
         { "FontSizeDelta", { executeFontSizeDelta, supported, enabledInEditableText, stateNone, valueFontSizeDelta, notTextInsertion, doNotAllowExecutionWhenDisabled } },
         { "ForeColor", { executeForeColor, supported, enabledInRichlyEditableText, stateNone, valueForeColor, notTextInsertion, doNotAllowExecutionWhenDisabled } },
         { "FormatBlock", { executeFormatBlock, supported, enabledInRichlyEditableText, stateNone, valueFormatBlock, notTextInsertion, doNotAllowExecutionWhenDisabled } },

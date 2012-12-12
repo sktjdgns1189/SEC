@@ -2308,20 +2308,7 @@ int uart_register_driver(struct uart_driver *drv)
 		tty_port_init(port);
 		port->ops = &uart_port_ops;
 		port->close_delay     = 500;	/* .5 seconds */
-#ifndef CONFIG_MACH_C1_KOR_LGT
 		port->closing_wait    = 30000;	/* 30 seconds */
-#else
-		/* Modify closing_wait value of ttySAC3 used in cbd.
-
-		When uart_close is called, uart_close() will wait until tx buffer is drained.
-		However, sometimes Uart tx get stuck and wait until timeout expires.
-		We modify timeout value(closing_wait) to 3 sec from 30(linux default value) sec.
-		This will reduce closing time even if uart tx is in abnormal condition. */
-		if(i==3)
-			port->closing_wait    = 3000; /* 3 seconds */
-		else
-			port->closing_wait    = 30000; /* 30 seconds */
-#endif
 		tasklet_init(&state->tlet, uart_tasklet_action,
 			     (unsigned long)state);
 	}

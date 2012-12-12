@@ -400,7 +400,7 @@ void HTMLImageElement::willMoveToNewOwnerDocument()
     HTMLElement::willMoveToNewOwnerDocument();
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLImageElement::itemValueText() const
 {
@@ -412,5 +412,5 @@ void HTMLImageElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(srcAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 }

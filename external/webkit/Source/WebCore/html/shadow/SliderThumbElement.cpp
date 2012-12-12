@@ -35,7 +35,6 @@
 
 #include "Event.h"
 #include "Frame.h"
-#include "FrameView.h" // SAMSUNG CHANGE P120428-1061, P120508-1786
 #include "HTMLInputElement.h"
 #include "HTMLParserIdioms.h"
 #include "MouseEvent.h"
@@ -133,17 +132,6 @@ void SliderThumbElement::setPositionFromPoint(const IntPoint& point)
         position = offset.x() - renderBox()->width() / 2;
         currentPosition = renderBox()->x() - input->renderBox()->contentBoxRect().x();
     }
-    // SAMSUNG CHANGE  P120428-1061, P120508-1786 +
-    if (position > trackSize && input->isMediaControlElement()) {
-    	Frame* frame = renderer()->frame();
-    	if (frame && frame->view()) {
-    	    IntPoint scrollPosition = frame->view()->scrollPosition();
-    	    if (scrollPosition.x() > 0 && scrollPosition.x() < position) {
-        		position -= scrollPosition.x();
-    	    }
-    	}
-    }
-    // SAMSUNG CHANGE -
     position = max(0, min(position, trackSize));
     if (position == currentPosition)
         return;
@@ -263,11 +251,19 @@ void SliderThumbElement::defaultEventHandler(Event* event)
     HTMLDivElement::defaultEventHandler(event);
 }
 
+#if PLATFORM(ANDROID) && ENABLE(TOUCH_EVENTS)
+void SliderThumbElement::attach()
+{
+    HTMLDivElement::attach();
+    document()->addListenerTypeIfNeeded(eventNames().touchstartEvent);
+}
+#endif
+
 void SliderThumbElement::detach()
 {
     if (m_inDragMode) {
         if (Frame* frame = document()->frame())
-            frame->eventHandler()->setCapturingMouseEventsNode(0);      
+            frame->eventHandler()->setCapturingMouseEventsNode(0);
     }
     HTMLDivElement::detach();
 }

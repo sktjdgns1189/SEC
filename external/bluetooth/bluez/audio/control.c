@@ -64,14 +64,14 @@
 #include <android/log.h>
 
 
-#define LOGE(x...) __android_log_print(ANDROID_LOG_ERROR, "control", x)
-#define LOGD(x...) __android_log_print(ANDROID_LOG_DEBUG, "control", x)
+#define ALOGE(x...) __android_log_print(ANDROID_LOG_ERROR, "control", x)
+#define ALOGD(x...) __android_log_print(ANDROID_LOG_DEBUG, "control", x)
 
 // TODO: Remove this after tests
 #undef debug
 #undef error
-#define debug LOGD
-#define error LOGE
+#define debug ALOGD
+#define error ALOGE
 
 
 #define QUIRK_NO_RELEASE	1 << 0
@@ -381,7 +381,7 @@ static void avrcp_send_response(struct control *control, uint8_t *packet,
 
 	errno = 0;
 	if (write(sock, packet, len) < 0) {
-		LOGE("Can not write socket errno = %d!!", errno);
+		ALOGE("Can not write socket errno = %d!!", errno);
 		avrcp_disconnect(control->dev);
 	}
 }
@@ -412,7 +412,7 @@ static uint16_t avrcp_cont_packet(struct control *control,
 	memcpy(ptr, headers, AVCTP_AVRCP_HEADER_LEN);
 	// Handle packet formation for PDU Length more than 512 bytes ..
 	
-	LOGD("avrcp_cont_packet packet formation -->");
+	ALOGD("avrcp_cont_packet packet formation -->");
 
 	memcpy(ptr + AVCTP_AVRCP_HEADER_LEN, resp, AVRCP_RESPONSE_PDU_LEN);
 	memcpy(ptr + AVCTP_AVRCP_HEADER_LEN + AVRCP_RESPONSE_PDU_LEN,((uint8_t *)resp) + AVRCP_RESPONSE_PDU_LEN +
@@ -609,7 +609,7 @@ static void avrcp_supported_events_rsp(DBusPendingCall *call, void *user_data)
 	 * is only called after a reply has been received */
 	msg = dbus_pending_call_steal_reply(call);
 
-	LOGD("AVRCP_EVENTS_SUPPORTED RSP");
+	ALOGD("AVRCP_EVENTS_SUPPORTED RSP");
 	dbus_error_init(&err);
 	if (dbus_set_error_from_message(&err, msg)) {
 		if (g_str_equal(DBUS_ERROR_UNKNOWN_METHOD, err.name) ||
@@ -674,7 +674,7 @@ static void avrcp_list_player_setting_attrs_rsp(DBusPendingCall *call,
 	 * is only called after a reply has been received */
 	msg = dbus_pending_call_steal_reply(call);
 
-	LOGD("AVRCP_LIST_PLAYER_SETTING_ATTRS RSP");
+	ALOGD("AVRCP_LIST_PLAYER_SETTING_ATTRS RSP");
 	dbus_error_init(&err);
 	if (dbus_set_error_from_message(&err, msg)) {
 		if (g_str_equal(DBUS_ERROR_UNKNOWN_METHOD, err.name) ||
@@ -738,7 +738,7 @@ static void avrcp_list_player_setting_vals_rsp(DBusPendingCall *call,
 	 * is only called after a reply has been received */
 	msg = dbus_pending_call_steal_reply(call);
 
-	LOGD("AVRCP_LIST_PLAYER_SETTING_VALS RSP");
+	ALOGD("AVRCP_LIST_PLAYER_SETTING_VALS RSP");
 	dbus_error_init(&err);
 	if (dbus_set_error_from_message(&err, msg)) {
 		if (g_str_equal(DBUS_ERROR_UNKNOWN_METHOD, err.name) ||
@@ -810,7 +810,7 @@ static void avrcp_get_player_setting_value_rsp(DBusPendingCall *call,
 	 * is only called after a reply has been received */
 	msg = dbus_pending_call_steal_reply(call);
 
-	LOGD("AVRCP_GET_PLAYER_SETTING_VAL RSP");
+	ALOGD("AVRCP_GET_PLAYER_SETTING_VAL RSP");
 	dbus_error_init(&err);
 	if (dbus_set_error_from_message(&err, msg)) {
 		if (g_str_equal(DBUS_ERROR_UNKNOWN_METHOD, err.name) ||
@@ -883,7 +883,7 @@ static void avrcp_set_player_setting_value_rsp(DBusPendingCall *call,
 	 * is only called after a reply has been received */
 	msg = dbus_pending_call_steal_reply(call);
 
-	LOGD("AVRCP_SET_PLAYER_SETTING_VAL RSP");
+	ALOGD("AVRCP_SET_PLAYER_SETTING_VAL RSP");
 	dbus_error_init(&err);
 	if (dbus_set_error_from_message(&err, msg)) {
 		if (g_str_equal(DBUS_ERROR_UNKNOWN_METHOD, err.name) ||
@@ -951,7 +951,7 @@ static void avrcp_register_notification_rsp(DBusPendingCall *call, void *user_da
 	dbus_error_init(&err);
 	switch (pa->event_id) {
 	case AVRCP_EVENT_PLAYBACK_STATUS_CHANGED:
-		LOGD("AVRCP_EVENT_PLAYBACK_STATUS_CHANGED RSP");
+		ALOGD("AVRCP_EVENT_PLAYBACK_STATUS_CHANGED RSP");
 		if (!dbus_message_get_args(msg, &err, DBUS_TYPE_BYTE, &event,
 			DBUS_TYPE_BYTE, &status, DBUS_TYPE_INVALID)) {
 			dbus_error_free(&err);
@@ -970,7 +970,7 @@ static void avrcp_register_notification_rsp(DBusPendingCall *call, void *user_da
 
 		break;
 	case AVRCP_EVENT_TRACK_CHANGED:
-		LOGD("AVRCP_EVENT_TRACK_CHANGED RSP");
+		ALOGD("AVRCP_EVENT_TRACK_CHANGED RSP");
 		if (!dbus_message_get_args(msg, &err, DBUS_TYPE_BYTE, &event,
 				DBUS_TYPE_UINT64, &uid, DBUS_TYPE_INVALID))
 			goto error;
@@ -1007,7 +1007,7 @@ static void avrcp_register_notification_rsp(DBusPendingCall *call, void *user_da
 
 		break;
 	default:
-		LOGE("Unknown/NotSupported Event Received");
+		ALOGE("Unknown/NotSupported Event Received");
 		error_code = AVRCP_ERR_INVALID_PARM;
 		goto error;
 	}
@@ -1169,7 +1169,7 @@ static void avrcp_get_play_status_rsp(DBusPendingCall *call, void *user_data)
 	uint32_t song_pos;
 	uint8_t play_status;
 
-	LOGD("AVRCP_GET_PLAY_STATUS_RSP");
+	ALOGD("AVRCP_GET_PLAY_STATUS_RSP");
 
 	/* steal_reply will always return non-NULL since the callback
 	 * is only called after a reply has been received */
@@ -1233,7 +1233,7 @@ static uint8_t avrcp_get_company(uint8_t *buf,
 	uint8_t *ptr;
 	struct avrcp_response *r;
 
-	LOGD("AVRCP_COMPANY_ID");
+	ALOGD("AVRCP_COMPANY_ID");
 	r = avrcp_init_response(query->pdu_id, AVCTP_PACKET_SINGLE, 5);
 	if (!r)
 		return AVRCP_REPLY_ERR;
@@ -1259,7 +1259,7 @@ static uint8_t avrcp_get_events_supported(struct control *control,
 	DBusMessage *msg;
 	struct control_adapter *cadapter;
 
-	LOGD("AVRCP_GET_EVENTS_SUPPORTED");
+	ALOGD("AVRCP_GET_EVENTS_SUPPORTED");
 	/* Find adapter with media player attached */
 	cadapter = find_adapter(adapters,
 			device_get_adapter(control->dev->btd_dev));
@@ -1280,7 +1280,7 @@ static uint8_t avrcp_get_events_supported(struct control *control,
 					DBUS_TYPE_OBJECT_PATH,
 					&pa->control->dev->path,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1289,13 +1289,13 @@ static uint8_t avrcp_get_events_supported(struct control *control,
 		(void)dbus_connection_send_with_reply(connection, msg,
 						 &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1335,7 +1335,7 @@ static uint8_t avrcp_list_player_setting_attrs(struct control *control,
 					DBUS_TYPE_OBJECT_PATH,
 					&pa->control->dev->path,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1344,13 +1344,13 @@ static uint8_t avrcp_list_player_setting_attrs(struct control *control,
 		(void)dbus_connection_send_with_reply(connection,
 							msg, &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1374,7 +1374,7 @@ static uint8_t avrcp_list_player_setting_vals(struct control *control,
 
 	query->param_len = be_to_host16((uint8_t *)&query->param_len);
 	if (query->param_len != 1) {
-		LOGE("Wrong param len = %d", query->param_len);
+		ALOGE("Wrong param len = %d", query->param_len);
 		return AVRCP_REPLY_ERR;
 	}
 
@@ -1403,26 +1403,26 @@ static uint8_t avrcp_list_player_setting_vals(struct control *control,
 					DBUS_TYPE_BYTE,
 					&attr_id,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 	/* Added this to report "rejected" to equilizer and scan listval commands */
 	if ((attr_id == 0x01)||(attr_id == 0x04)) {
-		LOGD("List_player_setting_vals param id not supported");
+		ALOGD("List_player_setting_vals param id not supported");
 		return 100; //Internal return state to represent invalid param
 	}
 	if (connection) {
 		(void)dbus_connection_send_with_reply(connection,
 							msg, &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1446,7 +1446,7 @@ static uint8_t avrcp_get_player_setting_value(struct control *control,
 
 	query->param_len = be_to_host16((uint8_t *)&query->param_len);
 	if (query->param_len < 1) {
-		LOGE("Wrong param len = %d", query->param_len);
+		ALOGE("Wrong param len = %d", query->param_len);
 		return AVRCP_REPLY_ERR;
 	}
 
@@ -1456,7 +1456,7 @@ static uint8_t avrcp_get_player_setting_value(struct control *control,
 	/* Find adapter with media player attached */
 	cadapter = find_adapter(adapters,
 			device_get_adapter(control->dev->btd_dev));
-	LOGD("AVRCP_GET_PLAYER_SETTING_VALUE");
+	ALOGD("AVRCP_GET_PLAYER_SETTING_VALUE");
 
 	if (!cadapter)
 		return AVRCP_REPLY_ERR;
@@ -1478,7 +1478,7 @@ static uint8_t avrcp_get_player_setting_value(struct control *control,
 					&ptr,
 					(uint32_t) attr_count,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1487,13 +1487,13 @@ static uint8_t avrcp_get_player_setting_value(struct control *control,
 		(void)dbus_connection_send_with_reply(connection,
 							msg, &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1517,7 +1517,7 @@ static uint8_t avrcp_set_player_setting_value(struct control *control,
 
 	query->param_len = be_to_host16((uint8_t *)&query->param_len);
 	if (query->param_len < 1) {
-		LOGE("Wrong param len = %d", query->param_len);
+		ALOGE("Wrong param len = %d", query->param_len);
 		return AVRCP_REPLY_ERR;
 	}
 
@@ -1548,7 +1548,7 @@ static uint8_t avrcp_set_player_setting_value(struct control *control,
 					&ptr,
 					(uint32_t) (attr_count * 2),
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1557,13 +1557,13 @@ static uint8_t avrcp_set_player_setting_value(struct control *control,
 		(void)dbus_connection_send_with_reply(connection,
 							msg, &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1588,7 +1588,7 @@ static uint8_t avrcp_inform_char_set(struct control *control,
 
 	query->param_len = be_to_host16((uint8_t *)&query->param_len);
 	if (!query->param_len) {
-		LOGE("Wrong param len = %d", query->param_len);
+		ALOGE("Wrong param len = %d", query->param_len);
 		return AVRCP_REPLY_ERR;
 	}
 
@@ -1620,7 +1620,7 @@ static uint8_t avrcp_inform_char_set(struct control *control,
 					DBUS_TYPE_UINT16,
 					&charset_id,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1628,7 +1628,7 @@ static uint8_t avrcp_inform_char_set(struct control *control,
 	if (connection) {
 		g_dbus_send_message(connection, msg);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1670,7 +1670,7 @@ static uint8_t avrcp_inform_batt_stat(struct control *control,
 					DBUS_TYPE_BYTE,
 					&query->param[0],
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1678,7 +1678,7 @@ static uint8_t avrcp_inform_batt_stat(struct control *control,
 	if (connection) {
 		g_dbus_send_message(connection, msg);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1703,7 +1703,7 @@ static uint8_t avrcp_get_element_attr(struct control *control,
 	query->param_len = be_to_host16((uint8_t *)&query->param_len);
 
 	if (query->param_len < 9) {
-		LOGE("Wrong param len = %d", query->param_len);
+		ALOGE("Wrong param len = %d", query->param_len);
 		return AVRCP_REPLY_ERR;
 	}
 
@@ -1713,13 +1713,13 @@ static uint8_t avrcp_get_element_attr(struct control *control,
 
 	pattr = g_malloc(attr_count * sizeof(uint32_t));
 	if (!pattr && attr_count) {
-		LOGE("memory not available");
+		ALOGE("memory not available");
 		return AVRCP_REPLY_ERR;
 	}
 
-	LOGD("AVRCP_ELEMENT_ATTRIBUTES");
+	ALOGD("AVRCP_ELEMENT_ATTRIBUTES");
 	if (identifier != 0x00) {
-		LOGE("Only Playing is supported");
+		ALOGE("Only Playing is supported");
 		return AVRCP_REPLY_ERR;
 	}
 
@@ -1753,7 +1753,7 @@ static uint8_t avrcp_get_element_attr(struct control *control,
 					&pattr,
 					(uint32_t) attr_count,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		g_free(pattr);
 		return AVRCP_REPLY_ERR;
@@ -1764,13 +1764,13 @@ static uint8_t avrcp_get_element_attr(struct control *control,
 		(void)dbus_connection_send_with_reply(connection,
 						msg, &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1810,7 +1810,7 @@ static uint8_t avrcp_get_play_status(struct control *control,
 					DBUS_TYPE_OBJECT_PATH,
 					&pa->control->dev->path,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1819,13 +1819,13 @@ static uint8_t avrcp_get_play_status(struct control *control,
 		(void)dbus_connection_send_with_reply(connection,
 							msg, &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1850,7 +1850,7 @@ static uint8_t avrcp_register_notification(struct control *control,
 	query->param_len = be_to_host16((uint8_t *)&query->param_len);
 
 	if (query->param_len != 5) {
-		LOGE("Wrong param len = %d", query->param_len);
+		ALOGE("Wrong param len = %d", query->param_len);
 		return AVRCP_REPLY_ERR;
 	}
 
@@ -1883,7 +1883,7 @@ static uint8_t avrcp_register_notification(struct control *control,
 					DBUS_TYPE_UINT32,
 					&playback,
 					DBUS_TYPE_INVALID)) {
-		LOGE("Could not add argument to msg.");
+		ALOGE("Could not add argument to msg.");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1892,13 +1892,13 @@ static uint8_t avrcp_register_notification(struct control *control,
 		(void)dbus_connection_send_with_reply(connection,
 						msg, &pa->call, -1);
 	} else {
-		LOGE("DBUS connection problem");
+		ALOGE("DBUS connection problem");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
 
 	if (!pa->call) {
-		LOGE( "Pending Call Null");
+		ALOGE( "Pending Call Null");
 		dbus_message_unref(msg);
 		return AVRCP_REPLY_ERR;
 	}
@@ -1917,7 +1917,7 @@ static uint8_t avrcp_request_cont_resp(uint8_t *buf,
 					struct avrcp_query *query,
 					struct avrcp_response **resp)
 {
-	LOGD("AVRCP_REQUEST_CONT_RESP");
+	ALOGD("AVRCP_REQUEST_CONT_RESP");
 
 	if (control->cont) {
 		set_ctype_code(buf, CTYPE_STABLE);
@@ -1940,7 +1940,7 @@ static uint8_t avrcp_abort_cont_resp(uint8_t *buf,
 	uint8_t code;
 	uint16_t len;
 
-	LOGD("AVRCP_ABORT_CONT_RESP");
+	ALOGD("AVRCP_ABORT_CONT_RESP");
 
 	r = avrcp_init_response(query->pdu_id, AVCTP_PACKET_SINGLE, 0);
 	if (!r)
@@ -2009,7 +2009,7 @@ static void handle_panel_vendordependent(struct control *control,
 			status = avrcp_get_events_supported(control, query, pa);
 			break;
 		default:/* Error: capability asked is not valid */
-			LOGE("capability asked is invalid 0x%02x",
+			ALOGE("capability asked is invalid 0x%02x",
 							query->param[0]);
 			status = AVRCP_REPLY_ERR;
 			err = AVRCP_ERR_INVALID_PARM;
@@ -2017,12 +2017,12 @@ static void handle_panel_vendordependent(struct control *control,
 		}
 		break;
 	case AVRCP_LIST_PLAYER_SETTING_ATTRS:
-		LOGD("AVRCP_LIST_PLAYER_SETTING_ATTRS");
+		ALOGD("AVRCP_LIST_PLAYER_SETTING_ATTRS");
 		status = avrcp_list_player_setting_attrs(control, query, pa);
 		break;
 
 	case AVRCP_LIST_PLAYER_SETTING_VALUES:
-		LOGD("AVRCP_LIST_PLAYER_SETTING_VALUES");	
+		ALOGD("AVRCP_LIST_PLAYER_SETTING_VALUES");	
 		status = avrcp_list_player_setting_vals(control, query, pa);
 		/* Adding this check to send Rejected response if Equilizer or scan's values
 		* are asked since we do not support it, but still this command was sent
@@ -2035,12 +2035,12 @@ static void handle_panel_vendordependent(struct control *control,
 		break;
 
 	case AVRCP_GET_PLAYER_SETTING_VALUE:
-		LOGD("AVRCP_GET_PLAYER_SETTING_VALUE");
+		ALOGD("AVRCP_GET_PLAYER_SETTING_VALUE");
 		status = avrcp_get_player_setting_value(control, query, pa);
 		break; 
 		
 	case AVRCP_SET_PLAYER_SETTING_VALUE:
-		LOGD("AVRCP_SET_PLAYER_SETTING_VALUE");
+		ALOGD("AVRCP_SET_PLAYER_SETTING_VALUE");
 		status = avrcp_set_player_setting_value(control, query, pa);
 		break;
 	case AVRCP_GET_PLAYER_SETTING_ATTR_TEXT:
@@ -2049,17 +2049,17 @@ static void handle_panel_vendordependent(struct control *control,
 	case AVRCP_INFORM_BATT_STATUS:
 		resp = avrcp_init_response(query->pdu_id,
 					AVCTP_PACKET_SINGLE , 0);
-		LOGE("PDU_ID 0x%x  NOT SUPPORTED", query->pdu_id);
+		ALOGE("PDU_ID 0x%x  NOT SUPPORTED", query->pdu_id);
 		set_ctype_code(buf, CTYPE_NOT_IMPLEMENTED);
 		status = AVRCP_REPLY_OK;
 		break;
 /*
 	case AVRCP_INFORM_DISP_CHAR_SET:
-		LOGD("AVRCP_INFORM_DISP_CHAR_SET");
+		ALOGD("AVRCP_INFORM_DISP_CHAR_SET");
 		status = avrcp_inform_char_set(control, query, pa);
 		break;
 	case AVRCP_INFORM_BATT_STATUS:
-		LOGD("AVRCP_INFORM_BATT_STATUS");
+		ALOGD("AVRCP_INFORM_BATT_STATUS");
 		status = avrcp_inform_batt_stat(control, query, pa);
 		break;
 */
@@ -2067,11 +2067,11 @@ static void handle_panel_vendordependent(struct control *control,
 		status = avrcp_get_element_attr(control, query, pa);
 		break;
 	case AVRCP_GET_PLAY_STATUS:
-		LOGD("AVRCP_GET_PLAY_STATUS");
+		ALOGD("AVRCP_GET_PLAY_STATUS");
 		status = avrcp_get_play_status(control, query, pa);
 		break;
 	case AVRCP_REGISTER_NOTIFY:
-		LOGD("AVRCP_REGISTER_NOTIFY");
+		ALOGD("AVRCP_REGISTER_NOTIFY");
 		status = avrcp_register_notification(control, query, pa);
 		break;
 	case AVRCP_REQUEST_CONT_RESP:
@@ -2081,7 +2081,7 @@ static void handle_panel_vendordependent(struct control *control,
 		status = avrcp_abort_cont_resp(buf, control, query, &resp);
 		break;
 	default:
-		LOGE("PDU ID Not Found");
+		ALOGE("PDU ID Not Found");
 		status = AVRCP_REPLY_ERR;
 		err = AVRCP_ERR_INVALID_CMD;
 		break;
@@ -2188,7 +2188,7 @@ int avrcp_adapter_register(DBusConnection *conn, struct btd_adapter *btd_adapter
 		avrcpmetadata = g_key_file_get_boolean(config,
 					"AVRCP", "MetaDataEnable", &err);
 		if (err) {
-			LOGD("audio.conf: %s", err->message);
+			ALOGD("audio.conf: %s", err->message);
 			avrcpmetadata = false;
 			g_error_free(err);
 		}

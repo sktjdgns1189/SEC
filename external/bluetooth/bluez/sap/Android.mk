@@ -1,8 +1,7 @@
 ifeq ($(USE_BLUETOOTH_SAP),true)
-
 LOCAL_PATH:= $(call my-dir)
 
-# sap plugin
+# SAP plugin
 
 include $(CLEAR_VARS)
 
@@ -21,7 +20,7 @@ LOCAL_C_INCLUDES:= \
 	$(LOCAL_PATH)/../src \
 	$(LOCAL_PATH)/../gdbus \
 	$(call include-path-for, glib) \
-	$(call include-path-for, dbus) \
+	$(call include-path-for, dbus)
 
 LOCAL_SHARED_LIBRARIES := \
 	libbluetoothd \
@@ -29,10 +28,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libbtio \
 	libcutils \
 	libdbus \
-	libglib \
-
-LOCAL_SHARED_LIBRARIES += \
-	libsecril-client-sap
+	libglib
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/bluez-plugin
 LOCAL_UNSTRIPPED_PATH := $(TARGET_OUT_SHARED_LIBRARIES_UNSTRIPPED)/bluez-plugin
@@ -40,5 +36,4 @@ LOCAL_MODULE := sap
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
-
 endif

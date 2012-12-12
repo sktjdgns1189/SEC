@@ -214,6 +214,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libbluetooth libbluetoothd libcutils
 # SS_BLUETOOTH(is80.hwang) End
 
+LOCAL_MODULE_TAGS := optional
+
 LOCAL_MODULE:=bccmd
 
 include $(BUILD_EXECUTABLE)

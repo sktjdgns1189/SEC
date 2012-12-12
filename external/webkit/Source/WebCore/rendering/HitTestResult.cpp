@@ -575,8 +575,8 @@ bool HitTestResult::addNodeToRectBasedTestResult(Node* node, int x, int y, const
 
     node = node->shadowAncestorNode();
     mutableRectBasedTestResult().add(node);
-
-    if (node->renderer()->isInline()) {
+    //SAMSUNG CHANGE - MPSG 6024 added (node && node->renderer() &&)
+    if (node && node->renderer() && node->renderer()->isInline()) {
         for (RenderObject* curr = node->renderer()->parent(); curr; curr = curr->parent()) {
             if (!curr->isRenderInline())
                 break;

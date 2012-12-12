@@ -58,32 +58,19 @@ static const size_t maxTextureCacheBytes = 50 * 1024 * 1024;
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
 
-#include "HTMLCanvasElement.h"
 namespace WebCore {
 
 // static
-#if PLATFORM(ANDROID) &&  ENABLE(ACCELERATED_2D_CANVAS)
-PassRefPtr<SharedGraphicsContext3D> SharedGraphicsContext3D::create(HTMLCanvasElement* canvas,HostWindow* hostWindow)
-#else
 PassRefPtr<SharedGraphicsContext3D> SharedGraphicsContext3D::create(HostWindow* hostWindow)
-#endif
 {
     GraphicsContext3D::Attributes attr;
     attr.depth = false;
     attr.stencil = true;
     attr.antialias = useLoopBlinnForPathRendering();
     attr.canRecoverFromContextLoss = false; // Canvas contexts can not handle lost contexts.
-#if PLATFORM(ANDROID)  &&  ENABLE(ACCELERATED_2D_CANVAS)
-    RefPtr<GraphicsContext3D> context = GraphicsContext3D::create(canvas,attr, hostWindow);
-#else
     RefPtr<GraphicsContext3D> context = GraphicsContext3D::create(attr, hostWindow);
-#endif
     if (!context)
         return 0;
-#if PLATFORM(ANDROID)  &&  ENABLE(ACCELERATED_2D_CANVAS)	
-   context->reshape(canvas->width(), canvas->height());
-   context->viewport(0,0 , canvas->width(), canvas->height());
-#endif
     OwnPtr<SolidFillShader> solidFillShader = SolidFillShader::create(context.get());
     if (!solidFillShader)
         return 0;
@@ -166,17 +153,11 @@ void SharedGraphicsContext3D::clearColor(const Color& color)
 void SharedGraphicsContext3D::clear(GC3Dbitfield mask)
 {
     m_context->clear(mask);
-#if PLATFORM(ANDROID)  &&  ENABLE(ACCELERATED_2D_CANVAS)
-   m_context->markContextChanged();
-#endif
 }
 
 void SharedGraphicsContext3D::drawArrays(GC3Denum mode, GC3Dint first, GC3Dsizei count)
 {
     m_context->drawArrays(mode, first, count);
-#if PLATFORM(ANDROID)  &&  ENABLE(ACCELERATED_2D_CANVAS)
-   m_context->markContextChanged();
-#endif	
 }
 
 GC3Denum SharedGraphicsContext3D::getError()
@@ -494,61 +475,7 @@ GrContext* SharedGraphicsContext3D::grContext()
     return m_grContext;
 }
 #endif
-#if PLATFORM(ANDROID)  &&  ENABLE(ACCELERATED_2D_CANVAS)
-void SharedGraphicsContext3D::deleteBuffer(unsigned buffer)
-{
-	m_context->deleteBuffer(buffer);
-}
 
-void SharedGraphicsContext3D::drawElements(GC3Denum mode, GC3Dsizei count, GC3Denum type, GC3Dintptr offset)
-{
-   m_context->drawElements(mode,count,type,offset);
-   
-   m_context->markContextChanged();
-
-}
-
-void SharedGraphicsContext3D::stencilFunc(GC3Denum func, GC3Dint ref, GC3Duint mask)
-{
-	m_context->stencilFunc(func,ref,mask);
-}
-
-void SharedGraphicsContext3D::stencilOp(GC3Denum fail, GC3Denum zfail, GC3Denum zpass)
-{
-	m_context->stencilOp(fail,zfail,zpass);
-}
-
-PassRefPtr<DrawingBuffer> SharedGraphicsContext3D::createDrawingBuffer(const IntSize& size)
-{
-    return  m_context->createDrawingBuffer(size);
-}
-
-void SharedGraphicsContext3D::reshape(int width, int height)
- {
-    m_context->reshape(width, height);
- }
-
-void SharedGraphicsContext3D::markContextChanged()
-{
-   m_context->markContextChanged();
-}
-
-void SharedGraphicsContext3D::setDrawingBuffer(DrawingBuffer* drawingBuffer)
-{
-   m_context->setDrawingBuffer(drawingBuffer);
-}
-
-void SharedGraphicsContext3D::dumpBuffer(char* name)
-{
-   m_context->dumpBuffer(name);
-}
-
-void SharedGraphicsContext3D::finish()
-{
-   m_context->finish();
-}
-
-#endif	
 } // namespace WebCore
 
 #endif

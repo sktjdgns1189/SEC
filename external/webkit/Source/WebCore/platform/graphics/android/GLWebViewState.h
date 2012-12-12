@@ -35,9 +35,7 @@
 #include "SkCanvas.h"
 #include "SkRect.h"
 #include "SkRegion.h"
-#include "TiledPage.h"
-#include "TreeManager.h"
-#include "ZoomManager.h"
+#include "SurfaceCollectionManager.h"
 #include <utils/threads.h>
 
 // Performance measurements probe
@@ -50,9 +48,6 @@
 // TODO: We should either dynamically change the outer bound by detecting the
 // HW limit or save further in the GPU memory consumption.
 #define TILE_PREFETCH_DISTANCE 1
-
-// ratio of content to view required for prefetching to enable
-#define TILE_PREFETCH_RATIO 1.2
 
 namespace WebCore {
 
@@ -80,7 +75,7 @@ class TexturesResult;
 //
 // The rendering model is to use tiles to display the BaseLayer (as obviously a
 // BaseLayer's area can be arbitrarly large). The idea is to compute a set of
-// tiles covering the viewport's area, paint those tiles using the webview's
+// tiles covering the visibleContentRect's area, paint those tiles using the webview's
 // content (i.e. the BaseLayer's PictureSet), then display those tiles.
 // We check which tile we should use at every frame.
 //
@@ -91,14 +86,14 @@ class TexturesResult;
 // the BaseLayer's surface. When drawing, we ask the TiledPage to prepare()
 // itself then draw itself on screen. The prepare() function is the one
 // that schedules tiles to be painted -- i.e. the subset of tiles that intersect
-// with the current viewport. When they are ready, we can display
+// with the current visibleContentRect. When they are ready, we can display
 // the TiledPage.
 //
 // Note that BaseLayerAndroid::drawGL() will return true to the java side if
 // there is a need to be called again (i.e. if we do not have up to date
 // textures or a transition is going on).
 //
-// Tiles are implemented as a BaseTile. It knows how to paint itself with the
+// Tiles are implemented as a Tile. It knows how to paint itself with the
 // PictureSet, and to display itself. A GL texture is usually associated to it.
 //
 // We also works with two TiledPages -- one to display the page at the
@@ -107,30 +102,30 @@ class TexturesResult;
 // accordingly (and therefore possible loss of quality): this is fast as it's
 // purely a hardware operation. When the user is done zooming, we ask for
 // TiledPage B to be painted at the new scale factor, covering the
-// viewport's area. When B is ready, we swap it with A.
+// visibleContentRect's area. When B is ready, we swap it with A.
 //
 // Texture allocation
 // ------------------
 //
-// Obviously we cannot have every BaseTile having a GL texture -- we need to
+// Obviously we cannot have every Tile having a GL texture -- we need to
 // get the GL textures from an existing pool, and reuse them.
 //
 // The way we do it is that when we call TiledPage::prepare(), we group the
-// tiles we need (i.e. in the viewport and dirty) into a TilesSet and call
-// BaseTile::reserveTexture() for each tile (which ensures there is a specific
-// GL textures backing the BaseTiles).
+// tiles we need (i.e. in the visibleContentRect and dirty) into a TilesSet and call
+// Tile::reserveTexture() for each tile (which ensures there is a specific
+// GL textures backing the Tiles).
 //
 // reserveTexture() will ask the TilesManager for a texture. The allocation
 // mechanism goal is to (in order):
 // - prefers to allocate the same texture as the previous time
-// - prefers to allocate textures that are as far from the viewport as possible
+// - prefers to allocate textures that are as far from the visibleContentRect as possible
 // - prefers to allocate textures that are used by different TiledPages
 //
-// Note that to compute the distance of each tile from the viewport, each time
+// Note that to compute the distance of each tile from the visibleContentRect, each time
 // we prepare() a TiledPage. Also during each prepare() we compute which tiles
 // are dirty based on the info we have received from webkit.
 //
-// BaseTile Invalidation
+// Tile Invalidation
 // ------------------
 //
 // We do not want to redraw a tile if the tile is up-to-date. A tile is
@@ -154,9 +149,9 @@ class TexturesResult;
 //
 // The next operation is to schedule this TilesSet to be painted
 // (TilesManager::schedulePaintForTilesSet()). TexturesGenerator
-// will get the TilesSet and ask the BaseTiles in it to be painted.
+// will get the TilesSet and ask the Tiles in it to be painted.
 //
-// BaseTile::paintBitmap() will paint the texture using the BaseLayer's
+// Tile::paintBitmap() will paint the texture using the BaseLayer's
 // PictureSet (calling TiledPage::paintBaseLayerContent() which in turns
 // calls GLWebViewState::paintBaseLayerContent()).
 //
@@ -171,86 +166,39 @@ public:
     GLWebViewState();
     ~GLWebViewState();
 
-    ZoomManager* zoomManager() { return &m_zoomManager; }
-    const SkIRect& futureViewport() const { return m_futureViewportTileBounds; }
-    void setFutureViewport(const SkIRect& viewport) { m_futureViewportTileBounds = viewport; }
-
-    unsigned int paintBaseLayerContent(SkCanvas* canvas);
-    void setBaseLayer(BaseLayerAndroid* layer, const SkRegion& inval, bool showVisualIndicator,
+    bool setBaseLayer(BaseLayerAndroid* layer, bool showVisualIndicator,
                       bool isPictureAfterFirstLayout);
-// SAMSUNG CHANGE >> White flickering issue.
-	Color getBaseLayerBgColor();
-// SAMSUNG CHANGE <<
     void paintExtras();
 
     GLExtras* glExtras() { return &m_glExtras; }
 
-    TiledPage* sibling(TiledPage* page);
-    TiledPage* frontPage();
-    TiledPage* backPage();
-    void swapPages();
-
-    // dimensions of the current base layer
-    int baseContentWidth();
-    int baseContentHeight();
-
-    void setViewport(SkRect& viewport, float scale);
-
-    // a rect containing the coordinates of all tiles in the current viewport
-    const SkIRect& viewportTileBounds() const { return m_viewportTileBounds; }
-    // a rect containing the viewportTileBounds before there was a scale change
-    const SkIRect& preZoomBounds() const { return m_preZoomBounds; }
-    void setPreZoomBounds(const SkIRect& bounds) { m_preZoomBounds = bounds; }
-
-    unsigned int currentPictureCounter() const { return m_currentPictureCounter; }
-
-//SAMSUNG CHANGES >>
-   void setIsScrolling(bool isScrolling);
-   bool isScrolling();
-   void setIsZooming(bool isZooming);
-  bool isZooming();
-  void setIsMobileSite(bool isMobileSite){ m_isMobileSite = isMobileSite; }
-  bool isMobileSite() { return m_isMobileSite; }
-  void glbitmapUpdated();
-//SAMSUNG CHANGES <<
-  
-// SAMSUNG CHANGE >> White flickering issue.
-// WAS:void drawBackground(Color& backgroundColor);
-    void drawBackground(SkColor& backgroundColor);
-// SAMSUNG CHANGE <<
-    double setupDrawing(IntRect& viewRect, SkRect& visibleRect,
-                        IntRect& webViewRect, int titleBarHeight,
-                        IntRect& screenClip, float scale);
+    void setIsScrolling(bool isScrolling) { m_isScrolling = isScrolling; }
+    bool isScrolling() { return m_isScrolling || m_isVisibleContentRectScrolling; }
 
     bool setLayersRenderingMode(TexturesResult&);
-    void fullInval();
 
-    bool drawGL(IntRect& rect, SkRect& viewport, IntRect* invalRect,
-                IntRect& webViewRect, int titleBarHeight,
-                IntRect& clip, float scale,
-                bool* treesSwappedPtr, bool* newTreeHasAnimPtr);
+    int drawGL(IntRect& rect, SkRect& visibleContentRect, IntRect* invalRect,
+               IntRect& screenRect, int titleBarHeight,
+               IntRect& clip, float scale,
+               bool* collectionsSwappedPtr, bool* newCollectionHasAnimPtr,
+               bool shouldDraw);
 
 #ifdef MEASURES_PERF
     void dumpMeasures();
 #endif
 
-    void resetFrameworkInval();
     void addDirtyArea(const IntRect& rect);
     void resetLayersDirtyArea();
+    void doFrameworkFullInval();
+    bool inUnclippedDraw() { return m_inUnclippedDraw; }
 
     bool goingDown() { return m_goingDown; }
     bool goingLeft() { return m_goingLeft; }
-    void setDirection(bool goingDown, bool goingLeft) {
-        m_goingDown = goingDown;
-        m_goingLeft = goingLeft;
-    }
-
-    int expandedTileBoundsX() { return m_expandedTileBoundsX; }
-    int expandedTileBoundsY() { return m_expandedTileBoundsY; }
-    void setHighEndGfx(bool highEnd) { m_highEndGfx = highEnd; }
 
     float scale() { return m_scale; }
 
+    // Currently, we only use 3 modes : kAllTextures, kClippedTextures and
+    // kSingleSurfaceRendering ( for every mode > kClippedTextures ) .
     enum LayersRenderingMode {
         kAllTextures              = 0, // all layers are drawn with textures fully covering them
         kClippedTextures          = 1, // all layers are drawn, but their textures will be clipped
@@ -261,35 +209,23 @@ public:
     };
 
     LayersRenderingMode layersRenderingMode() { return m_layersRenderingMode; }
+    bool isSingleSurfaceRenderingMode() { return m_layersRenderingMode == kSingleSurfaceRendering; }
     void scrollLayer(int layerId, int x, int y);
 
-    void invalRegion(const SkRegion& region);
-
 private:
-    void inval(const IntRect& rect);
-    ZoomManager m_zoomManager;
-    android::Mutex m_tiledPageLock;
-    SkRect m_viewport;
-    SkIRect m_viewportTileBounds;
-    SkIRect m_futureViewportTileBounds;
-    SkIRect m_preZoomBounds;
+    void setVisibleContentRect(const SkRect& visibleContentRect, float scale);
+    double setupDrawing(const IntRect& invScreenRect, const SkRect& visibleContentRect,
+                        const IntRect& screenRect, int titleBarHeight,
+                        const IntRect& screenClip, float scale);
+    void showFrameInfo(const IntRect& rect, bool collectionsSwapped);
+    void clearRectWithColor(const IntRect& rect, float r, float g,
+                            float b, float a);
+    double m_prevDrawTime;
 
-    unsigned int m_currentPictureCounter;
-    bool m_usePageA;
-    TiledPage* m_tiledPageA;
-    TiledPage* m_tiledPageB;
-    IntRect m_lastInval;
-    IntRect m_frameworkInval;
+    SkRect m_visibleContentRect;
     IntRect m_frameworkLayersInval;
-#if 0 //logging 
-    double m_current_time;
-    double m_start_time;
-    double m_total_time;
-    long m_iterations;
-    float m_avg_fps;
-    bool m_start;
-    int m_counter_test;
-#endif
+    bool m_doFrameworkFullInval;
+    bool m_inUnclippedDraw;
 
 #ifdef MEASURES_PERF
     unsigned int m_totalTimeCounter;
@@ -300,31 +236,14 @@ private:
     GLExtras m_glExtras;
 
     bool m_isScrolling;
+    bool m_isVisibleContentRectScrolling;
     bool m_goingDown;
     bool m_goingLeft;
 
-    int m_expandedTileBoundsX;
-    int m_expandedTileBoundsY;
-    bool m_highEndGfx;
-
     float m_scale;
-//SAMSUNG CHANGES>>
-    bool m_textureBitmapUpdated;
-    int  mFpsScrollCount;
-    int  mFpsZoomCount;
-    int  mFpsCount;
-    double mScrollStartTime;
-    double mZoomStartTime;
-    bool m_isZooming;
-    bool m_isMobileSite;	
-    float m_previousZoomAnimationScale;
-    double mSharpenStartTime;
-    double mSharpenEndTime;
-    bool m_isFirstDraw;
-    double mFirstDrawTime;
-//SAMSUNG CHANGES<<
+
     LayersRenderingMode m_layersRenderingMode;
-    TreeManager m_treeManager;
+    SurfaceCollectionManager m_surfaceCollectionManager;
 };
 
 } // namespace WebCore

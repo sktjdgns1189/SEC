@@ -48,16 +48,46 @@
 #include <wtf/text/StringBuffer.h>
 #include <wtf/unicode/CharacterNames.h>
 
-//HTML Composer Begin
+//SISO_HTMLComposer start
 #include "Page.h"
 #include "Settings.h"
-//HTML Composer end
-
+//SISO_HTMLComposer end
 using namespace std;
 using namespace WTF;
 using namespace Unicode;
 
 namespace WebCore {
+
+class SecureTextTimer;
+typedef HashMap<RenderText*, SecureTextTimer*> SecureTextTimerMap;
+static SecureTextTimerMap* gSecureTextTimers = 0;
+
+class SecureTextTimer : public TimerBase {
+public:
+    SecureTextTimer(RenderText* renderText)
+        : m_renderText(renderText)
+        , m_lastTypedCharacterOffset(-1)
+    {
+    }
+
+    void restartWithNewText(unsigned lastTypedCharacterOffset)
+    {
+        m_lastTypedCharacterOffset = lastTypedCharacterOffset;
+        startOneShot(m_renderText->document()->settings()->passwordEchoDurationInSeconds());
+    }
+    void invalidate() { m_lastTypedCharacterOffset = -1; }
+    unsigned lastTypedCharacterOffset() { return m_lastTypedCharacterOffset; }
+
+private:
+    virtual void fired()
+    {
+        ASSERT(gSecureTextTimers->contains(m_renderText));
+        m_renderText->setText(m_renderText->text(), true /* forcing setting text as it may be masked later */);
+    }
+
+    RenderText* m_renderText;
+    int m_lastTypedCharacterOffset;
+};
 
 static void makeCapitalized(String* string, UChar previous)
 {
@@ -113,11 +143,6 @@ RenderText::RenderText(Node* node, PassRefPtr<StringImpl> str)
      , m_isAllASCII(m_text.containsOnlyASCII())
      , m_knownToHaveNoOverflowAndNoFallbackFonts(false)
      , m_needsTranscoding(false)
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-     , m_candidateComputedTextSize(0)
-     //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
 {
     ASSERT(m_text);
 
@@ -207,6 +232,9 @@ void RenderText::removeAndDestroyTextBoxes()
 
 void RenderText::destroy()
 {
+    if (SecureTextTimer* secureTextTimer = gSecureTextTimers ? gSecureTextTimers->take(this) : 0)
+        delete secureTextTimer;
+
     removeAndDestroyTextBoxes();
     RenderObject::destroy();
 }
@@ -287,11 +315,13 @@ void RenderText::absoluteRects(Vector<IntRect>& rects, int tx, int ty)
         rects.append(enclosingIntRect(FloatRect(tx + box->x(), ty + box->y(), box->width(), box->height())));
 }
 
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 // SAMSUNG CHANGE - added extra parameter "includeBr" which will be true incase of BR element in text selection. 
 // For BR elements the width is always zero so BR elements are ignored in text selection.
 // To consider BR elements in text selection, width is set to non zero
 void RenderText::absoluteRectsForRange(Vector<IntRect>& rects, unsigned start, unsigned end, bool useSelectionHeight, bool includeBr)
 {
+//SAMSUNG ADVANCED TEXT SELECTION - END
     // Work around signed/unsigned issues. This function takes unsigneds, and is often passed UINT_MAX
     // to mean "all the way to the end". InlineTextBox coordinates are unsigneds, so changing this 
     // function to take ints causes various internal mismatches. But selectionRect takes ints, and 
@@ -314,11 +344,11 @@ void RenderText::absoluteRectsForRange(Vector<IntRect>& rects, unsigned start, u
             FloatPoint origin = localToAbsolute(r.location());
             r.setX(origin.x());
             r.setY(origin.y());
-            // SAMSUNG CHANGE +
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
             if (includeBr && 0 == r.width()) {
                 r.setWidth(1);
             }
-            // SAMSUNG CHANGE -
+//SAMSUNG ADVANCED TEXT SELECTION - END
             rects.append(r);
         } else {
             unsigned realEnd = min(box->end() + 1, end);
@@ -516,10 +546,10 @@ VisiblePosition RenderText::positionForPoint(const IntPoint& point)
     return createVisiblePosition(lastBoxAbove ? lastBoxAbove->start() + lastBoxAbove->len() : 0, DOWNSTREAM);
 }
 
-// Samsung Adding for multicolumn text selection - begin
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 IntRect RenderText::localCaretRect(InlineBox* inlineBox, int caretOffset, int* extraWidthToEndOfLine,bool bTextSelection)
 {
-// Samsung Adding for multicolumn text selection - End
+//SAMSUNG ADVANCED TEXT SELECTION - END
 
     if (!inlineBox)
         return IntRect();
@@ -529,11 +559,10 @@ IntRect RenderText::localCaretRect(InlineBox* inlineBox, int caretOffset, int* e
         return IntRect();
 
     InlineTextBox* box = static_cast<InlineTextBox*>(inlineBox);
-//HTML Composer Begin
+//SISO_HTMLComposer start
     int height;
     int top;
-    if (document() && document()->page() && document()->page()->settings()
-        &&document()->page()->settings()->editableSupportEnabled())
+    if (bTextSelection == false)
     {
         // cursor height and position reading from the font height and inline render box position 
         //FIX for Issue MPSG100002484
@@ -541,14 +570,13 @@ IntRect RenderText::localCaretRect(InlineBox* inlineBox, int caretOffset, int* e
         top= box->y();
     }
     else
-//HTML Composer end
-
-// Samsung Adding for multicolumn text selection - begin
     {
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
     height = box->root()->selectionHeight(bTextSelection);
     top = box->root()->selectionTop(bTextSelection);
+//SAMSUNG ADVANCED TEXT SELECTION - END
     }
-// Samsung Adding for multicolumn text selection - End
+//SISO_HTMLComposer end
 
     // Go ahead and round left to snap it to the nearest pixel.
     float left = box->positionForOffset(caretOffset);
@@ -572,6 +600,14 @@ IntRect RenderText::localCaretRect(InlineBox* inlineBox, int caretOffset, int* e
     RenderStyle* cbStyle = cb->style();
     float leftEdge;
     float rightEdge;
+//SAMSUNG - Text selection >>
+ 	if (bTextSelection == true)
+       {
+	        leftEdge = min(static_cast<float>(cb->logicalLeft()), rootLeft);
+	        rightEdge = max(static_cast<float>(cb->logicalRight()), rootRight);
+	}
+	else
+	{
     if (style()->autoWrap()) {
         leftEdge = cb->logicalLeft();
         rightEdge = cb->logicalRight();
@@ -579,7 +615,8 @@ IntRect RenderText::localCaretRect(InlineBox* inlineBox, int caretOffset, int* e
         leftEdge = min(static_cast<float>(cb->logicalLeft()), rootLeft);
         rightEdge = max(static_cast<float>(cb->logicalRight()), rootRight);
     }
-
+	}
+//SAMSUNG - Text selection <<
     bool rightAligned = false;
     switch (cbStyle->textAlign()) {
     case TAAUTO:
@@ -603,23 +640,20 @@ IntRect RenderText::localCaretRect(InlineBox* inlineBox, int caretOffset, int* e
         break;
     }
 
-// Samsung Adding for advanced text selection - begin
-   if (bTextSelection)
-   {
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+   if (bTextSelection) {
         left = min(left, rightEdge - caretWidthRightOfOffset);
         left = max(left, rootLeft);
-   }
-   else
-   {
-// Samsung Adding for advanced text selection - end
-	    if (rightAligned) {
-	        left = max(left, leftEdge);
-	        left = min(left, rootRight - caretWidth);
-	    } else {
-	        left = min(left, rightEdge - caretWidthRightOfOffset);
-	        left = max(left, rootLeft);
-	    }
-   }
+   } else {
+//SAMSUNG ADVANCED TEXT SELECTION - END
+    if (rightAligned) {
+        left = max(left, leftEdge);
+        left = min(left, rootRight - caretWidth);
+    } else {
+        left = min(left, rightEdge - caretWidthRightOfOffset);
+        left = max(left, rootLeft);
+    }
+  }
 
     return style()->isHorizontalWritingMode() ? IntRect(left, top, caretWidth, height) : IntRect(top, left, height, caretWidth);
 }
@@ -1185,16 +1219,16 @@ void RenderText::setTextInternal(PassRefPtr<StringImpl> text)
 		/*Fix for [MPSG100004779] Begin*/
 		if(document() && document()->page() && document()->page()->settings() && document()->page()->settings()->editableSupportEnabled()) {
 		/*Fix for [MPSG100004779] End*/
-			if(applyRTL(m_text))
-			{
-				m_rtl = true;
-				style()->setDirection(RTL);
-			}
-			else
-			{
-				m_rtl = false;
-				style()->setDirection(LTR);
-			}
+		if(applyRTL(m_text))
+		{
+			m_rtl = true;
+			style()->setDirection(RTL);
+		}
+		else
+		{
+			m_rtl = false;
+			style()->setDirection(LTR);
+		}
 		/*Fix for [MPSG100004779] Begin*/	
 		}
 		/*Fix for [MPSG100004779] End*/
@@ -1208,13 +1242,13 @@ void RenderText::setTextInternal(PassRefPtr<StringImpl> text)
         case TSNONE:
             break;
         case TSCIRCLE:
-            m_text.makeSecure(whiteBullet);
+            secureText(whiteBullet);
             break;
         case TSDISC:
-            m_text.makeSecure(bullet);
+            secureText(bullet);
             break;
         case TSSQUARE:
-            m_text.makeSecure(blackSquare);
+            secureText(blackSquare);
         }
     }
 
@@ -1222,6 +1256,28 @@ void RenderText::setTextInternal(PassRefPtr<StringImpl> text)
     ASSERT(!isBR() || (textLength() == 1 && m_text[0] == '\n'));
 
     m_isAllASCII = m_text.containsOnlyASCII();
+}
+
+void RenderText::secureText(UChar mask)
+{
+    if (!m_text.length())
+        return;
+
+    int lastTypedCharacterOffsetToReveal = -1;
+    String revealedText;
+    SecureTextTimer* secureTextTimer = gSecureTextTimers ? gSecureTextTimers->get(this) : 0;
+    if (secureTextTimer && secureTextTimer->isActive()) {
+        lastTypedCharacterOffsetToReveal = secureTextTimer->lastTypedCharacterOffset();
+        if (lastTypedCharacterOffsetToReveal >= 0)
+            revealedText.append(m_text[lastTypedCharacterOffsetToReveal]);
+    }
+
+    m_text.makeSecure(mask);
+    if (lastTypedCharacterOffsetToReveal >= 0) {
+        m_text.replace(lastTypedCharacterOffsetToReveal, 1, revealedText);
+        // m_text may be updated later before timer fires. We invalidate the lastTypedCharacterOffset to avoid inconsistency.
+        secureTextTimer->invalidate();
+    }
 }
 
 void RenderText::setText(PassRefPtr<StringImpl> text, bool force)
@@ -1658,6 +1714,18 @@ void RenderText::checkConsistency() const
 
 #endif
 
+void RenderText::momentarilyRevealLastTypedCharacter(unsigned lastTypedCharacterOffset)
+{
+    if (!gSecureTextTimers)
+        gSecureTextTimers = new SecureTextTimerMap;
+
+    SecureTextTimer* secureTextTimer = gSecureTextTimers->get(this);
+    if (!secureTextTimer) {
+        secureTextTimer = new SecureTextTimer(this);
+        gSecureTextTimers->add(this, secureTextTimer);
+    }
+    secureTextTimer->restartWithNewText(lastTypedCharacterOffset);
+}
 //SISO: for RTL text alignment - start
 
 bool RenderText::checkIsRTL()

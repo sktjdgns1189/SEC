@@ -440,67 +440,83 @@ static VisiblePosition endPositionForLine(const VisiblePosition& c)
     
     return VisiblePosition(pos, VP_UPSTREAM_IF_POSSIBLE);
 }
-//SAMSUNG CHANGE >>
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 bool _isStartOfSpace(const VisiblePosition& c)
 {
-    Position pos = c.deepEquivalent();
-    Node *n = pos.anchorNode();
-    if (!n)
-        return false;
-    
-    Document *d = n->document();
-    Node *de = d->documentElement();
-    if (!de)
-        return false;
-    
-    Node *boundary = n->enclosingBlockFlowElement();
-    if (!boundary)
-        return false;
+	Position pos = c.deepEquivalent();
+	Node *n = pos.anchorNode();
 
-    bool isContentEditable = boundary->isContentEditable();
-    while (boundary && boundary != de && boundary->parentNode() && isContentEditable == boundary->parentNode()->isContentEditable())
-        boundary = boundary->parentNode();
+	if (!n)
+	return false;
 
-    RefPtr<Range> searchRange(d->createRange());
-    Position start(pos.parentAnchoredEquivalent());
+	Document *d = n->document();
+	Node *de = d->documentElement();
 
-    Vector<UChar, 1024> string;
-    unsigned prefixLength = 0;
+	if (!de)
+	return false;
 
-    ExceptionCode ec = 0;
-    if (requiresContextForWordBoundary(c.characterAfter())) {
-        RefPtr<Range> backwardsScanRange(d->createRange());
-        backwardsScanRange->setEnd(start.anchorNode(), start.deprecatedEditingOffset(), ec);
-        SimplifiedBackwardsTextIterator backwardsIterator(backwardsScanRange.get());
-        while (!backwardsIterator.atEnd()) {
-            const UChar* characters = backwardsIterator.characters();
-            int length = backwardsIterator.length();
-            int i = startOfLastWordBoundaryContext(characters, length);
-            string.prepend(characters + i, length - i);
-            prefixLength += length - i;
-            if (i > 0)
-                break;
-            backwardsIterator.advance();
-        }
-    }
+	Node *boundary = n->enclosingBlockFlowElement();
 
-    searchRange->selectNodeContents(boundary, ec);
-    searchRange->setStart(start.anchorNode(), start.deprecatedEditingOffset(), ec);
-    TextIterator it(searchRange.get(), TextIteratorEmitsCharactersBetweenAllVisiblePositions);
-    //unsigned next = 0;
-    bool inTextSecurityMode = start.anchorNode() && start.anchorNode()->renderer() && start.deprecatedNode()->renderer()->style()->textSecurity() != TSNONE;
+	if (!boundary)
+	return false;
 
-    if (!inTextSecurityMode)
-        string.append(it.characters(), it.length());
-    else {
-        // Treat bullets used in the text security mode as regular characters when looking for boundaries
-        String iteratorString(it.characters(), it.length());
-        iteratorString = iteratorString.impl()->secure('x');
-        string.append(iteratorString.characters(), iteratorString.length());
-    }
-    return string.isEmpty()? false : isASCIISpace(string[0]);
+	bool isContentEditable = boundary->isContentEditable();
+
+	while (boundary && boundary != de && boundary->parentNode() && isContentEditable == boundary->parentNode()->isContentEditable())
+		boundary = boundary->parentNode();
+
+	RefPtr<Range> searchRange(d->createRange());
+	Position start(pos.parentAnchoredEquivalent());
+
+	Vector<UChar, 1024> string;
+	unsigned prefixLength = 0;
+
+	ExceptionCode ec = 0;
+	
+	if (requiresContextForWordBoundary(c.characterAfter())) 
+	{
+		RefPtr<Range> backwardsScanRange(d->createRange());
+		backwardsScanRange->setEnd(start.anchorNode(), start.deprecatedEditingOffset(), ec);
+		SimplifiedBackwardsTextIterator backwardsIterator(backwardsScanRange.get());
+ 
+		while (!backwardsIterator.atEnd()) 
+		{
+			const UChar* characters = backwardsIterator.characters();
+			int length = backwardsIterator.length();
+			int i = startOfLastWordBoundaryContext(characters, length);
+			string.prepend(characters + i, length - i);
+			prefixLength += length - i;
+			if (i > 0)
+			break;
+			backwardsIterator.advance();
+		}
+	}
+
+	searchRange->selectNodeContents(boundary, ec);
+	searchRange->setStart(start.anchorNode(), start.deprecatedEditingOffset(), ec);
+	TextIterator it(searchRange.get(), TextIteratorEmitsCharactersBetweenAllVisiblePositions);
+	if(!it.length())
+	    return false;
+	//unsigned next = 0;
+	bool inTextSecurityMode = start.anchorNode() && start.anchorNode()->renderer() && start.deprecatedNode()->renderer()->style()->textSecurity() != TSNONE;
+
+	if (!inTextSecurityMode)
+	string.append(it.characters(), it.length());
+	else 
+	{
+	// Treat bullets used in the text security mode as regular characters when looking for boundaries
+		String iteratorString(it.characters(), it.length());
+		iteratorString = iteratorString.impl()->secure('x');
+		string.append(iteratorString.characters(), iteratorString.length());
+	}
+	
+	return string.isEmpty()? false : isASCIISpace(string[0]);
+
 }
-//SAMSUNg CHANGE <<
+
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
 VisiblePosition endOfLine(const VisiblePosition& c)
 {
     VisiblePosition visPos = endPositionForLine(c);
@@ -535,12 +551,13 @@ bool isEndOfLine(const VisiblePosition &p)
     return p.isNotNull() && p == endOfLine(p);
 }
 
-//SAMSUNG CHANGE >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 bool isStartOfSpace(const VisiblePosition &p)
 {
     return p.isNotNull() && _isStartOfSpace(p);
 }
-//SAMSUNG CHANGE <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
 // The first leaf before node that has the same editability as node.
 static Node* previousLeafWithSameEditability(Node* node)
 {

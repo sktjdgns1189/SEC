@@ -32,6 +32,11 @@
 #include <wtf/RefCounted.h>
 #include <wtf/Vector.h>
 
+#if PLATFORM(ANDROID)
+#include "PlatformWebGLTexture.h"
+#endif
+
+
 namespace WebCore {
 
 class WebGLTexture : public WebGLObject {
@@ -69,6 +74,11 @@ public:
     bool hasEverBeenBound() const { return object() && m_target; }
 
     static GC3Dint computeLevelCount(GC3Dsizei width, GC3Dsizei height);
+#if PLATFORM(ANDROID)
+	PlatformWebGLTexture* platformTexture();
+	void setPlatformTexture(PassOwnPtr<PlatformWebGLTexture> obj); 
+#endif
+
 
 protected:
     WebGLTexture(WebGLRenderingContext*);
@@ -123,6 +133,11 @@ private:
     bool m_isNPOT;
     bool m_isComplete;
     bool m_needToUseBlackTexture;
+
+#if PLATFORM(ANDROID)
+	OwnPtr<PlatformWebGLTexture> m_platformTexture;
+#endif
+
 };
 
 } // namespace WebCore

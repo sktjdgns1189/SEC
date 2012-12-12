@@ -120,13 +120,7 @@ public:
         FileUploadLabel,
         ResetLabel,
         SubmitLabel,
-        FileUploadNoFileChosenLabel,
-        // Samsung Change - fix for MPSG100004640	>>
-        EmailTextTypeMismatch,
-        EmailMultipleTextTypeMismatch,
-        URLTextMismatch,
-        PatternMismatch
-        // Samsung Change - fix for MPSG100004640	>>
+        FileUploadNoFileChosenLabel
     };
     static String* globalLocalizedName(rawResId resId);
 

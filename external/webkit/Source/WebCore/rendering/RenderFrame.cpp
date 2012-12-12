@@ -64,7 +64,12 @@ void RenderFrame::layout()
 {
     FrameView* view = static_cast<FrameView*>(widget());
     RenderView* root = view ? view->frame()->contentRenderer() : 0;
+
+    // Do not expand frames which has zero width or height
     if (!width() || !height() || !root) {
+        updateWidgetPosition();
+        if (view)
+            view->layout();
         setNeedsLayout(false);
         return;
     }
@@ -75,27 +80,25 @@ void RenderFrame::layout()
         return;
     }
 
-//SAMSUNG CHANGE +
-    /*int layoutWidth = width();
+    // Update the dimensions to get the correct width and height
+    // SAMSUNG CHANGE + using ICS code as JB code has problem - MPSG100006081
+    int layoutWidth = width();
+    /*updateWidgetPosition();
+    if (root->preferredLogicalWidthsDirty())
+        root->computePreferredLogicalWidths();*/
+    // SAMSUNG CHANGE -
 
+    // Expand the frame by setting frame height = content height
     setWidth(max(view->contentsWidth() + borderAndPaddingWidth(), width()));
     setHeight(max(view->contentsHeight() + borderAndPaddingHeight(), height()));
 
-    // Trigger a layout of the FrameView which will schedule a relayout of this RenderFrame.
+    // Update one more time
+    // SAMSUNG CHANGE + using ICS code as JB code has problem - MPSG100006081
+    //updateWidgetPosition();
     if (layoutWidth < width())
-        view->layout();*/
+        view->layout();
+    // SAMSUNG CHANGE -
 
-     m_overflow.clear();
-    view->resize(width(), height());
-    view->layout();
-    if (width() > root->docWidth()) {
-        view->resize(root->docWidth(), 0);
-        view->layout();		
-    }
-    setWidth(max(root->docWidth() + borderAndPaddingWidth(), width()));
-    setHeight(max(root->docHeight() + borderAndPaddingHeight(), height()));
-    
-//SAMSUNG CHANGE -
     setNeedsLayout(false);
 }
 #endif

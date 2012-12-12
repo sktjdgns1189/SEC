@@ -23,7 +23,7 @@ module html {
     interface HTMLInputElement : HTMLElement {
         attribute [ConvertNullToNullString] DOMString defaultValue;
         attribute [Reflect=checked] boolean defaultChecked;
-	attribute [Reflect] DOMString dirname;
+	attribute [Reflect] DOMString dirName;
         readonly attribute HTMLFormElement form;
         attribute [Reflect, URL] DOMString formAction;
         attribute [Reflect] DOMString formEnctype;
@@ -108,6 +108,9 @@ module html {
         attribute [Reflect, EnabledAtRuntime] boolean webkitSpeech;
         attribute [Reflect, EnabledAtRuntime] boolean webkitGrammar;
         attribute [DontEnum] EventListener onwebkitspeechchange;
+#endif
+#if defined(ENABLE_MEDIA_CAPTURE) && ENABLE_MEDIA_CAPTURE
+        attribute [Reflect] DOMString capture;
 #endif
     };
 

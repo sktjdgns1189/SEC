@@ -33,15 +33,15 @@
 
 #include "V8HTMLElementWrapperFactory.h"
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 #include "MicroDataItemValue.h"
 #include "V8Binding.h"
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 namespace WebCore {
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 static v8::Handle<v8::Value> toV8Object(MicroDataItemValue* itemValue)
 {
@@ -57,7 +57,7 @@ static v8::Handle<v8::Value> toV8Object(MicroDataItemValue* itemValue)
     return v8String(itemValue->getString());
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 v8::Handle<v8::Value> toV8(HTMLElement* impl, bool forceNewObject)
 {
     if (!impl)
@@ -65,7 +65,7 @@ v8::Handle<v8::Value> toV8(HTMLElement* impl, bool forceNewObject)
     return createV8HTMLWrapper(impl, forceNewObject);
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 v8::Handle<v8::Value> V8HTMLElement::itemValueAccessorGetter(v8::Local<v8::String> name, const v8::AccessorInfo& info)
 {
@@ -82,5 +82,5 @@ void V8HTMLElement::itemValueAccessorSetter(v8::Local<v8::String> name, v8::Loca
         V8Proxy::setDOMException(ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 } // namespace WebCore

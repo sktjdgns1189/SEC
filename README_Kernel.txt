@@ -1,30 +1,22 @@
-HOW TO BUILD KERNEL 3.0.15 FOR SHV-E210S
+################################################################################
 
 1. How to Build
 	- get Toolchain
-	download and install arm-eabi-4.4.3 toolchain for ARM EABI.
+		From android git server , codesourcery and etc ..
+		 - arm-eabi-4.4.3
+		
+	- edit build_kernel.sh
+		edit "CROSS_COMPILE" to right toolchain path(You downloaded).
+		  EX)  CROSS_COMPILE= $(android platform directory you download)/android/prebuilt/linux-x86/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
+      Ex)  CROSS_COMPILE=/usr/local/toolchain/arm-eabi-4.4.3/bin/arm-eabi-          // check the location of toolchain
+  	
+  - execute Kernel script 
+    $ ./build_kernel.sh
 
-2. Extract kernel source and move into the top directory.
+2. Output files
+	- Kernel : arch/arm/boot/zImage
+	- module : drivers/*/*.ko
 
-3. Execute 'build_kernel.sh'
-
-
-4. Output files
-	- Kernel : kernel/arch/arm/boot/zImage
-	- module : kernel/drivers/*/*.ko
-	
-5. How to make .tar binary for downloading into target.
-	- change current directory to kernel/arch/arm/boot
-	- type following command
-	$ tar cvf SHV-E210S_KOR_M_SK_Kernel.tar zImage
-
-
-
-
-
-
-
-
-
-
-
+3. How to Clean	
+		$ make clean
+################################################################################

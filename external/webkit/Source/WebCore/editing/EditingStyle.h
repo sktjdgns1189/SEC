@@ -34,9 +34,9 @@
 #include "CSSPropertyNames.h"
 #include "PlatformString.h"
 #include "WritingDirection.h"
-//HTMLComposer start
+//SISO_HTMLComposer start
 #include "EditAction.h"
-//HTMLComposer end
+//SISO_HTMLComposer end
 #include <wtf/Forward.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
@@ -97,10 +97,10 @@ public:
     bool textDirection(WritingDirection&) const;
     bool isEmpty() const;
     void setStyle(PassRefPtr<CSSMutableStyleDeclaration>);
-//HTMLComposer start
+//SISO_HTMLComposer start
 	void setEditAction(EditAction action) {m_editAction = action;}
 	EditAction editAction() {return m_editAction;}
-//HTMLComposer end
+//SISO_HTMLComposer end
     void overrideWithStyle(const CSSMutableStyleDeclaration*);
     void clear();
     PassRefPtr<EditingStyle> copy() const;
@@ -141,9 +141,9 @@ private:
     void removeTextFillAndStrokeColorsIfNeeded(RenderStyle*);
     void setProperty(int propertyID, const String& value, bool important = false);
     void replaceFontSizeByKeywordIfPossible(RenderStyle*, CSSComputedStyleDeclaration*);
-//HTMLComposer start
+//SISO_HTMLComposer start
     void replaceComputedFontSizeBySpecifiedSize(CSSComputedStyleDeclaration* computedStyle);
-//HTMLComposer end
+//SISO_HTMLComposer end
     void extractFontSizeDelta();
     bool conflictsWithInlineStyleOfElement(StyledElement*, EditingStyle* extractedStyle, Vector<CSSPropertyID>* conflictingProperties) const;
     void mergeStyle(CSSMutableStyleDeclaration*);
@@ -151,9 +151,9 @@ private:
     RefPtr<CSSMutableStyleDeclaration> m_mutableStyle;
     bool m_shouldUseFixedDefaultFontSize;
     float m_fontSizeDelta;
-//HTMLComposer start
+//SISO_HTMLComposer start
 	EditAction m_editAction;
-//HTMLComposer end
+//SISO_HTMLComposer end
     friend class HTMLElementEquivalent;
     friend class HTMLAttributeEquivalent;
 };
@@ -212,9 +212,9 @@ private:
 // FIXME: Remove these functions or make them non-global to discourage using CSSStyleDeclaration directly.
 int getIdentifierValue(CSSStyleDeclaration*, int propertyID);
 bool isCSSValueLength(CSSPrimitiveValue* value);
-//HTML Composer Start
+//SISO_HTMLComposer start
 enum LegacyFontSizeMode { AlwaysUseLegacyFontSize, UseLegacyFontSizeOnlyIfPixelValuesMatch, UsePixelValuesIfSpecified };
-//HTML Composer End
+//SISO_HTMLComposer end
 int legacyFontSizeFromCSSValue(Document*, CSSPrimitiveValue*, bool shouldUseFixedFontDefaultSize, LegacyFontSizeMode);
 
 } // namespace WebCore

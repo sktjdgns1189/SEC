@@ -131,7 +131,6 @@ void WorkerContextExecutionProxy::initIsolate()
     v8::V8::SetGlobalGCPrologueCallback(&V8GCController::gcPrologue);
     v8::V8::SetGlobalGCEpilogueCallback(&V8GCController::gcEpilogue);
 //SAMSUNG_WEB_WORKER_CHANGES <<
-
     v8::ResourceConstraints resource_constraints;
     uint32_t here;
     resource_constraints.set_stack_limit(&here - kWorkerMaxStackSize / sizeof(uint32_t*));

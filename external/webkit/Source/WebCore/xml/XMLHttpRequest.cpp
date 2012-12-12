@@ -28,7 +28,9 @@
 #include "CrossOriginAccessControl.h"
 #include "DOMFormData.h"
 #include "DOMImplementation.h"
-#include "Document.h"
+//Samsung Change DocumentResponseType ++
+#include "HTMLDocument.h"
+//Samsung Chnage DocumentResponseType --
 #include "Event.h"
 #include "EventException.h"
 #include "EventListener.h"
@@ -232,44 +234,89 @@ String XMLHttpRequest::responseText(ExceptionCode& ec)
     return m_responseBuilder.toStringPreserveCapacity();
 }
 
+// http://trac.webkit.org/changeset/103106
+// Making XHR.responseXML compliant as per the latest editor's draft of the XHR spec.
+// A responseType of "text" should disallow access to responseXML by throwing an InvalidState exception.
+// When the error flag is toggled, responseXML should return "null" immediately and not attempt to create a new Document.
+// ResponseXML should return a valid HTML document when the MIME type is "text/html", but only when the caller has
+// explicitly set responseType to "document".
+
+//Samsung Change DocumentResponseType ++
 Document* XMLHttpRequest::responseXML(ExceptionCode& ec)
 {
-    if (responseTypeCode() != ResponseTypeDefault && responseTypeCode() != ResponseTypeText && responseTypeCode() != ResponseTypeDocument) {
+    if (responseTypeCode() != ResponseTypeDefault && responseTypeCode() != ResponseTypeDocument) {
         ec = INVALID_STATE_ERR;
         return 0;
     }
 
-    if (m_state != DONE)
+    if (m_error || m_state != DONE)
         return 0;
 
     if (!m_createdDocument) {
-        if ((m_response.isHTTP() && !responseIsXML()) || scriptExecutionContext()->isWorkerContext()) {
-            // The W3C spec requires this.
-            m_responseXML = 0;
+        bool isHTML = equalIgnoringCase(responseMIMEType(), "text/html");
+
+        // The W3C spec requires the final MIME type to be some valid XML type, or text/html.
+        // If it is text/html, then the responseType of "document" must have been supplied explicitly.
+        if ((m_response.isHTTP() && !responseIsXML() && !isHTML)
+            || (isHTML && responseTypeCode() == ResponseTypeDefault)
+            || scriptExecutionContext()->isWorkerContext()) {
+            m_responseDocument = 0;
         } else {
-            m_responseXML = Document::create(0, m_url);
+            if (isHTML)
+                m_responseDocument = HTMLDocument::create(0, m_url);
+            else
+                m_responseDocument = Document::create(0, m_url);
             // FIXME: Set Last-Modified.
-            m_responseXML->setContent(m_responseBuilder.toStringPreserveCapacity());
-            m_responseXML->setSecurityOrigin(document()->securityOrigin());
-            if (!m_responseXML->wellFormed())
-                m_responseXML = 0;
+            m_responseDocument->setContent(m_responseBuilder.toStringPreserveCapacity());
+            m_responseDocument->setSecurityOrigin(document()->securityOrigin());
+            if (!m_responseDocument->wellFormed())
+                m_responseDocument = 0;
         }
         m_createdDocument = true;
     }
 
-    return m_responseXML.get();
+    return m_responseDocument.get();
 }
+//Samsung Change DocumentResponseType --
 
+// Fixing the FIXME as per http://trac.webkit.org/changeset/109635
+//Samsung Change BlobResponseType ++
 #if ENABLE(XHR_RESPONSE_BLOB)
-Blob* XMLHttpRequest::responseBlob(ExceptionCode& ec) const
+Blob* XMLHttpRequest::responseBlob(ExceptionCode& ec)
 {
     if (responseTypeCode() != ResponseTypeBlob) {
         ec = INVALID_STATE_ERR;
         return 0;
     }
+    // We always return null before DONE.
+    if (m_state != DONE)
+        return 0;
+
+    if (!m_responseBlob.get()) {
+        // FIXME: This causes two (or more) unnecessary copies of the data.
+        // Chromium stores blob data in the browser process, so we're pulling the data
+        // from the network only to copy it into the renderer to copy it back to the browser.
+        // Ideally we'd get the blob/file-handle from the ResourceResponse directly
+        // instead of copying the bytes. Embedders who store blob data in the
+        // same process as WebCore would at least to teach BlobData to take
+        // a SharedBuffer, even if they don't get the Blob from the network layer directly.
+        OwnPtr<BlobData> blobData = BlobData::create();
+        // If we errored out or got no data, we still return a blob, just an empty one.
+        if (m_binaryResponseBuilder.get()) {
+            RefPtr<RawData> rawData = RawData::create();
+            size_t size = m_binaryResponseBuilder->size();
+            rawData->mutableData()->append(m_binaryResponseBuilder->data(), size);
+            blobData->appendData(rawData, 0, BlobDataItem::toEndOfFile);
+            blobData->setContentType(responseMIMEType()); // responseMIMEType defaults to text/xml which may be incorrect.
+            m_binaryResponseBuilder.clear();
+        }
+        m_responseBlob = Blob::create(blobData.release(), m_binaryResponseBuilder.get() ? m_binaryResponseBuilder->size() : 0);
+    }
+
     return m_responseBlob.get();
 }
 #endif
+//Samsung Change BlobResponseType --
 
 ArrayBuffer* XMLHttpRequest::responseArrayBuffer(ExceptionCode& ec)
 {
@@ -729,7 +776,9 @@ void XMLHttpRequest::clearResponseBuffers()
 {
     m_responseBuilder.clear();
     m_createdDocument = false;
-    m_responseXML = 0;
+	//Samsung Change DocumentResponseType ++
+    m_responseDocument = 0;
+	//Samsung Change DocumentResponseType --
 #if ENABLE(XHR_RESPONSE_BLOB)
     m_responseBlob = 0;
 #endif
@@ -990,9 +1039,6 @@ void XMLHttpRequest::didFinishLoading(unsigned long identifier, double)
 
     m_responseBuilder.shrinkToFit();
 
-#if ENABLE(XHR_RESPONSE_BLOB)
-    // FIXME: Set m_responseBlob to something here in the ResponseTypeBlob case.
-#endif
 
     InspectorInstrumentation::resourceRetrievedByXMLHttpRequest(scriptExecutionContext(), identifier, m_responseBuilder.toStringPreserveCapacity(), m_url, m_lastSendURL, m_lastSendLineNumber);
 
@@ -1066,7 +1112,13 @@ void XMLHttpRequest::didReceiveData(const char* data, int len)
 
     if (useDecoder)
         m_responseBuilder.append(m_decoder->decode(data, len));
-    else if (responseTypeCode() == ResponseTypeArrayBuffer) {
+//Samsung Change BlobResponseType ++
+    else if (responseTypeCode() == ResponseTypeArrayBuffer
+#if ENABLE(XHR_RESPONSE_BLOB)
+             || m_responseTypeCode == ResponseTypeBlob
+#endif
+             ) {
+//Samsung Change BlobResponseType --
         // Buffer binary data.
         if (!m_binaryResponseBuilder)
             m_binaryResponseBuilder = SharedBuffer::create();

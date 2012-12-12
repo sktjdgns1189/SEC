@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009 Apple Inc. All rights reserved.
  * Copyright (C) 2011 Sony Ericsson Mobile Communications AB
+ * Copyright (C) 2012 Sony Mobile Communications AB
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -71,9 +72,6 @@ public:
     virtual bool is3d() const { return true; }
     virtual bool isAccelerated() const { return true; }
     virtual bool paintsIntoCanvasBuffer() const;
-
-    GC3Dsizei drawingBufferWidth();
-    GC3Dsizei drawingBufferHeight();
 
     void activeTexture(GC3Denum texture, ExceptionCode&);
     void attachShader(WebGLProgram*, WebGLShader*, ExceptionCode&);
@@ -356,8 +354,8 @@ public:
 
     bool validateWebGLObject(WebGLObject*);
 
-#if ENABLE(VIDEO)
-    PassRefPtr<Image> videoFrameToImage(HTMLVideoElement*, ExceptionCode& ec);
+#if ENABLE(VIDEO) && !PLATFORM(ANDROID)
+    PassRefPtr<Image> videoFrameToImage(HTMLVideoElement*);
 #endif
 
     RefPtr<GraphicsContext3D> m_context;
@@ -445,10 +443,7 @@ public:
     GC3Dint m_maxCubeMapTextureSize;
     GC3Dint m_maxTextureLevel;
     GC3Dint m_maxCubeMapTextureLevel;
-//SAMSUNG Changes for WEBGL - start
-    GC3Dint m_maxRenderbufferSize;
-    GC3Dint m_maxViewportDims[2];
-//SAMSUNG Changes for WEBGL - end
+
     GC3Dint m_packAlignment;
     GC3Dint m_unpackAlignment;
     bool m_unpackFlipY;

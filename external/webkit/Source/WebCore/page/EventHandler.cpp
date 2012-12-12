@@ -285,7 +285,7 @@ void EventHandler::selectClosestWordFromMouseEvent(const MouseEventWithHitTestRe
     Node* innerNode = targetNode(result);
     VisibleSelection newSelection;
 
-    if (innerNode && innerNode->renderer() && m_mouseDownMayStartSelect) {
+    if (innerNode && innerNode->renderer() && m_mouseDownMayStartSelect &&  innerNode->dispatchEvent(Event::create(eventNames().selectstartEvent, true, true))) {
         VisiblePosition pos(innerNode->renderer()->positionForPoint(result.localPoint()));
         TextGranularity granularity = CharacterGranularity;
         if (pos.isNotNull()) {
@@ -314,6 +314,31 @@ void EventHandler::selectClosestWordOrLinkFromMouseEvent(const MouseEventWithHit
     if (innerNode && innerNode->renderer() && m_mouseDownMayStartSelect) {
         VisibleSelection newSelection;
         Element* URLElement = result.hitTestResult().URLElement();
+        // SAMSUNG : P120621-0427(MPSG100005396) <<
+        if (URLElement) {
+            //Reseting Hover Flag for the link during word selection.
+            Node *linkNode = static_cast<Node*>(URLElement);
+            if (linkNode->hovered()) {
+                Document* doc = linkNode->document();
+                //Reset the hover state of current link up to the root.
+                Vector<RefPtr<Node>, 32> nodesToRemoveFromChain;
+                RefPtr<Node> currHoverNode = linkNode;
+                for (RenderObject* curr = currHoverNode->renderer(); curr; curr = curr->hoverAncestor()) {
+                    if (curr->node() && !curr->isText() && curr->node()->inActiveChain()) {
+                        nodesToRemoveFromChain.append(curr->node());
+                    }
+                }
+                size_t removeCount = nodesToRemoveFromChain.size();
+                for (size_t i = 0; i < removeCount; ++i) {
+                    nodesToRemoveFromChain[i]->setActive(false);
+                    nodesToRemoveFromChain[i]->setHovered(false);
+                }
+                //Reset the active hovered Node.
+                doc->setActiveNode(0);
+                doc->setHoverNode(0);
+            }
+        }
+        // SAMSUNG : P120621-0427(MPSG100005396) <<
         VisiblePosition pos(innerNode->renderer()->positionForPoint(result.localPoint()));
         if (pos.isNotNull() && pos.deepEquivalent().deprecatedNode()->isDescendantOf(URLElement))
             newSelection = VisibleSelection::selectionFromContentsOfNode(URLElement);
@@ -1610,6 +1635,37 @@ bool EventHandler::handleMouseMoveEvent(const PlatformMouseEvent& mouseEvent, Hi
     if (hoveredNode)
         *hoveredNode = mev.hitTestResult();
 
+    VisibleSelection newSelection = m_frame->selection()->selection();
+
+    if (newSelection.isRange())
+    {
+        Node* innerNode = targetNode(mev);
+
+        Element* URLElement = mev.hitTestResult().URLElement();
+        if (URLElement) {
+            //Reseting Hover Flag for the link during word selection.
+            Node *linkNode = static_cast<Node*>(URLElement);
+            if (linkNode->hovered()) {
+                Document* doc = linkNode->document();
+                //Reset the hover state of current link up to the root.
+                Vector<RefPtr<Node>, 32> nodesToRemoveFromChain;
+                RefPtr<Node> currHoverNode = linkNode;
+                for (RenderObject* curr = currHoverNode->renderer(); curr; curr = curr->hoverAncestor()) {
+                    if (curr->node() && !curr->isText() && curr->node()->inActiveChain()) {
+                        nodesToRemoveFromChain.append(curr->node());
+                    }
+                }
+                size_t removeCount = nodesToRemoveFromChain.size();
+                for (size_t i = 0; i < removeCount; ++i) {
+                    nodesToRemoveFromChain[i]->setActive(false);
+                    nodesToRemoveFromChain[i]->setHovered(false);
+                }
+                //Reset the active hovered Node.
+                doc->setActiveNode(0);
+                doc->setHoverNode(0);
+            }
+        }
+    }
     Scrollbar* scrollbar = 0;
 
     if (m_resizeLayer && m_resizeLayer->inResizeMode())
@@ -2076,8 +2132,17 @@ bool EventHandler::dispatchMouseEvent(const AtomicString& eventType, Node* targe
                 if (!page->focusController()->setFocusedNode(node, m_frame))
                     swallowEvent = true;
             } else if (!node || !node->focused()) {
-                if (!page->focusController()->setFocusedNode(0, m_frame))
-                    swallowEvent = true;
+ //SISO_HTMLComposer start
+                    if(m_frame->document() && m_frame->document()->settings()  && m_frame->document()->settings()->editableSupportEnabled()){
+			     swallowEvent = true;
+                    	}
+		     else{
+//SISO_HTMLComposer end
+                        if (!page->focusController()->setFocusedNode(0, m_frame))
+                            swallowEvent = true;
+//SISO_HTMLComposer start
+			}
+//SISO_HTMLComposer end
             }
         }
     }
@@ -2305,34 +2370,38 @@ bool EventHandler::sendContextMenuEventForKey()
     return dispatchMouseEvent(eventNames().contextmenuEvent, targetNode, true, 0, mouseEvent, false);
 }
 
-// SAMSUNG CHANGE : ADVANCED_TEXT_SELECTION <<
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 bool EventHandler::sendContextMenuEventForWordSelection(const PlatformMouseEvent& event, bool longClick)
 {
-    Document* doc = m_frame->document();
-    FrameView* v = m_frame->view();
-    if (!v)
-        return false;
-    
-    IntPoint viewportPos = v->windowToContents(event.pos());
-    HitTestRequest request(HitTestRequest::Active);
-    MouseEventWithHitTestResults mev = doc->prepareMouseEvent(request, viewportPos, event);
+	Document* doc = m_frame->document();
+	FrameView* v = m_frame->view();
 
-    if (!m_frame->selection()->contains(viewportPos)
-        // FIXME: In the editable case, word selection sometimes selects content that isn't underneath the mouse.
-        // If the selection is non-editable, we do word selection to make it easier to use the contextual menu items
-        // available for text selections.  But only if we're above text.
-        && (m_frame->selection()->isContentEditable() || (targetNode(mev) && targetNode(mev)->isTextNode()))) {
-        m_mouseDownMayStartSelect = true; // context menu events are always allowed to perform a selection
-        if (longClick == true && mev.hitTestResult().isLiveLink() && protocolIsJavaScript(mev.hitTestResult().absoluteLinkURL())) {
-            return false;
-        }
-        //selectClosestWordFromMouseEvent(mev);
-        selectClosestWordOrLinkFromMouseEvent(mev);
-    }
-    
-    return true;
+	if (!v)
+	return false;
+
+	IntPoint viewportPos = v->windowToContents(event.pos());
+	HitTestRequest request(HitTestRequest::Active);
+	MouseEventWithHitTestResults mev = doc->prepareMouseEvent(request, viewportPos, event);
+
+	if (!m_frame->selection()->contains(viewportPos)
+	// FIXME: In the editable case, word selection sometimes selects content that isn't underneath the mouse.
+	// If the selection is non-editable, we do word selection to make it easier to use the contextual menu items
+	// available for text selections.  But only if we're above text.
+	&& (m_frame->selection()->isContentEditable() || (targetNode(mev) && (targetNode(mev)->isTextNode() ||targetNode(mev)->isContentEditable())))) 
+	{
+		m_mouseDownMayStartSelect = true; // context menu events are always allowed to perform a selection
+		if (longClick == true && mev.hitTestResult().isLiveLink() && protocolIsJavaScript(mev.hitTestResult().absoluteLinkURL())) 
+		{
+			return false;
+		}
+
+		//selectClosestWordFromMouseEvent(mev);
+		selectClosestWordOrLinkFromMouseEvent(mev);
+	}
+	return true;
 }
-// SAMSUNG CHANGE <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
 #endif // ENABLE(CONTEXT_MENUS)
 
 void EventHandler::scheduleHoverStateUpdate()
@@ -2443,16 +2512,10 @@ static Node* eventTargetNodeForDocument(Document* doc)
     if (!doc)
         return 0;
     Node* node = doc->focusedNode();
-#if defined(ANDROID_PLUGINS)
-    if (!node && doc->frame() && doc->frame()->view())
-        node = android::WebViewCore::getWebViewCore(doc->frame()->view())
-                                     ->cursorNodeIsPlugin();
-#else
     if (!node && doc->isPluginDocument()) {
         PluginDocument* pluginDocument = static_cast<PluginDocument*>(doc);
         node =  pluginDocument->pluginNode();
     }
-#endif
     if (!node && doc->isHTMLDocument())
         node = doc->body();
     if (!node)
@@ -3105,11 +3168,13 @@ static const AtomicString& eventNameForTouchPointState(PlatformTouchPoint::State
 
 bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
 {
-	int mouseEvType = 0;
-    int adjustedPageX = 0;
-    int adjustedPageY = 0;
-	int	mouseScreenX = 0;
-	int mouseScreenY = 0;
+// SERI - add support for mouse events >>>          	
+	int mouseEvType = 0;	
+	int mouseAdjustedPageX = 0;
+	int mouseAdjustedPageY = 0;
+	int	mouseScreenX = 0;	
+	int mouseScreenY = 0;	
+// SERI - add support for mouse events <<<
 
     // First build up the lists to use for the 'touches', 'targetTouches' and 'changedTouches' attributes
     // in the JS event. See http://www.sitepen.com/blog/2008/07/10/touching-and-gesturing-on-the-iphone/
@@ -3149,17 +3214,17 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
         // with the mouse (or finger in this case) being pressed.
         switch (pointState) {
         case PlatformTouchPoint::TouchPressed:
-			mouseEvType = 1;
             hitType = HitTestRequest::Active;
+			mouseEvType = 1; // SERI - for mouse event support
             break;
         case PlatformTouchPoint::TouchMoved:
-			mouseEvType = 2;
             hitType = HitTestRequest::Active | HitTestRequest::MouseMove | HitTestRequest::ReadOnly;
+			mouseEvType = 2; // SERI - for mouse event support
             break;
         case PlatformTouchPoint::TouchReleased:
         case PlatformTouchPoint::TouchCancelled:
-			mouseEvType = 3;
             hitType = HitTestRequest::MouseUp;
+			mouseEvType = 3; // SERI - for mouse event support
             break;
         default:
             break;
@@ -3171,8 +3236,11 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
         else {
             HitTestResult result = hitTestResultAtPoint(pagePoint, /*allowShadowContent*/ false, false, DontHitTestScrollbars, hitType);
             node = result.innerNode();
-            ASSERT(node);
-
+            //ASSERT(node);
+            if(node==NULL)
+            {
+				continue;	
+            }
             // Touch events should not go to text nodes
             if (node->isTextNode())
                 node = node->parentNode();
@@ -3180,7 +3248,11 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
 #else
         HitTestResult result = hitTestResultAtPoint(pagePoint, /*allowShadowContent*/ false, false, DontHitTestScrollbars, hitType);
         Node* node = result.innerNode();
-        ASSERT(node);
+        //ASSERT(node);
+		if(node==NULL)
+		{
+			continue;	
+		}
 
         // Touch events should not go to text nodes
         if (node->isTextNode())
@@ -3199,10 +3271,8 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
             pagePoint = documentPointForWindowPoint(doc->frame(), point.pos());
         }
 
-		mouseScreenX = pagePoint.x();
-		mouseScreenY = pagePoint.y();
-        adjustedPageX = lroundf(pagePoint.x() / m_frame->pageZoomFactor());
-        adjustedPageY = lroundf(pagePoint.y() / m_frame->pageZoomFactor());
+        int adjustedPageX = lroundf(pagePoint.x() / m_frame->pageZoomFactor());
+        int adjustedPageY = lroundf(pagePoint.y() / m_frame->pageZoomFactor());
 
         // Increment the platform touch id by 1 to avoid storing a key of 0 in the hashmap.
         unsigned touchPointTargetKey = point.id() + 1;
@@ -3230,6 +3300,13 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
         RefPtr<Touch> touch = Touch::create(doc->frame(), touchTarget.get(), point.id(),
                                             point.screenPos().x(), point.screenPos().y(),
                                             adjustedPageX, adjustedPageY);
+                                            
+// SERI - add support for mouse events >>>          	
+        mouseScreenX = point.screenPos().x();
+        mouseScreenY = point.screenPos().y();
+        mouseAdjustedPageX = adjustedPageX;
+        mouseAdjustedPageY = adjustedPageY;
+// SERI - add support for mouse events <<<          	
 
         // Ensure this target's touch list exists, even if it ends up empty, so it can always be passed to TouchEvent::Create below.
         TargetTouchesMap::iterator targetTouchesIterator = touchesByTarget.find(touchTarget.get());
@@ -3269,15 +3346,7 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
         // When sending a touch cancel event, use empty touches and targetTouches lists.
         bool isTouchCancelEvent = (state == PlatformTouchPoint::TouchCancelled);
         RefPtr<TouchList>& effectiveTouches(isTouchCancelEvent ? emptyList : touches);
-#if PLATFORM(ANDROID)
-        AtomicString stateName(eventNameForTouchPointState(static_cast<PlatformTouchPoint::State>(state)));
-        if (event.type() == TouchLongPress)
-            stateName = eventNames().touchlongpressEvent;
-        else if (event.type() == TouchDoubleTap)
-            stateName = eventNames().touchdoubletapEvent;
-#else
         const AtomicString& stateName(eventNameForTouchPointState(static_cast<PlatformTouchPoint::State>(state)));
-#endif
         const EventTargetSet& targetsForState = changedTouches[state].m_targets;
 
         for (EventTargetSet::const_iterator it = targetsForState.begin(); it != targetsForState.end(); ++it) {
@@ -3292,37 +3361,40 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
             ExceptionCode ec = 0;
             touchEventTarget->dispatchEvent(touchEvent.get(), ec);
             defaultPrevented |= touchEvent->defaultPrevented();
-            
-            if (touchEventTarget->toNode()->hasTagName(HTMLNames::canvasTag)) {
+
+
+// SERI - add support for mouse events >>>
+           if (touchEventTarget->toNode()->hasTagName(HTMLNames::canvasTag)) {
 				RefPtr<MouseEvent> mouseEvent;
+				AtomicString eventType;
 				switch (mouseEvType) {
 					case 1:
-						mouseEvent = 
-						MouseEvent::create(eventNames().mousedownEvent, true, true, touchEventTarget->toNode()->document()->defaultView(),
-						0, mouseScreenX, mouseScreenY, adjustedPageX, adjustedPageY, 
-						event.ctrlKey(), event.altKey(), event.shiftKey(), event.metaKey(),
-						0, 0, 0);
+						eventType = eventNames().mousedownEvent;
 						break;
 					case 2:
-						mouseEvent = 
-						MouseEvent::create(eventNames().mousemoveEvent, true, true, touchEventTarget->toNode()->document()->defaultView(),
-						0, mouseScreenX, mouseScreenY, adjustedPageX, adjustedPageY, 
-						event.ctrlKey(), event.altKey(), event.shiftKey(), event.metaKey(),
-						0, 0, 0);
+						eventType = eventNames().mousemoveEvent;
 						break;
 					case 3:
 					default:
-						mouseEvent = 
-						MouseEvent::create(eventNames().mouseupEvent, true, true, touchEventTarget->toNode()->document()->defaultView(),
-						0, mouseScreenX, mouseScreenY, adjustedPageX, adjustedPageY, 
-						event.ctrlKey(), event.altKey(), event.shiftKey(), event.metaKey(),
-						0, 0, 0);
+						eventType = eventNames().mouseupEvent;
 						break;
 				}
+				mouseEvent = MouseEvent::create(eventType, true, true, touchEventTarget->toNode()->document()->defaultView(),
+												0, mouseScreenX, mouseScreenY, mouseAdjustedPageX, mouseAdjustedPageY,
+												event.ctrlKey(), event.altKey(), event.shiftKey(), event.metaKey(),
+												0, 0, 0, false);
 				touchEventTarget->dispatchEvent(mouseEvent.get(), ec);
 				defaultPrevented |= mouseEvent->defaultPrevented();
 			}
+// SERI - add support for mouse events <<<
 
+
+
+
+#if PLATFORM(ANDROID)
+            if (touchEvent->hitTouchHandler())
+                const_cast<PlatformTouchEvent&>(event).setHitTouchHandler();
+#endif
         }
     }
 

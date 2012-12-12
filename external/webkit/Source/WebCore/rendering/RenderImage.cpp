@@ -273,7 +273,7 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, int tx, int ty)
             // the ouline rect so the error image/alt text doesn't draw on it.
             int usableWidth = cWidth - 2;
             int usableHeight = cHeight - 2;
-            //r.seelam - missing image icon is displayed instead of alt - start
+            // SAMSUNG FIX
             bool notextdraw = false; 
 
              if (!m_altText.isEmpty()) {
@@ -284,11 +284,11 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, int tx, int ty)
 		    if(cWidth < textWidth)
 	   	        notextdraw = true;
 	        }
-              //r.seelam - missing image icon is displayed instead of alt - end
+              // SAMSUNG FIX
 
             RefPtr<Image> image = m_imageResource->image();
 
-            if (m_imageResource->errorOccurred() && (m_altText.isEmpty() || notextdraw) && !image->isNull() && usableWidth >= image->width() && usableHeight >= image->height()) {
+            if (m_imageResource->errorOccurred() && /*SANSUNG FIX */(m_altText.isEmpty() || notextdraw) && !image->isNull() && usableWidth >= image->width() && usableHeight >= image->height()) {
                 // Center the error image, accounting for border and padding.
                 int centerX = (usableWidth - image->width()) / 2;
                 if (centerX < 0)
@@ -316,9 +316,9 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, int tx, int ty)
                 TextRun textRun(text.characters(), text.length());
                 int textWidth = font.width(textRun);
                 if (errorPictureDrawn) {
-                    if (cWidth >= textWidth && fontMetrics.height() <= imageY) /*r.seelam - missing image icon is displayed instead of alt*/
+                    if (cWidth >= textWidth && fontMetrics.height() <= imageY) /* SAMSUNG FIX*/
                         context->drawText(font, textRun, IntPoint(ax, ay + ascent));
-                } else if (cWidth >= textWidth && cHeight >= fontMetrics.height()) /*r.seelam - missing image icon is displayed instead of alt*/
+                } else if (cWidth >= textWidth && cHeight >= fontMetrics.height()) /* SAMSUNG FIX */
                     context->drawText(font, textRun, IntPoint(ax, ay + ascent));
             }
         }

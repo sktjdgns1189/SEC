@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009 Apple Inc. All rights reserved.
- * Copyright (C) 2011 Sony Ericsson Mobile Communications AB
+ * Copyright (C) 2011, 2012 Sony Ericsson Mobile Communications AB
+ * Copyright (C) 2012 Sony Mobile Communications AB
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -72,9 +73,6 @@
 #undef emit
 #endif
 
-// Khronos conformance tests require off-screen buffers to be preserved and not cleared on each buffer swap
-#define PRESERVE_OFFSCREEN_BUFFER (1)
-
 namespace WebCore {
 
 const double secondsBetweenRestoreAttempts = 1.0;
@@ -110,17 +108,6 @@ namespace {
         clip1D(y, height, sourceHeight, clippedY, clippedHeight);
         return (*clippedX != x || *clippedY != y || *clippedWidth != width || *clippedHeight != height);
     }
-
-//SAMSUNG Changes for WEBGL - Start
-    GC3Dint clamp(GC3Dint value, GC3Dint min, GC3Dint max)
-    {
-        if (value < min)
-            value = min;
-        if (value > max)
-            value = max;
-        return value;
-    }
-//SAMSUNG Changes for WEBGL - End	
 
     // Return true if a character belongs to the ASCII subset as defined in
     // GLSL ES 1.0 spec section 3.1.
@@ -381,12 +368,9 @@ PassOwnPtr<WebGLRenderingContext> WebGLRenderingContext::create(HTMLCanvasElemen
         if (p && !p->settings()->openGLMultisamplingEnabled())
             attributes.antialias = false;
     }
-
-#if PLATFORM(ANDROID)
+//SERI Change
+    //RefPtr<GraphicsContext3D> context(GraphicsContext3D::create(attributes, hostWindow));
     RefPtr<GraphicsContext3D> context(GraphicsContext3D::create(canvas, attributes, hostWindow));
-#else
-    RefPtr<GraphicsContext3D> context(GraphicsContext3D::create(attributes, hostWindow));
-#endif
 
     if (!context) {
         canvas->dispatchEvent(WebGLContextEvent::create(eventNames().webglcontextcreationerrorEvent, false, true, "Could not create a WebGL context."));
@@ -454,14 +438,7 @@ void WebGLRenderingContext::initializeNewContext()
     m_maxCubeMapTextureSize = 0;
     m_context->getIntegerv(GraphicsContext3D::MAX_CUBE_MAP_TEXTURE_SIZE, &m_maxCubeMapTextureSize);
     m_maxCubeMapTextureLevel = WebGLTexture::computeLevelCount(m_maxCubeMapTextureSize, m_maxCubeMapTextureSize);
-
-//SAMSUNG Changes for WEBGL - start
-    m_maxRenderbufferSize = 0;
-    m_context->getIntegerv(GraphicsContext3D::MAX_RENDERBUFFER_SIZE, &m_maxRenderbufferSize);
-    m_maxViewportDims[0] = m_maxViewportDims[1] = 0;
-    m_context->getIntegerv(GraphicsContext3D::MAX_VIEWPORT_DIMS, m_maxViewportDims);
-//SAMSUNG Changes for WEBGL - End	
-
+    
     m_defaultVertexArrayObject = WebGLVertexArrayObjectOES::create(this, WebGLVertexArrayObjectOES::VaoTypeDefault);
     addObject(m_defaultVertexArrayObject.get());
     m_boundVertexArrayObject = m_defaultVertexArrayObject;
@@ -529,11 +506,8 @@ bool WebGLRenderingContext::clearIfComposited(GC3Dbitfield mask)
         return false;
 
     if (!m_context->layerComposited() || m_layerCleared
-        || m_attributes.preserveDrawingBuffer || m_framebufferBinding
-#if PRESERVE_OFFSCREEN_BUFFER
-		|| 0 == canvas()->parentNode()
-#endif
-		) return false;
+        || m_attributes.preserveDrawingBuffer || m_framebufferBinding)
+        return false;
 
     RefPtr<WebGLContextAttributes> contextAttributes = getContextAttributes();
 
@@ -583,19 +557,15 @@ void WebGLRenderingContext::paintRenderingResultsToCanvas()
 {
     // Until the canvas is written to by the application, the clear that
     // happened after it was composited should be ignored by the compositor.
-    if (m_context->layerComposited() && !m_attributes.preserveDrawingBuffer) {
-        m_context->paintCompositedResultsToCanvas(this);
+    if (m_context->layerComposited() && !m_attributes.preserveDrawingBuffer)
         canvas()->makePresentationCopy();
-    } else
+    else
         canvas()->clearPresentationCopy();
     clearIfComposited();
-
     if (!m_markedCanvasDirty && !m_layerCleared)
         return;
-
     canvas()->clearCopiedImage();
     m_markedCanvasDirty = false;
-
     m_context->paintRenderingResultsToCanvas(this);
 }
 
@@ -624,20 +594,6 @@ void WebGLRenderingContext::releaseSurface()
 
 void WebGLRenderingContext::reshape(int width, int height)
 {
-
-//SAMSUNG Changes for WEBGL - Start
-    // This is an approximation because at WebGLRenderingContext level we don't
-    // know if the underlying FBO uses textures or renderbuffers.
-    GC3Dint maxSize = std::min(m_maxTextureSize, m_maxRenderbufferSize);
-    // Limit drawing buffer size to 4k to avoid memory exhaustion.
-    const int sizeUpperLimit = 4096;
-    maxSize = std::min(maxSize, sizeUpperLimit);
-    GC3Dint maxWidth = std::min(maxSize, m_maxViewportDims[0]);
-    GC3Dint maxHeight = std::min(maxSize, m_maxViewportDims[1]);
-    width = clamp(width, 1, maxWidth);
-    height = clamp(height, 1, maxHeight);
-//SAMSUNG Changes for WEBGL - end
-
     if (m_needsUpdate) {
 #if USE(ACCELERATED_COMPOSITING)
         RenderBox* renderBox = canvas()->renderBox();
@@ -650,22 +606,6 @@ void WebGLRenderingContext::reshape(int width, int height)
     // We don't have to mark the canvas as dirty, since the newly created image buffer will also start off
     // clear (and this matches what reshape will do).
     m_context->reshape(width, height);
-}
-
-GC3Dsizei WebGLRenderingContext::drawingBufferWidth()
-{
-    if (isContextLost())
-        return 0;
-    IntSize sz = m_context->getInternalFramebufferSize();
-    return sz.width();
-}
-
-GC3Dsizei WebGLRenderingContext::drawingBufferHeight()
-{
-    if (isContextLost())
-        return 0;
-    IntSize sz = m_context->getInternalFramebufferSize();
-    return sz.height();
 }
 
 unsigned int WebGLRenderingContext::sizeInBytes(GC3Denum type)
@@ -931,9 +871,7 @@ void WebGLRenderingContext::bufferData(GC3Denum target, ArrayBuffer* data, GC3De
         }
     }
 
-    // Some platforms incorrectly signal GL_OUT_OF_MEMORY if size == 0
-    if (data->byteLength() > 0)
-        m_context->bufferData(target, data->byteLength(), data->data(), usage);
+    m_context->bufferData(target, data->byteLength(), data->data(), usage);
     cleanupAfterGraphicsCall(false);
 }
 
@@ -956,9 +894,7 @@ void WebGLRenderingContext::bufferData(GC3Denum target, ArrayBufferView* data, G
         }
     }
 
-    // Some platforms incorrectly signal GL_OUT_OF_MEMORY if size == 0
-    if (data->byteLength() > 0)
-        m_context->bufferData(target, data->byteLength(), data->baseAddress(), usage);
+    m_context->bufferData(target, data->byteLength(), data->baseAddress(), usage);
     cleanupAfterGraphicsCall(false);
 }
 
@@ -1127,10 +1063,8 @@ void WebGLRenderingContext::copyTexImage2D(GC3Denum target, GC3Dint level, GC3De
         return;
     }
     clearIfComposited();
-    if (isResourceSafe()) {
-        if (width > 0 && height > 0)
-            m_context->copyTexImage2D(target, level, internalformat, x, y, width, height, border);
-    }
+    if (isResourceSafe())
+        m_context->copyTexImage2D(target, level, internalformat, x, y, width, height, border);
     else {
         GC3Dint clippedX, clippedY;
         GC3Dsizei clippedWidth, clippedHeight;
@@ -1141,10 +1075,8 @@ void WebGLRenderingContext::copyTexImage2D(GC3Denum target, GC3Dint level, GC3De
                 m_context->copyTexSubImage2D(target, level, clippedX - x, clippedY - y,
                                              clippedX, clippedY, clippedWidth, clippedHeight);
             }
-        } else {
-            if (width > 0 && height > 0)
-                m_context->copyTexImage2D(target, level, internalformat, x, y, width, height, border);
-        }
+        } else
+            m_context->copyTexImage2D(target, level, internalformat, x, y, width, height, border);
     }
     // FIXME: if the framebuffer is not complete, none of the below should be executed.
     tex->setLevelInfo(target, level, internalformat, width, height, GraphicsContext3D::UNSIGNED_BYTE);
@@ -1997,12 +1929,6 @@ WebGLGetInfo WebGLRenderingContext::getBufferParameter(GC3Denum target, GC3Denum
         return WebGLGetInfo();
     }
 
-    // Some platforms fail to raise INVALID_OPERATION if no array buffer is bound
-    if (target == GraphicsContext3D::ARRAY_BUFFER && !m_boundArrayBuffer) {
-        m_context->synthesizeGLError(GraphicsContext3D::INVALID_OPERATION);
-        return WebGLGetInfo();
-    }
-
     WebGLStateRestorer(this, false);
     GC3Dint value = 0;
     m_context->getBufferParameteriv(target, pname, &value);
@@ -2054,14 +1980,11 @@ WebGLExtension* WebGLRenderingContext::getExtension(const String& name)
         }
         return m_oesVertexArrayObject.get();
     }
-    /*
-     * Removed since GPU lacks support for this.
     if (equalIgnoringCase(name, "WEBKIT_lose_context")) {
         if (!m_webkitLoseContext)
             m_webkitLoseContext = WebKitLoseContext::create(this);
         return m_webkitLoseContext.get();
     }
-    */
 
     return 0;
 }
@@ -2888,17 +2811,10 @@ void WebGLRenderingContext::readPixels(GC3Dint x, GC3Dint y, GC3Dsizei width, GC
 {
     if (isContextLost())
         return;
-
-//SAMSUNG Changes for WEBGL
-//For Test Conformance Origin-clean-conformance.html
-#if !PLATFORM(ANDROID)	
     if (!canvas()->originClean()) {
         ec = SECURITY_ERR;
         return;
     }
-#endif
-//SAMSUNG Changes for WEBGL - End
-
     // Validate input parameters.
     if (!pixels) {
         m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
@@ -2950,50 +2866,8 @@ void WebGLRenderingContext::readPixels(GC3Dint x, GC3Dint y, GC3Dsizei width, GC
     }
     clearIfComposited();
     void* data = pixels->baseAddress();
-
-    // WebGL requires that areas lying outside the frame buffer should be filled with 0.
-    // Most OpenGL platforms do not support this directly.
-    GC3Dint clippedX, clippedY;
-    GC3Dsizei clippedWidth, clippedHeight;
-    if (clip2D(x, y, width, height, getBoundFramebufferWidth(), getBoundFramebufferHeight(),
-               &clippedX, &clippedY, &clippedWidth, &clippedHeight)) {
-        unsigned int padding = 0;
-        m_context->computeImageSizeInBytes(format, type, clippedWidth, clippedHeight,
-                                           m_packAlignment, &totalBytesRequired, &padding);
-        char *tmp = (char *)fastMalloc(totalBytesRequired);
-        // Some platforms incorrectly signal GL_INVALID_VALUE if width == 0 || height == 0
-        if (clippedWidth > 0 && clippedHeight > 0)
-            m_context->readPixels(clippedX, clippedY, clippedWidth, clippedHeight, format, type, tmp);
-
-        unsigned int bytesPerComponent, componentsPerPixel;
-        m_context->computeFormatAndTypeParameters(format, type, &componentsPerPixel, &bytesPerComponent);
-        int clippedRowBytes = bytesPerComponent * componentsPerPixel * clippedWidth;
-        int clippedStride = clippedRowBytes + padding;
-        int rowBytes = bytesPerComponent * componentsPerPixel * width;
-        int stride = rowBytes + padding;
-        char *src = tmp;
-        char *dst = (char *)data;
-        int xdelta = (clippedX - x) * bytesPerComponent * componentsPerPixel;
-        for (int r = y; r < y + height; r++) {
-            if (r < y + height - 1)
-                memset(dst, 0, stride);
-            else
-                memset(dst, 0, rowBytes);
-            if (r >= clippedY && r < clippedY + clippedHeight) {
-                memcpy(dst + xdelta, src, clippedRowBytes);
-                src += clippedStride;
-            }
-            dst += stride;
-        }
-        fastFree(tmp);
-    }
-    else {
-        // Some platforms incorrectly signal GL_INVALID_VALUE if width == 0 || height == 0
-        if (width > 0 && height > 0)
-            m_context->readPixels(x, y, width, height, format, type, data);
-    }
-
-#if PLATFORM(ANDROID) || OS(DARWIN)
+    m_context->readPixels(x, y, width, height, format, type, data);
+#if OS(DARWIN)
     // FIXME: remove this section when GL driver bug on Mac is fixed, i.e.,
     // when alpha is off, readPixels should set alpha to 255 instead of 0.
     if (!m_context->getContextAttributes().alpha) {
@@ -3283,10 +3157,7 @@ void WebGLRenderingContext::texImage2D(GC3Denum target, GC3Dint level, GC3Denum 
         return;
     if (!validateHTMLImageElement(image))
         return;
-    if (wouldTaintOrigin(image)) {
-        ec = SECURITY_ERR;
-        return;
-    }
+    checkOrigin(image);
     texImage2DImpl(target, level, internalformat, format, type, image->cachedImage()->image(),
                    m_unpackFlipY, m_unpackPremultiplyAlpha, ec);
 }
@@ -3301,10 +3172,7 @@ void WebGLRenderingContext::texImage2D(GC3Denum target, GC3Dint level, GC3Denum 
         m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
         return;
     }
-    if (wouldTaintOrigin(canvas)) {
-        ec = SECURITY_ERR;
-        return;
-    }
+    checkOrigin(canvas);
     RefPtr<ImageData> imageData = canvas->getImageData();
     if (imageData)
         texImage2D(target, level, internalformat, format, type, imageData.get(), ec);
@@ -3314,7 +3182,43 @@ void WebGLRenderingContext::texImage2D(GC3Denum target, GC3Dint level, GC3Denum 
 }
 
 #if ENABLE(VIDEO)
-PassRefPtr<Image> WebGLRenderingContext::videoFrameToImage(HTMLVideoElement* video, ExceptionCode& ec)
+#if PLATFORM(ANDROID)
+
+void WebGLRenderingContext::texImage2D(GC3Denum target, GC3Dint level, GC3Denum internalformat,
+                                       GC3Denum format, GC3Denum type, HTMLVideoElement* video, ExceptionCode& ec)
+{
+    ec = 0;
+    if (!video || !video->videoWidth() || !video->videoHeight()) {
+        m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
+        return ;
+    }
+    if (isContextLost())
+        return;
+	unsigned int width = video->width();
+	unsigned int height = video->height();
+    if (!validateTexFuncParameters(target, level, internalformat, width , height, 
+				0, format, type)) {
+        return;
+	}
+    WebGLTexture* tex = validateTextureBinding(target, true);
+    if (!tex)
+        return;
+    if (!isGLES2NPOTStrict()) {
+        if (level && WebGLTexture::isNPOT(width, height)) {
+            m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
+            return;
+        }
+    }
+	if (!tex->platformTexture() || tex->platformTexture()->type() != PlatformWebGLTexture::eVideo) {
+		tex->setPlatformTexture(PlatformWebGLVideoTextureFactory::createObj(tex) );
+	}
+	PlatformWebGLVideoTexture* platTex = static_cast<PlatformWebGLVideoTexture*>(tex->platformTexture());
+    tex->setLevelInfo(target, level, internalformat, width, height, type);
+	platTex->texImage2D(video, tex->object());
+    cleanupAfterGraphicsCall(false);
+}
+#else //PLATFORM(ANDROID)
+PassRefPtr<Image> WebGLRenderingContext::videoFrameToImage(HTMLVideoElement* video)
 {
     if (!video || !video->videoWidth() || !video->videoHeight()) {
         m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
@@ -3326,10 +3230,7 @@ PassRefPtr<Image> WebGLRenderingContext::videoFrameToImage(HTMLVideoElement* vid
         m_context->synthesizeGLError(GraphicsContext3D::OUT_OF_MEMORY);
         return 0;
     }
-    if (wouldTaintOrigin(video)) {
-        ec = SECURITY_ERR;
-        return 0;
-    }
+    checkOrigin(video);
     IntRect destRect(0, 0, size.width(), size.height());
     // FIXME: Turn this into a GPU-GPU texture copy instead of CPU readback.
     video->paintCurrentFrameInContext(buf->context(), destRect);
@@ -3342,12 +3243,13 @@ void WebGLRenderingContext::texImage2D(GC3Denum target, GC3Dint level, GC3Denum 
     ec = 0;
     if (isContextLost())
         return;
-    RefPtr<Image> image = videoFrameToImage(video, ec);
+    RefPtr<Image> image = videoFrameToImage(video);
     if (!video)
         return;
     texImage2DImpl(target, level, internalformat, format, type, image.get(), m_unpackFlipY, m_unpackPremultiplyAlpha, ec);
 }
-#endif
+#endif //PLATFORM(ANDROID)
+#endif //ENABLE(VIDEO)
 
 void WebGLRenderingContext::texParameter(GC3Denum target, GC3Denum pname, GC3Dfloat paramf, GC3Dint parami, bool isFloat)
 {
@@ -3484,10 +3386,7 @@ void WebGLRenderingContext::texSubImage2D(GC3Denum target, GC3Dint level, GC3Din
         return;
     if (!validateHTMLImageElement(image))
         return;
-    if (wouldTaintOrigin(image)) {
-        ec = SECURITY_ERR;
-        return;
-    }
+    checkOrigin(image);
     texSubImage2DImpl(target, level, xoffset, yoffset, format, type, image->cachedImage()->image(),
                       m_unpackFlipY, m_unpackPremultiplyAlpha, ec);
 }
@@ -3502,10 +3401,7 @@ void WebGLRenderingContext::texSubImage2D(GC3Denum target, GC3Dint level, GC3Din
         m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
         return;
     }
-    if (wouldTaintOrigin(canvas)) {
-        ec = SECURITY_ERR;
-        return;
-    }
+    checkOrigin(canvas);
     RefPtr<ImageData> imageData = canvas->getImageData();
     if (imageData)
         texSubImage2D(target, level, xoffset, yoffset, format, type, imageData.get(), ec);
@@ -3515,18 +3411,55 @@ void WebGLRenderingContext::texSubImage2D(GC3Denum target, GC3Dint level, GC3Din
 }
 
 #if ENABLE(VIDEO)
+#if PLATFORM(ANDROID)
+void WebGLRenderingContext::texSubImage2D(GC3Denum target, GC3Dint level, GC3Dint xoffset, GC3Dint yoffset,
+                                          GC3Denum format, GC3Denum type, HTMLVideoElement* video, ExceptionCode& ec)
+{
+    ec = 0;
+    if (!video || !video->videoWidth() || !video->videoHeight()) {
+        m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
+        return ;
+    }
+    if (isContextLost())
+        return;
+	unsigned int width = video->width();
+	unsigned int height = video->height();
+    if (!validateTexFuncParameters(target, level, GL_RGBA, width , height, 
+				0, format, type)) {
+        return;
+	}
+    WebGLTexture* tex = validateTextureBinding(target, true);
+    if (!tex)
+        return;
+    if (!isGLES2NPOTStrict()) {
+        if (level && WebGLTexture::isNPOT(width, height)) {
+            m_context->synthesizeGLError(GraphicsContext3D::INVALID_VALUE);
+            return;
+        }
+    }
+	if (!tex->platformTexture() || tex->platformTexture()->type() != PlatformWebGLTexture::eVideo) {
+		tex->setPlatformTexture(PlatformWebGLVideoTextureFactory::createObj(tex) );
+	}
+	PlatformWebGLVideoTexture* platTex = static_cast<PlatformWebGLVideoTexture*>(tex->platformTexture());
+    tex->setLevelInfo(target, level, GL_RGBA, width, height, type);
+	platTex->texSubImage2D(video, tex->object(), xoffset, yoffset);
+    cleanupAfterGraphicsCall(false);
+}
+#else //PLATFORM(ANDROID)
+
 void WebGLRenderingContext::texSubImage2D(GC3Denum target, GC3Dint level, GC3Dint xoffset, GC3Dint yoffset,
                                           GC3Denum format, GC3Denum type, HTMLVideoElement* video, ExceptionCode& ec)
 {
     ec = 0;
     if (isContextLost())
         return;
-    RefPtr<Image> image = videoFrameToImage(video, ec);
+    RefPtr<Image> image = videoFrameToImage(video);
     if (!video)
         return;
     texSubImage2DImpl(target, level, xoffset, yoffset, format, type, image.get(), m_unpackFlipY, m_unpackPremultiplyAlpha, ec);
 }
-#endif
+#endif //PLATFORM(ANDROID)
+#endif //ENABLE(VIDEO)
 
 void WebGLRenderingContext::uniform1f(const WebGLUniformLocation* location, GC3Dfloat x, ExceptionCode& ec)
 {
@@ -4059,11 +3992,7 @@ void WebGLRenderingContext::onLostContext()
 
 void WebGLRenderingContext::restoreContext()
 {
-#if PLATFORM(ANDROID)
-    RefPtr<GraphicsContext3D> context(GraphicsContext3D::create(canvas(), m_attributes, 0/*canvas()->document()->view()->root()->hostWindow()*/));
-#else
-    RefPtr<GraphicsContext3D> context(GraphicsContext3D::create(m_attributes, canvas()->document()->view()->root()->hostWindow()));
-#endif
+    RefPtr<GraphicsContext3D> context(GraphicsContext3D::create( canvas(), m_attributes, canvas()->document()->view()->root()->hostWindow()));
     if (!context)
         return;
 

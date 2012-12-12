@@ -38,8 +38,7 @@ public:
     static PassRefPtr<Float64Array> create(const double* array, unsigned length);
     static PassRefPtr<Float64Array> create(PassRefPtr<ArrayBuffer>, unsigned byteOffset, unsigned length);
 
-    // Can’t use "using" here due to a bug in the RVCT compiler.
-    void set(TypedArrayBase<double>* array, unsigned offset, ExceptionCode& ec) { return TypedArrayBase<double>::set(array, offset, ec); }
+    using TypedArrayBase<double>::set;
 
     void set(unsigned index, double value)
     {
@@ -59,9 +58,6 @@ public:
 
     PassRefPtr<Float64Array> subarray(int start) const;
     PassRefPtr<Float64Array> subarray(int start, int end) const;
-
-protected:
-//    void neuterBinding(ScriptExecutionContext*);
 
 private:
     Float64Array(PassRefPtr<ArrayBuffer>,

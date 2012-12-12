@@ -31,6 +31,7 @@
 #include "config.h"
 
 #if ENABLE(WEB_SOCKETS) && ENABLE(WORKERS)
+
 #include "WorkerThreadableWebSocketChannel.h"
 
 #include "CrossThreadTask.h"
@@ -368,7 +369,6 @@ void WorkerThreadableWebSocketChannel::Bridge::fail(const String& reason)
 	ASSERT(m_peer);
 	m_loaderProxy.postTaskToLoader(createCallbackTask(&WorkerThreadableWebSocketChannel::mainThreadFail, m_peer, reason));
 }
-
 void WorkerThreadableWebSocketChannel::mainThreadDestroy(ScriptExecutionContext* context, Peer* peer)
 {
     ASSERT(isMainThread());
@@ -446,4 +446,5 @@ void WorkerThreadableWebSocketChannel::Bridge::waitForMethodCompletion()
 }
 
 } // namespace WebCore
+
 #endif // ENABLE(WEB_SOCKETS)

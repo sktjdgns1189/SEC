@@ -32,6 +32,7 @@
 #define WorkerThreadableWebSocketChannel_h
 
 #if ENABLE(WEB_SOCKETS) && ENABLE(WORKERS)
+
 #include "PlatformString.h"
 #include "ThreadableWebSocketChannel.h"
 #include "WebSocketChannelClient.h"
@@ -125,6 +126,7 @@ private:
         void disconnect();
         void suspend();
         void resume();
+
         using RefCounted<Bridge>::ref;
         using RefCounted<Bridge>::deref;
 
@@ -166,6 +168,7 @@ private:
 };
 
 } // namespace WebCore
+
 #endif // ENABLE(WEB_SOCKETS)
 
 #endif // WorkerThreadableWebSocketChannel_h

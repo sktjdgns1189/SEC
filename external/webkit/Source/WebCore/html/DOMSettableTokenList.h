@@ -55,10 +55,9 @@ public:
     virtual String toString() const { return value(); }
 
     String value() const { return m_value; }
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
     const SpaceSplitString& tokens()const{return m_tokens;}
-///SAMSUNG MICRODATA CHANGES >>
-
+///SAMSUNG HTML5 MICRODATA CHANGES >>
     void setValue(const String&);
 
 private:

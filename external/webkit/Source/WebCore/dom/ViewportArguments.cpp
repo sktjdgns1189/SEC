@@ -379,12 +379,15 @@ void reportViewportWarning(Document* document, ViewportErrorCode errorCode, cons
         return;
 
     String message = viewportErrorMessageTemplate(errorCode);
+// SAMSUNG_CHANGES >> MPSG100005911  Removing URL exposure in logs	
+	String blockUrlDisplay = "";
     if (!replacement1.isNull())
         message.replace("%replacement1", replacement1);
     if (!replacement2.isNull())
         message.replace("%replacement2", replacement2);
 
-    frame->domWindow()->console()->addMessage(HTMLMessageSource, LogMessageType, viewportErrorMessageLevel(errorCode), message, parserLineNumber(document), document->url().string());
+    frame->domWindow()->console()->addMessage(HTMLMessageSource, LogMessageType, viewportErrorMessageLevel(errorCode), message, parserLineNumber(document), blockUrlDisplay);
+// SAMSUNG_CHANGES <<
 }
 
 } // namespace WebCore

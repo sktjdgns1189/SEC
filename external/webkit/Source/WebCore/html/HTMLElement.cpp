@@ -49,12 +49,11 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/CString.h>
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 #include "MicroDataItemValue.h"
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -174,7 +173,7 @@ void HTMLElement::parseMappedAttribute(Attribute* attr)
             addCSSProperty(attr, CSSPropertyWebkitUserSelect, CSSValueNone);
         } else if (equalIgnoringCase(value, "false"))
             addCSSProperty(attr, CSSPropertyWebkitUserDrag, CSSValueNone);
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     } else if (attr->name() == itempropAttr) {
         setItemProp(attr->value());
@@ -184,8 +183,8 @@ void HTMLElement::parseMappedAttribute(Attribute* attr)
         setItemType(attr->value());
         itemTypeAttributeChanged();
 #endif
-//SAMSUNG MICRODATA CHANGES >
     }
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 // standard events
     else if (attr->name() == onclickAttr) {
         setAttributeEventListener(eventNames().clickEvent, createAttributeEventListener(this, attr));
@@ -587,7 +586,7 @@ static Element* contextElementForInsertion(const String& where, Element* element
 {
     if (equalIgnoringCase(where, "beforeBegin") || equalIgnoringCase(where, "afterEnd")) {
         ContainerNode* parent = element->parentNode();
-        if (parent && parent->isDocumentNode()) {
+        if (parent && !parent->isElementNode()) {
             ec = NO_MODIFICATION_ALLOWED_ERR;
             return 0;
         }
@@ -696,11 +695,6 @@ void HTMLElement::setContentEditable(Attribute* attr)
         addCSSProperty(attr, CSSPropertyWebkitLineBreak, CSSValueAfterWhiteSpace);
     } else if (equalIgnoringCase(enabled, "false")) {
         addCSSProperty(attr, CSSPropertyWebkitUserModify, CSSValueReadOnly);
-        attr->decl()->removeProperty(CSSPropertyWordWrap, false);
-        attr->decl()->removeProperty(CSSPropertyWebkitNbspMode, false);
-        attr->decl()->removeProperty(CSSPropertyWebkitLineBreak, false);
-    } else if (equalIgnoringCase(enabled, "inherit")) {
-        addCSSProperty(attr, CSSPropertyWebkitUserModify, CSSValueInherit);
         attr->decl()->removeProperty(CSSPropertyWordWrap, false);
         attr->decl()->removeProperty(CSSPropertyWebkitNbspMode, false);
         attr->decl()->removeProperty(CSSPropertyWebkitLineBreak, false);
@@ -967,7 +961,7 @@ void HTMLElement::adjustDirectionalityIfNeededAfterChildrenChanged(Node* beforeC
         }
     }
 }
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 
 bool HTMLElement::isURLAttribute(Attribute* attribute) const
 {
@@ -1011,7 +1005,7 @@ void HTMLElement::setItemValueText(const String& value, ExceptionCode& ec)
     setTextContent(value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 
 } // namespace WebCore
 

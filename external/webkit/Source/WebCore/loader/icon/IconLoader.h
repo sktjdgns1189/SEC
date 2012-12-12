@@ -31,6 +31,10 @@
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
 
+// SAMSUNG CHANGE : not sending favicon request once 404 not found error received for the favicon.
+#include "KURL.h"
+// SAMSUNG CHANGE
+
 namespace WebCore {
 
 class Frame;
@@ -45,6 +49,11 @@ public:
     
     void startLoading();
     void stopLoading();
+// SAMSUNG CHANGE : not sending favicon request once 404 not found error received for the favicon.
+    int status() const {return m_status;};
+    void setStatus(int status) {m_status = status;};
+    KURL getUrl() const {return m_iconUrl; };
+// SAMSUNG CHANGE
 
 private:
     IconLoader(Frame*);
@@ -63,6 +72,11 @@ private:
 
     RefPtr<SubresourceLoader> m_resourceLoader;
     bool m_loadIsInProgress;
+
+// SAMSUNG CHANGE : not sending favicon request once 404 not found error received for the favicon.
+    int m_status;
+    KURL m_iconUrl;
+// SAMSUNG CHANGE
 }; // class IconLoader
 
 } // namespace WebCore

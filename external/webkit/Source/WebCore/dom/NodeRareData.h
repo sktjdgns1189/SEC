@@ -32,13 +32,13 @@
 #include <wtf/PassOwnPtr.h>
 #include <wtf/text/StringHash.h>
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 #include "DOMSettableTokenList.h"
 #include "HTMLPropertiesCollection.h"
 #include "MicroDataItemList.h"
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 namespace WebCore {
 
 class TreeScope;
@@ -60,12 +60,12 @@ public:
     typedef HashMap<RefPtr<QualifiedName::QualifiedNameImpl>, TagNodeList*> TagNodeListCache;
     TagNodeListCache m_tagNodeListCache;
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     typedef HashMap<String, MicroDataItemList*> MicroDataItemListCache;
     MicroDataItemListCache m_microDataItemListCache;
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     RefPtr<DynamicNodeList> m_labelsNodeListCache;
     
     static PassOwnPtr<NodeListsNodeData> create()
@@ -75,13 +75,11 @@ public:
     
     void invalidateCaches();
     void invalidateCachesThatDependOnAttributes();
-
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     void invalidateMicrodataItemListCaches();
 #endif
-//SAMSUNG MICRODATA CHANGES >>
-
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     bool isEmpty() const;
 
 private:
@@ -126,15 +124,14 @@ public:
     void clearNodeLists() { m_nodeLists.clear(); }
     void setNodeLists(PassOwnPtr<NodeListsNodeData> lists) { m_nodeLists = lists; }
     NodeListsNodeData* nodeLists() const { return m_nodeLists.get(); }
-//SAMSUNG MICRODATA CHANGES <<
-
+//SAMSUNG HTML5 MICRODATA CHANGES <<
     NodeListsNodeData* ensureNodeLists(Node* node)
     {
         if (!m_nodeLists)
             createNodeLists(node);
         return m_nodeLists.get();
     }
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 
     short tabIndex() const { return m_tabIndex; }
     void setTabIndexExplicitly(short index) { m_tabIndex = index; m_tabIndexWasSetExplicitly = true; }
@@ -149,7 +146,7 @@ public:
         return m_eventTargetData.get();
     }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     DOMSettableTokenList* itemProp() const
     {
@@ -208,7 +205,7 @@ public:
     }
 #endif
 
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
     bool isFocused() const { return m_isFocused; }
     void setFocused(bool focused) { m_isFocused = focused; }
 
@@ -218,9 +215,9 @@ protected:
     void setNeedsFocusAppearanceUpdateSoonAfterAttach(bool needs) { m_needsFocusAppearanceUpdateSoonAfterAttach = needs; }
 
 private:
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
     void createNodeLists(Node*);
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTMl5 MICRODATA CHANGES <<
     TreeScope* m_treeScope;
     OwnPtr<NodeListsNodeData> m_nodeLists;
     OwnPtr<EventTargetData> m_eventTargetData;
@@ -228,14 +225,14 @@ private:
     bool m_tabIndexWasSetExplicitly : 1;
     bool m_isFocused : 1;
     bool m_needsFocusAppearanceUpdateSoonAfterAttach : 1;
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     mutable RefPtr<DOMSettableTokenList> m_itemProp;
     mutable RefPtr<DOMSettableTokenList> m_itemRef;
     mutable RefPtr<DOMSettableTokenList> m_itemType;
     mutable RefPtr<HTMLPropertiesCollection> m_properties;
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 };
 
 } // namespace WebCore

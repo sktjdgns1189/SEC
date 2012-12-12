@@ -122,14 +122,11 @@ public:
     virtual void startAnimation(bool /*catchUpIfNecessary*/ = true) { }
     virtual void stopAnimation() {}
     virtual void resetAnimation() {}
-    // SAMSUNG CHANGE +
-    virtual bool checkForVisibleImageAnimation() { return false; }
-    // SAMSUNG CHANGE -
     
     // Typically the CachedImage that owns us.
     ImageObserver* imageObserver() const { return m_imageObserver; }
 
-    enum TileRule { StretchTile, RoundTile, RepeatTile };
+    enum TileRule { StretchTile, RoundTile, SpaceTile, RepeatTile }; // SAMSUNG CHANGE - CSS3 Ring Mark test cases
 
     virtual NativeImagePtr nativeImageForCurrentFrame() { return 0; }
     
@@ -151,7 +148,6 @@ public:
 
 #if PLATFORM(ANDROID)
     virtual void setURL(const String& str) {}
-    virtual void clearImageObserver() {m_imageObserver = NULL;}
 #endif
 
 #if PLATFORM(GTK)

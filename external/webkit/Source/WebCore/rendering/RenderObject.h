@@ -167,30 +167,6 @@ public:
     RenderObject* firstLeafChild() const;
     RenderObject* lastLeafChild() const;
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    // Minimal distance between the block with fixed height and overflowing content and the text block to apply text autosizing.
-    // The greater this constant is the more potential places we have where autosizing is turned off.
-    // So it should be as low as possible. There are sites that break at 2.
-    static const int TextAutoSizingFixedHeightDepth = 3;
-
-    enum BlockContentHeightType {
-        FixedHeight,
-        FlexibleHeight,
-        OverflowHeight
-    };
-
-    RenderObject *traverseNext(const RenderObject *stayWithin) const;
-    typedef bool (*TraverseNextInclusionFunction)(const RenderObject *);
-    typedef BlockContentHeightType (*HeightTypeTraverseNextInclusionFunction)(const RenderObject *);
-
-    RenderObject *traverseNext(const RenderObject *stayWithin, TraverseNextInclusionFunction inclusionFunction) const;
-    RenderObject *traverseNext(const RenderObject *stayWithin, HeightTypeTraverseNextInclusionFunction inclusionFunction, int &currentDepth,  int &newFixedDepth) const;
-
-    void adjustComputedFontSizesOnBlocks(float size, float visibleWidth);
-    void resetTextAutosizing();
-    //SAMSUNG CHANGE END webkit-text-size-adjust >> 
-#endif
     // The following six functions are used when the render tree hierarchy changes to make sure layers get
     // properly added and removed.  Since containership can be implemented by any subclass, and since a hierarchy
     // can contain a mixture of boxes and other object types, these functions need to be in the base class.
@@ -336,8 +312,10 @@ public:
 
     inline bool isBeforeContent() const;
     inline bool isAfterContent() const;
+    inline bool isBeforeOrAfterContent() const;
     static inline bool isBeforeContent(const RenderObject* obj) { return obj && obj->isBeforeContent(); }
     static inline bool isAfterContent(const RenderObject* obj) { return obj && obj->isAfterContent(); }
+    static inline bool isBeforeOrAfterContent(const RenderObject* obj) { return obj && obj->isBeforeOrAfterContent(); }
 
     bool childrenInline() const { return m_childrenInline; }
     void setChildrenInline(bool b = true) { m_childrenInline = b; }
@@ -743,11 +721,12 @@ public:
      * @param extraWidthToEndOfLine optional out arg to give extra width to end of line -
      * useful for character range rect computations
      */
-    virtual IntRect localCaretRect(InlineBox*, int caretOffset, int* extraWidthToEndOfLine = 0, /*SAMSUNG CHANGE*/bool bTextSelection=false/*SAMSUNG CHANGE*/);
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    virtual IntRect localCaretRect(InlineBox*, int caretOffset, int* extraWidthToEndOfLine = 0, bool bTextSelection=false);
 
-// Adding for Multicolumn text selection - Begin
     bool GetMultiColumnInfo(Node* pNode);
-// Adding for Multicolumn text selection - End
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+
     bool isMarginBeforeQuirk() const { return m_marginBeforeQuirk; }
     bool isMarginAfterQuirk() const { return m_marginAfterQuirk; }
     void setMarginBeforeQuirk(bool b = true) { m_marginBeforeQuirk = b; }
@@ -778,10 +757,6 @@ public:
     virtual void imageChanged(WrappedImagePtr, const IntRect* = 0) { }
     virtual bool willRenderImage(CachedImage*);
 
-    // SAMSUNG CHANGE +
-    virtual bool isImageOffScreen(CachedImage*, bool);
-    // SAMSUNG CHANGE -
-    
     void selectionStartEnd(int& spos, int& epos) const;
 
     bool hasOverrideSize() const { return m_hasOverrideSize; }
@@ -813,6 +788,7 @@ protected:
     virtual void styleWillChange(StyleDifference, const RenderStyle* newStyle);
     // Overrides should call the superclass at the start
     virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle);
+    void propagateStyleToAnonymousChildren();
 
     void drawLineForBoxSide(GraphicsContext*, int x1, int y1, int x2, int y2, BoxSide,
                             Color, EBorderStyle, int adjbw1, int adjbw2, bool antialias = false);
@@ -952,6 +928,11 @@ inline bool RenderObject::isAfterContent() const
     if (isText() && !isBR())
         return false;
     return true;
+}
+
+inline bool RenderObject::isBeforeOrAfterContent() const
+{
+    return isBeforeContent() || isAfterContent();
 }
 
 inline void RenderObject::setNeedsLayout(bool b, bool markParents)

@@ -25,6 +25,8 @@
 #include <wtf/ListHashSet.h>
 #include <wtf/RefPtr.h>
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 class CSSStyleSheet;
@@ -51,6 +53,7 @@ public:
     void setCssText(const String&, ExceptionCode&) { } // FIXME: Not implemented.
 
     virtual bool isBorderImageValue() const { return false; }
+    virtual bool isBorderImageSliceValue() const { return false; }
     virtual bool isCursorImageValue() const { return false; }
     virtual bool isFontFamilyValue() const { return false; }
     virtual bool isFontValue() const { return false; }

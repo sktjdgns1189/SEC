@@ -38,6 +38,12 @@ class PopStateEvent : public Event {
 public:
     virtual ~PopStateEvent();
 
+//SAMSUNG CHANGES HISTORY POP STATE rng.io <<
+    static PassRefPtr<PopStateEvent> create()
+    {
+        return adoptRef(new PopStateEvent);
+    }
+//SAMSUNG CHANGES HISTORY POP STATE rng.io >>
     static PassRefPtr<PopStateEvent> create(PassRefPtr<SerializedScriptValue> stateObject)
     {
         return adoptRef(new PopStateEvent(stateObject));
@@ -49,6 +55,7 @@ public:
     SerializedScriptValue* state() const { return m_stateObject.get(); }    
 
 private:
+    PopStateEvent(); //SAMSUNG CHANGES HISTORY POP STATE rng.io 	
     explicit PopStateEvent(PassRefPtr<SerializedScriptValue>);
 
     RefPtr<SerializedScriptValue> m_stateObject;

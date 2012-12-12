@@ -32,16 +32,11 @@
 #include "FloatRect.h"
 #include "Gradient.h"
 #include "Image.h"
-#include "IntRect.h"  // SAMSUNG CHANGE
 #include "Path.h"
 #include "Pattern.h"
-#include "AffineTransform.h"
 #include <wtf/Noncopyable.h>
 #include <wtf/PassOwnPtr.h>
 
-#if ENABLE(ACCELERATED_2D_CANVAS)
-#include "GLES2Canvas.h"
-#endif
 #if USE(CG)
 typedef struct CGContext PlatformGraphicsContext;
 #elif USE(CAIRO)
@@ -87,7 +82,6 @@ class PlatformGraphicsContext;
 }
 class SkPaint;
 struct SkPoint;
-class AnimationTimeCounter;
 #else
 namespace WebCore {
 class PlatformContextSkia;
@@ -240,9 +234,6 @@ namespace WebCore {
         PlatformGraphicsContext* platformContext() const;
 #endif
 
-#if ENABLE(ACCELERATED_2D_CANVAS) &&  PLATFORM(ANDROID)
-	GraphicsContextPlatformPrivate* platformCxt() const;
-#endif	
         float strokeThickness() const;
         void setStrokeThickness(float);
         StrokeStyle strokeStyle() const;
@@ -296,8 +287,6 @@ namespace WebCore {
 #endif
 
 #if PLATFORM(ANDROID)
-        // initialize a paint for bitmaps
-        void setupBitmapPaint(SkPaint*);
         // initialize a paint for filling
         void setupFillPaint(SkPaint*);
         // initialize a paint for stroking
@@ -310,23 +299,12 @@ namespace WebCore {
         // returns true if there is a valid (non-transparent) stroke color
         bool willStroke() const;
 
-        // may return NULL, since we lazily allocate the path. This is the path
-        // that is drawn by drawPath()
-        const SkPath* getCurrPath() const;
-
         /** platform-specific factory method to return a bitmap graphicscontext,
          called by <canvas> when we need to draw offscreen. Caller is responsible for
          deleting the context. Use drawOffscreenContext() to draw the context's image
          onto another graphics context.
          */
         static GraphicsContext* createOffscreenContext(int width, int height);
-        //SAMSUNG CHANGE :Advanced Text Selection.
-        void fillTransparentRect(const IntRect&, const Color&);
-        static GraphicsContext* createOffscreenRecordingContext(int width, int height);
-
-        void copyState(GraphicsContext* context);
-        //Needed to keep track of transformation matrix for SkPicture based drawing
-        void setCurrentTransform(AffineTransform& transform);
 #endif
 
         void save();
@@ -347,6 +325,9 @@ namespace WebCore {
         // Arc drawing (used by border-radius in CSS) just supports stroking at the moment.
         void strokeArc(const IntRect&, int startAngle, int angleSpan);
 
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+        void fillTransparentRect(const FloatRect&, const Color&);
+//SAMSUNG ADVANCED TEXT SELECTION - END
         void fillRect(const FloatRect&);
         void fillRect(const FloatRect&, const Color&, ColorSpace);
         void fillRect(const FloatRect&, Generator&);
@@ -398,7 +379,11 @@ namespace WebCore {
         void drawText(const Font&, const TextRun&, const FloatPoint&, int from = 0, int to = -1);
         void drawEmphasisMarks(const Font&, const TextRun& , const AtomicString& mark, const FloatPoint&, int from = 0, int to = -1);
         void drawBidiText(const Font&, const TextRun&, const FloatPoint&);
+#if PLATFORM(ANDROID)
+        void drawHighlightForText(const Font&, const TextRun&, const FloatPoint&, int h, const Color& backgroundColor, ColorSpace, int from = 0, int to = -1, bool isActive = true);
+#else
         void drawHighlightForText(const Font&, const TextRun&, const FloatPoint&, int h, const Color& backgroundColor, ColorSpace, int from = 0, int to = -1);
+#endif
 
         enum RoundingMode {
             RoundAllSides,
@@ -563,13 +548,6 @@ namespace WebCore {
         void syncSoftwareCanvas();
         void markDirtyRect(const IntRect&); // Hints that a portion of the backing store is dirty.
 
-#if ENABLE(ACCELERATED_2D_CANVAS)
-	 GLES2Canvas* gpuCanvas();
-	void prepareForHardwareDraw();
-	void prepareForSoftwareDraw();
-	bool useGPU();
-	bool canAccelerate();
-#endif
     private:
         void platformInit(PlatformGraphicsContext*);
         void platformDestroy();
@@ -609,10 +587,6 @@ namespace WebCore {
         GraphicsContextState m_state;
         Vector<GraphicsContextState> m_stack;
         bool m_updatingControlTints;
-#if PLATFORM(ANDROID)
-        OwnPtr<AnimationTimeCounter> m_animationTimeCounter;
-        AffineTransform m_currentTransform;
-#endif
     };
 
 } // namespace WebCore

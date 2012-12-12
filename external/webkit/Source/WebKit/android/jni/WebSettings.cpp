@@ -53,9 +53,7 @@
 // Samsung Change - HTML5 Web Notification	>>
 #include "NotificationPresenterImpl.h"
 // Samsung Change - HTML5 Web Notification	<<
-#if USE(V8)
 #include "WorkerContextExecutionProxy.h"
-#endif
 #include "WebRequestContext.h"
 #include "WebViewCore.h"
 #include "WebSocket.h"
@@ -100,11 +98,13 @@ struct FieldIds {
 #endif
         mBlockNetworkLoads = env->GetFieldID(clazz, "mBlockNetworkLoads", "Z");
         mJavaScriptEnabled = env->GetFieldID(clazz, "mJavaScriptEnabled", "Z");
+// SERI - WebGL >>
+#if ENABLE(WEBGL)
+        mWebGLEnabled = env->GetFieldID(clazz, "mWebGLEnabled", "Z");
+#endif
+// SERI - WebGL <<
         mAllowUniversalAccessFromFileURLs = env->GetFieldID(clazz, "mAllowUniversalAccessFromFileURLs", "Z");
         mAllowFileAccessFromFileURLs = env->GetFieldID(clazz, "mAllowFileAccessFromFileURLs", "Z");
-// SERI - WebGL >>
-        mWebGLEnabled = env->GetFieldID(clazz, "mWebGLEnabled", "Z");
-// SERI - WebGL <<
         mPluginState = env->GetFieldID(clazz, "mPluginState",
                 "Landroid/webkit/WebSettings$PluginState;");
 #if ENABLE(DATABASE)
@@ -146,6 +146,9 @@ struct FieldIds {
         mGeolocationEnabled = env->GetFieldID(clazz, "mGeolocationEnabled", "Z");
         mGeolocationDatabasePath = env->GetFieldID(clazz, "mGeolocationDatabasePath", "Ljava/lang/String;");
         mXSSAuditorEnabled = env->GetFieldID(clazz, "mXSSAuditorEnabled", "Z");
+#if ENABLE(LINK_PREFETCH)
+        mLinkPrefetchEnabled = env->GetFieldID(clazz, "mLinkPrefetchEnabled", "Z");
+#endif
         mJavaScriptCanOpenWindowsAutomatically = env->GetFieldID(clazz,
                 "mJavaScriptCanOpenWindowsAutomatically", "Z");
         mUseWideViewport = env->GetFieldID(clazz, "mUseWideViewport", "Z");
@@ -156,17 +159,17 @@ struct FieldIds {
         mSyntheticLinksEnabled = env->GetFieldID(clazz, "mSyntheticLinksEnabled", "Z");
         mUseDoubleTree = env->GetFieldID(clazz, "mUseDoubleTree", "Z");
         mPageCacheCapacity = env->GetFieldID(clazz, "mPageCacheCapacity", "I");
-	//SISO_HTMLCOMPOSER begin
-	mEditableSupport =  env->GetFieldID(clazz, "mEditableSupport", "Z");	
-    //SISO_HTMLCOMPOSER end	
-        //SAMSUNG CHANGE : ADVANCED TEXT SELECTION >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN 
         mAdvanceTextSelection =  env->GetFieldID(clazz, "mAdvanceTextSelection", "Z");
         mAdvanceSelectionBgColor =  env->GetFieldID(clazz, "mAdvanceSelectionBgColor", "J");
-        //SAMSUNG CHANGE : ADVANCED TEXT SELECTION <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+//SISO_HTMLComposer Start
+	mEditableSupport =  env->GetFieldID(clazz, "mEditableSupport", "Z");	
+//SISO_HTMLComposer End	
 #if ENABLE(WEB_AUTOFILL)
         mAutoFillEnabled = env->GetFieldID(clazz, "mAutoFillEnabled", "Z");
-        mAutoFillProfile = env->GetFieldID(clazz, "mAutoFillProfile", "Landroid/webkit/WebSettings$AutoFillProfile;");
-        jclass autoFillProfileClass = env->FindClass("android/webkit/WebSettings$AutoFillProfile");
+        mAutoFillProfile = env->GetFieldID(clazz, "mAutoFillProfile", "Landroid/webkit/WebSettingsClassic$AutoFillProfile;");
+        jclass autoFillProfileClass = env->FindClass("android/webkit/WebSettingsClassic$AutoFillProfile");
         mAutoFillProfileFullName = env->GetFieldID(autoFillProfileClass, "mFullName", "Ljava/lang/String;");
         mAutoFillProfileEmailAddress = env->GetFieldID(autoFillProfileClass, "mEmailAddress", "Ljava/lang/String;");
         mAutoFillProfileCompanyName = env->GetFieldID(autoFillProfileClass, "mCompanyName", "Ljava/lang/String;");
@@ -179,96 +182,96 @@ struct FieldIds {
         mAutoFillProfilePhoneNumber = env->GetFieldID(autoFillProfileClass, "mPhoneNumber", "Ljava/lang/String;");
         env->DeleteLocalRef(autoFillProfileClass);
 #endif
-#if USE(CHROME_NETWORK_STACK)
         mOverrideCacheMode = env->GetFieldID(clazz, "mOverrideCacheMode", "I");
-#endif
-		//SAMSUNG_CHANGES >>
-		mSupportRssSniffing = env->GetFieldID(clazz, "mSupportRssSniffing", "Z");
-		mIsBrowserApp = env->GetFieldID(clazz, "mIsBrowserApp", "Z");
+        mPasswordEchoEnabled = env->GetFieldID(clazz, "mPasswordEchoEnabled", "Z");
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
 		mIsSpellCheckEnabled = env->GetFieldID(clazz, "mIsSpellCheckEnabled", "Z");
 #endif
+//SAMSUNG CHANGES <<<
+
+		//SAMSUNG_CHANGES >>
+		mSupportRssSniffing = env->GetFieldID(clazz, "mSupportRssSniffing", "Z");
+		mIsBrowserApp = env->GetFieldID(clazz, "mIsBrowserApp", "Z");
         //SAMSUNG_CHANGES <<
 
-	//SAMSUNG CHANGES WOFF <<
-	mWOFFEnabled = env->GetFieldID(clazz, "mWOFFEnabled", "Z");
-	//SAMSUNG CHANGES WOFF >>
-        LOG_ASSERT(mLayoutAlgorithm, "Could not find field mLayoutAlgorithm");
-        LOG_ASSERT(mTextSize, "Could not find field mTextSize");
-        LOG_ASSERT(mStandardFontFamily, "Could not find field mStandardFontFamily");
-        LOG_ASSERT(mFixedFontFamily, "Could not find field mFixedFontFamily");
-        LOG_ASSERT(mSansSerifFontFamily, "Could not find field mSansSerifFontFamily");
-        LOG_ASSERT(mSerifFontFamily, "Could not find field mSerifFontFamily");
-        LOG_ASSERT(mCursiveFontFamily, "Could not find field mCursiveFontFamily");
-        LOG_ASSERT(mFantasyFontFamily, "Could not find field mFantasyFontFamily");
-        LOG_ASSERT(mDefaultTextEncoding, "Could not find field mDefaultTextEncoding");
-        LOG_ASSERT(mUserAgent, "Could not find field mUserAgent");
-        LOG_ASSERT(mAcceptLanguage, "Could not find field mAcceptLanguage");
-        LOG_ASSERT(mMinimumFontSize, "Could not find field mMinimumFontSize");
-        LOG_ASSERT(mMinimumLogicalFontSize, "Could not find field mMinimumLogicalFontSize");
-        LOG_ASSERT(mDefaultFontSize, "Could not find field mDefaultFontSize");
-        LOG_ASSERT(mDefaultFixedFontSize, "Could not find field mDefaultFixedFontSize");
-        LOG_ASSERT(mLoadsImagesAutomatically, "Could not find field mLoadsImagesAutomatically");
+	    //SAMSUNG CHANGES WOFF <<
+	    mWOFFEnabled = env->GetFieldID(clazz, "mWOFFEnabled", "Z");
+	    //SAMSUNG CHANGES WOFF >>
+
+        ALOG_ASSERT(mLayoutAlgorithm, "Could not find field mLayoutAlgorithm");
+        ALOG_ASSERT(mTextSize, "Could not find field mTextSize");
+        ALOG_ASSERT(mStandardFontFamily, "Could not find field mStandardFontFamily");
+        ALOG_ASSERT(mFixedFontFamily, "Could not find field mFixedFontFamily");
+        ALOG_ASSERT(mSansSerifFontFamily, "Could not find field mSansSerifFontFamily");
+        ALOG_ASSERT(mSerifFontFamily, "Could not find field mSerifFontFamily");
+        ALOG_ASSERT(mCursiveFontFamily, "Could not find field mCursiveFontFamily");
+        ALOG_ASSERT(mFantasyFontFamily, "Could not find field mFantasyFontFamily");
+        ALOG_ASSERT(mDefaultTextEncoding, "Could not find field mDefaultTextEncoding");
+        ALOG_ASSERT(mUserAgent, "Could not find field mUserAgent");
+        ALOG_ASSERT(mAcceptLanguage, "Could not find field mAcceptLanguage");
+        ALOG_ASSERT(mMinimumFontSize, "Could not find field mMinimumFontSize");
+        ALOG_ASSERT(mMinimumLogicalFontSize, "Could not find field mMinimumLogicalFontSize");
+        ALOG_ASSERT(mDefaultFontSize, "Could not find field mDefaultFontSize");
+        ALOG_ASSERT(mDefaultFixedFontSize, "Could not find field mDefaultFixedFontSize");
+        ALOG_ASSERT(mLoadsImagesAutomatically, "Could not find field mLoadsImagesAutomatically");
 #ifdef ANDROID_BLOCK_NETWORK_IMAGE
-        LOG_ASSERT(mBlockNetworkImage, "Could not find field mBlockNetworkImage");
+        ALOG_ASSERT(mBlockNetworkImage, "Could not find field mBlockNetworkImage");
 #endif
-        LOG_ASSERT(mBlockNetworkLoads, "Could not find field mBlockNetworkLoads");
-        LOG_ASSERT(mJavaScriptEnabled, "Could not find field mJavaScriptEnabled");
-        LOG_ASSERT(mAllowUniversalAccessFromFileURLs,
-                    "Could not find field mAllowUniversalAccessFromFileURLs");
-        LOG_ASSERT(mAllowFileAccessFromFileURLs,
-                    "Could not find field mAllowFileAccessFromFileURLs");
+        ALOG_ASSERT(mBlockNetworkLoads, "Could not find field mBlockNetworkLoads");
+        ALOG_ASSERT(mJavaScriptEnabled, "Could not find field mJavaScriptEnabled");
 // SERI - WebGL >>
-        LOG_ASSERT(mWebGLEnabled, "Could not find field mWebGLEnabled");
+#if ENABLE(WEBGL)
+        ALOG_ASSERT(mWebGLEnabled, "Could not find field mWebGLEnabled");
+#endif
 // SERI - WebGL <<
-        LOG_ASSERT(mPluginState, "Could not find field mPluginState");
+        ALOG_ASSERT(mAllowUniversalAccessFromFileURLs,
+                    "Could not find field mAllowUniversalAccessFromFileURLs");
+        ALOG_ASSERT(mAllowFileAccessFromFileURLs,
+                    "Could not find field mAllowFileAccessFromFileURLs");
+        ALOG_ASSERT(mPluginState, "Could not find field mPluginState");
 #if ENABLE(OFFLINE_WEB_APPLICATIONS)
-        LOG_ASSERT(mAppCacheEnabled, "Could not find field mAppCacheEnabled");
-        LOG_ASSERT(mAppCachePath, "Could not find field mAppCachePath");
-        LOG_ASSERT(mAppCacheMaxSize, "Could not find field mAppCacheMaxSize");
+        ALOG_ASSERT(mAppCacheEnabled, "Could not find field mAppCacheEnabled");
+        ALOG_ASSERT(mAppCachePath, "Could not find field mAppCachePath");
+        ALOG_ASSERT(mAppCacheMaxSize, "Could not find field mAppCacheMaxSize");
 #endif
 #if ENABLE(WORKERS)
-        LOG_ASSERT(mWorkersEnabled, "Could not find field mWorkersEnabled");
+        ALOG_ASSERT(mWorkersEnabled, "Could not find field mWorkersEnabled");
 #endif
-        LOG_ASSERT(mJavaScriptCanOpenWindowsAutomatically,
+        ALOG_ASSERT(mJavaScriptCanOpenWindowsAutomatically,
                 "Could not find field mJavaScriptCanOpenWindowsAutomatically");
-        LOG_ASSERT(mUseWideViewport, "Could not find field mUseWideViewport");
-        LOG_ASSERT(mSupportMultipleWindows, "Could not find field mSupportMultipleWindows");
-        LOG_ASSERT(mShrinksStandaloneImagesToFit, "Could not find field mShrinksStandaloneImagesToFit");
-        LOG_ASSERT(mMaximumDecodedImageSize, "Could not find field mMaximumDecodedImageSize");
-        LOG_ASSERT(mUseDoubleTree, "Could not find field mUseDoubleTree");
-        LOG_ASSERT(mPageCacheCapacity, "Could not find field mPageCacheCapacity");
-	//SISO_HTMLCOMPOSER begin
-	LOG_ASSERT(mEditableSupport, "Could not find field mEditableSupport");
-    //SISO_HTMLCOMPOSER end	
+        ALOG_ASSERT(mUseWideViewport, "Could not find field mUseWideViewport");
+        ALOG_ASSERT(mSupportMultipleWindows, "Could not find field mSupportMultipleWindows");
+        ALOG_ASSERT(mShrinksStandaloneImagesToFit, "Could not find field mShrinksStandaloneImagesToFit");
+        ALOG_ASSERT(mMaximumDecodedImageSize, "Could not find field mMaximumDecodedImageSize");
+        ALOG_ASSERT(mUseDoubleTree, "Could not find field mUseDoubleTree");
+        ALOG_ASSERT(mPageCacheCapacity, "Could not find field mPageCacheCapacity");
+        ALOG_ASSERT(mPasswordEchoEnabled, "Could not find field mPasswordEchoEnabled");
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+        ALOG_ASSERT(mAdvanceTextSelection, "Could not find field mAdvanceTextSelection");
+        ALOG_ASSERT(mAdvanceSelectionBgColor, "Could not find field mAdvanceSelectionBgColor");
+//SAMSUNG ADVANCED TEXT SELECTION - END
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
+		ALOG_ASSERT(mIsSpellCheckEnabled, "Could not find field mIsSpellCheckEnabled");
+#endif
+//SAMSUNG CHANGES <<<	
 
 		//SAMSUNG_CHANGES >>
-		LOG_ASSERT(mSupportRssSniffing, "Could not find field mSupportRssSniffing");
-		LOG_ASSERT(mIsBrowserApp, "Could not find field mIsBrowserApp");
-#if ENABLE(SPELLCHECK)
-		LOG_ASSERT(mIsSpellCheckEnabled, "Could not find field mIsSpellCheckEnabled");
-#endif
+		ALOG_ASSERT(mSupportRssSniffing, "Could not find field mSupportRssSniffing");
+		ALOG_ASSERT(mIsBrowserApp, "Could not find field mIsBrowserApp");
 		//SAMSUNG_CHANGES >>
-        //SAMSUNG CHANGE ADVANCED TEXT SELECTION
-        LOG_ASSERT(mAdvanceTextSelection, "Could not find field mAdvanceTextSelection");
-        LOG_ASSERT(mAdvanceSelectionBgColor, "Could not find field mAdvanceSelectionBgColor");
-        //SAMSUNG_CHANGES >>
 	//SAMSUNG CHANGES WOFF <<
-	LOG_ASSERT(mWOFFEnabled, "Could not find field mWOFFEnabled");
+	ALOG_ASSERT(mWOFFEnabled, "Could not find field mWOFFEnabled");
 	//SAMSUNG CHANGES WOFF >>
 
         jclass enumClass = env->FindClass("java/lang/Enum");
-        LOG_ASSERT(enumClass, "Could not find Enum class!");
+        ALOG_ASSERT(enumClass, "Could not find Enum class!");
         mOrdinal = env->GetMethodID(enumClass, "ordinal", "()I");
-        LOG_ASSERT(mOrdinal, "Could not find method ordinal");
+        ALOG_ASSERT(mOrdinal, "Could not find method ordinal");
         env->DeleteLocalRef(enumClass);
-
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-        //SAMSUNG CHANGES TEXT READABILITY <<
-        mTextReadability =  env->GetFieldID(clazz, "mTextReadability", "Z");
-       //SAMSUNG CHANGES TEXT READABILITY <<
-#endif    
-	}
+    }
 
     // Field ids
     jfieldID mLayoutAlgorithm;
@@ -292,11 +295,13 @@ struct FieldIds {
 #endif
     jfieldID mBlockNetworkLoads;
     jfieldID mJavaScriptEnabled;
+// SERI - WebGL >>
+#if ENABLE(WEBGL)
+    jfieldID mWebGLEnabled;
+#endif
+// SERI - WebGL <<
     jfieldID mAllowUniversalAccessFromFileURLs;
     jfieldID mAllowFileAccessFromFileURLs;
-// SERI - WebGL >>
-    jfieldID mWebGLEnabled;
-// SERI - WebGL <<
     jfieldID mPluginState;
 #if ENABLE(OFFLINE_WEB_APPLICATIONS)
     jfieldID mAppCacheEnabled;
@@ -328,6 +333,9 @@ struct FieldIds {
     jfieldID mGeolocationEnabled;
     jfieldID mGeolocationDatabasePath;
     jfieldID mXSSAuditorEnabled;
+#if ENABLE(LINK_PREFETCH)
+    jfieldID mLinkPrefetchEnabled;
+#endif
 #if ENABLE(DATABASE) || ENABLE(DOM_STORAGE)
     jfieldID mDatabasePath;
     jfieldID mDatabasePathHasBeenSet;
@@ -358,30 +366,27 @@ struct FieldIds {
     jfieldID mAutoFillProfileCountry;
     jfieldID mAutoFillProfilePhoneNumber;
 #endif
-#if USE(CHROME_NETWORK_STACK)
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    jfieldID mAdvanceTextSelection; 
+    jfieldID mAdvanceSelectionBgColor;
+//SAMSUNG ADVANCED TEXT SELECTION - END
     jfieldID mOverrideCacheMode;
-#endif
-    //SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer Start
     jfieldID mEditableSupport;			
-    //SISO_HTMLCOMPOSER end	
+//SISO_HTMLComposer End
+	
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
+	jfieldID mIsSpellCheckEnabled;
+#endif
+//SAMSUNG CHANGES <<<	
 
 	//SAMSUNG_CHANGES >>
 	jfieldID mSupportRssSniffing;
 	jfieldID mIsBrowserApp;
-#if ENABLE(SPELLCHECK)
-	jfieldID mIsSpellCheckEnabled;
-#endif
 	//SAMSUNG_CHANGES <<
-    //SAMSUNG CHANGE : ADVANCED TEXT SELECTION >>
-    jfieldID mAdvanceTextSelection; 
-    jfieldID mAdvanceSelectionBgColor;
-    //SAMSUNG CHANGE : ADVANCED TEXT SELECTION <<
-
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGES TEXT READABILITY <<
-    jfieldID mTextReadability;
-    //SAMSUNG CHANGES TEXT READABILITY >>
-#endif
+    
+    jfieldID mPasswordEchoEnabled;
     //SAMSUNG CHANGES WOFF <<
     jfieldID mWOFFEnabled;
     //SAMSUNG CHANGES WOFF <<	
@@ -430,7 +435,7 @@ public:
     static void Sync(JNIEnv* env, jobject obj, jint frame)
     {
         WebCore::Frame* pFrame = (WebCore::Frame*)frame;
-        LOG_ASSERT(pFrame, "%s must take a valid frame pointer!", __FUNCTION__);
+        ALOG_ASSERT(pFrame, "%s must take a valid frame pointer!", __FUNCTION__);
         WebCore::Settings* s = pFrame->settings();
         if (!s)
             return;
@@ -446,7 +451,7 @@ public:
                 pFrame->document()->styleSelectorChanged(WebCore::RecalcStyleImmediately);
                 if (pFrame->document()->renderer()) {
                     recursiveCleanupForFullLayout(pFrame->document()->renderer());
-                    LOG_ASSERT(pFrame->view(), "No view for this frame when trying to relayout");
+                    ALOG_ASSERT(pFrame->view(), "No view for this frame when trying to relayout");
                     pFrame->view()->layout();
                     // FIXME: This call used to scroll the page to put the focus into view.
                     // It worked on the WebViewCore, but now scrolling is done outside of the
@@ -493,7 +498,6 @@ public:
 
         str = (jstring)env->GetObjectField(obj, gFieldIds->mUserAgent);
         WebFrame::getWebFrame(pFrame)->setUserAgent(jstringToWtfString(env, str));
-#if USE(CHROME_NETWORK_STACK)
         WebViewCore::getWebViewCore(pFrame->view())->setWebRequestContextUserAgent();
 
         jint cacheMode = env->GetIntField(obj, gFieldIds->mOverrideCacheMode);
@@ -501,7 +505,6 @@ public:
 
         str = (jstring)env->GetObjectField(obj, gFieldIds->mAcceptLanguage);
         WebRequestContext::setAcceptLanguage(jstringToWtfString(env, str));
-#endif
 
         jint size = env->GetIntField(obj, gFieldIds->mMinimumFontSize);
         s->setMinimumFontSize(size);
@@ -533,17 +536,23 @@ public:
         flag = env->GetBooleanField(obj, gFieldIds->mJavaScriptEnabled);
         s->setJavaScriptEnabled(flag);
 
-        flag = env->GetBooleanField(obj, gFieldIds->mAllowUniversalAccessFromFileURLs);
-        s->setAllowUniversalAccessFromFileURLs(flag);
-
-        flag = env->GetBooleanField(obj, gFieldIds->mAllowFileAccessFromFileURLs);
-        s->setAllowFileAccessFromFileURLs(flag);
 // SERI - WebGL >>
 #if ENABLE(WEBGL)
         flag = env->GetBooleanField(obj, gFieldIds->mWebGLEnabled);
         s->setWebGLEnabled(flag);
 #endif
 // SERI - WebGL <<
+
+        flag = env->GetBooleanField(obj, gFieldIds->mAllowUniversalAccessFromFileURLs);
+        s->setAllowUniversalAccessFromFileURLs(flag);
+
+        flag = env->GetBooleanField(obj, gFieldIds->mAllowFileAccessFromFileURLs);
+        s->setAllowFileAccessFromFileURLs(flag);
+
+        // Hyperlink auditing (the ping attribute) has similar privacy
+        // considerations as does the running of JavaScript, so to keep the UI
+        // simpler, we leverage the same setting.
+        s->setHyperlinkAuditingEnabled(flag);
 
         // ON = 0
         // ON_DEMAND = 1
@@ -556,22 +565,38 @@ public:
 #endif
 
 #if ENABLE(OFFLINE_WEB_APPLICATIONS)
-        flag = env->GetBooleanField(obj, gFieldIds->mAppCacheEnabled);
-        s->setOfflineWebApplicationCacheEnabled(flag);
-        str = (jstring)env->GetObjectField(obj, gFieldIds->mAppCachePath);
-        if (str) {
-            String path = jstringToWtfString(env, str);
-            if (path.length() && cacheStorage().cacheDirectory().isNull()) {
-                cacheStorage().setCacheDirectory(path);
+        // We only enable AppCache if it's been enabled with a call to
+        // setAppCacheEnabled() and if a valid path has been supplied to
+        // setAppCachePath(). Note that the path is applied to all WebViews
+        // whereas enabling is applied per WebView.
+
+        // WebCore asserts that the path is only set once. Since the path is
+        // shared between WebViews, we can't do the required checks to guard
+        // against this in the Java WebSettings.
+        bool isPathValid = false;
+        if (cacheStorage().cacheDirectory().isNull()) {
+            str = static_cast<jstring>(env->GetObjectField(obj, gFieldIds->mAppCachePath));
+            // Check for non-null string as an optimization, as this is the common case.
+            if (str) {
+                String path = jstringToWtfString(env, str);
+                ALOG_ASSERT(!path.empty(), "Java side should never send empty string for AppCache path");
                 // This database is created on the first load. If the file
                 // doesn't exist, we create it and set its permissions. The
                 // filename must match that in ApplicationCacheStorage.cpp.
                 String filename = pathByAppendingComponent(path, "ApplicationCache.db");
-                int fd = open(filename.utf8().data(), O_CREAT | O_EXCL, permissionFlags660);
-                if (fd >= 0)
+                int fd = open(filename.utf8().data(), O_CREAT, permissionFlags660);
+                if (fd >= 0) {
                     close(fd);
+                    cacheStorage().setCacheDirectory(path);
+                    isPathValid = true;
+              }
             }
-        }
+        } else
+            isPathValid = true;
+
+        flag = env->GetBooleanField(obj, gFieldIds->mAppCacheEnabled);
+        s->setOfflineWebApplicationCacheEnabled(flag && isPathValid);
+
         jlong maxsize = env->GetLongField(obj, gFieldIds->mAppCacheMaxSize);
         cacheStorage().setMaximumSize(maxsize);
 #endif
@@ -634,7 +659,6 @@ public:
 #endif
 #if ENABLE(FILE_SYSTEM)
         flag = env->GetBooleanField(obj, gFieldIds->mFilesystemEnabled);
-        
         flag = env->GetBooleanField(obj, gFieldIds->mFileSystemPathHasBeenSet);
         if (flag) {
             // If the user has set the filesystem path, sync it to the LocalFileSystem.
@@ -642,10 +666,10 @@ public:
             if (str) {
                 String path = jstringToWtfString(env, str);
                 LocalFileSystem::localFileSystem().initializeLocalFileSystem(path);
-               
             }
         }
 #endif
+
 // Samsung Change - HTML5 Web Notification	>>
 #if ENABLE(NOTIFICATIONS)
 	flag = env->GetBooleanField(obj, gFieldIds->mWebnotificationEnabled);
@@ -670,6 +694,7 @@ public:
         //}
 #endif
 // Samsung Change - HTML5 Web Notification	<<
+
 #if ENABLE(DOM_STORAGE)
         flag = env->GetBooleanField(obj, gFieldIds->mDomStorageEnabled);
         s->setLocalStorageEnabled(flag);
@@ -686,21 +711,15 @@ public:
             }
         }
 #endif
-	//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer Start
 	flag = env->GetBooleanField(obj, gFieldIds->mEditableSupport);
 	if(flag)        
 		s->setEditableLinkBehavior(WebCore::EditableLinkNeverLive);
 		
 	s->setEditableSupportEnabled(flag);		
-	//SISO_HTMLCOMPOSER end	
+//SISO_HTMLComposer End	
 
-        //SAMSUNG_CHANGES >>
-        flag = env->GetBooleanField(obj, gFieldIds->mSupportRssSniffing);
-        s->setRssSniffingEnabled(flag);
-		flag = env->GetBooleanField(obj, gFieldIds->mIsBrowserApp);
-		s->setIsBrowserApp(flag);
-        //SAMSUNG_CHANGES <<
-        //SAMSUNG CHANGE : ADVANCED TEXT SELECTION >>
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
         flag = env->GetBooleanField(obj, gFieldIds->mAdvanceTextSelection);
         s->setAdvancedSelectionEnabled(flag);
         jlong color = env->GetLongField(obj, gFieldIds->mAdvanceSelectionBgColor);
@@ -710,11 +729,22 @@ public:
             int b = (color & 0x000000FF);
             s->setAdvancedSelectionBgColor(r, g, b);
         }
-        //SAMSUNG CHANGE : ADVANCED TEXT SELECTION <<
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
 		flag = env->GetBooleanField(obj, gFieldIds->mIsSpellCheckEnabled);
 	s->setIsContinousSpellCheck(flag);
 #endif
+//SAMSUNG CHANGES <<<	
+    
+		//SAMSUNG_CHANGES >>
+		flag = env->GetBooleanField(obj, gFieldIds->mSupportRssSniffing);
+        s->setRssSniffingEnabled(flag);
+		flag = env->GetBooleanField(obj, gFieldIds->mIsBrowserApp);
+        s->setIsBrowserApp(flag);        
+		//SAMSUNG_CHANGES <<
+
         flag = env->GetBooleanField(obj, gFieldIds->mGeolocationEnabled);
         GeolocationPermissions::setAlwaysDeny(!flag);
         str = (jstring)env->GetObjectField(obj, gFieldIds->mGeolocationDatabasePath);
@@ -735,18 +765,18 @@ public:
         flag = env->GetBooleanField(obj, gFieldIds->mXSSAuditorEnabled);
         s->setXSSAuditorEnabled(flag);
 
+#if ENABLE(LINK_PREFETCH)
+        flag = env->GetBooleanField(obj, gFieldIds->mLinkPrefetchEnabled);
+        s->setLinkPrefetchEnabled(flag);
+#endif
+
         size = env->GetIntField(obj, gFieldIds->mPageCacheCapacity);
         if (size > 0) {
             s->setUsesPageCache(true);
             WebCore::pageCache()->setCapacity(size);
         } else
             s->setUsesPageCache(false);
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE :TEXT READABILITY <<
-         flag = env->GetBooleanField(obj, gFieldIds->mTextReadability);
-         s->EnableTextReadability(flag);
-        //SAMSUNG CHANGE :TEXT READABILITY >>
-#endif		
+
 #if ENABLE(WEB_AUTOFILL)
         flag = env->GetBooleanField(obj, gFieldIds->mAutoFillEnabled);
         // TODO: This updates the Settings WebCore side with the user's
@@ -780,16 +810,17 @@ public:
 		WebCore::WebSocket::setIsAvailable(true);
 #endif
 //SAMSUNG CHANGES WEBSOCKET >>
-
 //SAMSUNG CHANGES WOFF <<
 	 flag = env->GetBooleanField(obj, gFieldIds->mWOFFEnabled);
          s->setWOFFEnabled(flag);
 //SAMSUNG CHANGES WOFF >>
         // This is required to enable the XMLTreeViewer when loading an XML document that
         // has no style attached to it. http://trac.webkit.org/changeset/79799
-		/* XML/XHTML content is NOT rendering*/
-		/*[IOT]http://63.64.187.235/mdg/5/Doctype/doctest_html_hdr.xhtml*/
-        s->setDeveloperExtrasEnabled(false); 
+        s->setDeveloperExtrasEnabled(true);
+        s->setSpatialNavigationEnabled(true);
+        bool echoPassword = env->GetBooleanField(obj,
+                gFieldIds->mPasswordEchoEnabled);
+        s->setPasswordEchoEnabled(echoPassword);
     }
 };
 
@@ -805,11 +836,11 @@ static JNINativeMethod gWebSettingsMethods[] = {
 
 int registerWebSettings(JNIEnv* env)
 {
-    jclass clazz = env->FindClass("android/webkit/WebSettings");
-    LOG_ASSERT(clazz, "Unable to find class WebSettings!");
+    jclass clazz = env->FindClass("android/webkit/WebSettingsClassic");
+    ALOG_ASSERT(clazz, "Unable to find class WebSettingsClassic!");
     gFieldIds = new FieldIds(env, clazz);
     env->DeleteLocalRef(clazz);
-    return jniRegisterNativeMethods(env, "android/webkit/WebSettings",
+    return jniRegisterNativeMethods(env, "android/webkit/WebSettingsClassic",
             gWebSettingsMethods, NELEM(gWebSettingsMethods));
 }
 

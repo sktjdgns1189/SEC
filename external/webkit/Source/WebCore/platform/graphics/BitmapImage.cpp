@@ -430,24 +430,12 @@ bool BitmapImage::internalAdvanceAnimation(bool skippingFrames)
 {
     // Stop the animation.
     stopAnimation();
-
-    // SAMSUNG CHANGE +
-    if (imageObserver() == NULL)
-        return false;
-    // SAMSUNG CHANGE -
-
+    
     // See if anyone is still paying attention to this animation.  If not, we don't
     // advance and will remain suspended at the current frame until the animation is resumed.
     if (!skippingFrames && imageObserver()->shouldPauseAnimation(this))
         return false;
 
-    // SAMSUNG CHANGE +
-    // Check if the image is offscreen. If it is offscreen, store the image pointer in webviewcore.cpp. Whenever 
-    // the page is scrolled webviewcore.cpp will check for the visibility of the image and start the animation timer
-    if (imageObserver()->isImageOffScreen(this, true)) {
-        return false;
-    }
-    // SAMSUNG CHANGE -
     ++m_currentFrame;
     bool advancedAnimation = true;
     bool destroyAll = false;
@@ -478,18 +466,4 @@ bool BitmapImage::internalAdvanceAnimation(bool skippingFrames)
     return advancedAnimation;
 }
 
-// SAMSUNG CHANGE +
-bool BitmapImage::checkForVisibleImageAnimation()
-{
-    bool animationStarted = false;
-    // We just have to check if the image is visible or not, webviewcore will start the timer if the image is visible.
-    // Passing false as the second argument to avoid storing image pointer in webviewcore.cpp
-    if (imageObserver() && imageObserver()->isImageOffScreen(this, false) == false) {
-        startAnimation(false);
-        animationStarted = true;
-    }
-    return animationStarted;
-}
-// SAMSUNG CHANGE -
-    
 }

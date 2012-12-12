@@ -55,9 +55,10 @@ public:
     static bool acceptFileSchemeCookies();
     static void setAcceptFileSchemeCookies(bool);
 
+    // TODO
     // Instead of this it would probably be better to add the cookie methods
     // here so the rest of WebKit doesn't have to know about Chromium classes
-    net::CookieStore* cookieStore() { return m_cookieStore.get(); }
+    net::CookieStore* cookieStore();
     net::CookiePolicy* cookiePolicy() { return this; }
 
     // Get the number of cookies that have actually been saved to flash.
@@ -66,7 +67,13 @@ public:
 
 private:
     WebCookieJar(const std::string& databaseFilePath);
+    void initCookieStore();
 
+private:
+    bool m_cookieStoreInitialized;
+    WTF::Mutex m_cookieStoreInitializeMutex;
+
+    const std::string m_databaseFilePath;
     scoped_refptr<SQLitePersistentCookieStore> m_cookieDb;
     scoped_refptr<net::CookieStore> m_cookieStore;
     bool m_allowCookies;

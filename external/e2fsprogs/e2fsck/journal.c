@@ -798,6 +798,19 @@ no_has_journal:
 		 */
 	}
 
+	/*
+	 * If we don't need to do replay the journal, check to see if
+	 * the journal's errno is set; if so, we need to mark the file
+	 * system as being corrupt and clear the journal's s_errno.
+	 */
+	if (!(sb->s_feature_incompat & EXT3_FEATURE_INCOMPAT_RECOVER) &&
+	    journal->j_superblock->s_errno) {
+		ctx->fs->super->s_state |= EXT2_ERROR_FS;
+		ext2fs_mark_super_dirty(ctx->fs);
+		journal->j_superblock->s_errno = 0;
+		mark_buffer_dirty(journal->j_sb_buffer);
+	}
+
 	e2fsck_journal_release(ctx, journal, reset, 0);
 	return retval;
 }
@@ -830,15 +843,7 @@ static errcode_t recover_ext3_journal(e2fsck_t ctx)
 	if (journal->j_failed_commit) {
 		pctx.ino = journal->j_failed_commit;
 		fix_problem(ctx, PR_0_JNL_TXN_CORRUPT, &pctx);
-		ctx->fs->super->s_state |= EXT2_ERROR_FS;
-		ext2fs_mark_super_dirty(ctx->fs);
-	}
-
-
-	if (journal->j_superblock->s_errno) {
-		ctx->fs->super->s_state |= EXT2_ERROR_FS;
-		ext2fs_mark_super_dirty(ctx->fs);
-		journal->j_superblock->s_errno = 0;
+		journal->j_superblock->s_errno = -EINVAL;
 		mark_buffer_dirty(journal->j_sb_buffer);
 	}
 
@@ -853,7 +858,6 @@ int e2fsck_run_ext3_journal(e2fsck_t ctx)
 {
 	io_manager io_ptr = ctx->fs->io->manager;
 	int blocksize = ctx->fs->blocksize;
-	int fs_error = 0;
 	errcode_t	retval, recover_retval;
 	io_stats	stats = 0;
 	unsigned long long kbytes_written = 0;
@@ -869,8 +873,6 @@ int e2fsck_run_ext3_journal(e2fsck_t ctx)
 		ext2fs_flush(ctx->fs);	/* Force out any modifications */
 
 	recover_retval = recover_ext3_journal(ctx);
- 	if (ctx->fs->super->s_state & EXT2_ERROR_FS)
- 		fs_error = 1;
 
 	/*
 	 * Reload the filesystem context to get up-to-date data from disk
@@ -895,12 +897,16 @@ int e2fsck_run_ext3_journal(e2fsck_t ctx)
 	ctx->fs->now = ctx->now;
 	ctx->fs->flags |= EXT2_FLAG_MASTER_SB_ONLY;
 	ctx->fs->super->s_kbytes_written += kbytes_written;
- 	if (fs_error)
- 		ctx->fs->super->s_state |= EXT2_ERROR_FS;
 
 	/* Set the superblock flags */
 	e2fsck_clear_recover(ctx, recover_retval);
-	return recover_retval;
+
+	/*
+	 * Do one last sanity check, and propagate journal->s_errno to
+	 * the EXT2_ERROR_FS flag in the fs superblock if needed.
+	 */
+	retval = e2fsck_check_ext3_journal(ctx);
+	return retval ? retval : recover_retval;
 }
 
 /*

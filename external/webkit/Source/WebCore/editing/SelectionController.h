@@ -94,10 +94,11 @@ public:
     bool modify(EAlteration, SelectionDirection, TextGranularity, bool userTriggered = false);
     bool modify(EAlteration, int verticalDistance, bool userTriggered = false, CursorAlignOnScroll = AlignCursorOnScrollIfNeeded);
     TextGranularity granularity() const { return m_granularity; }
-    // P3TF_BEGIN : ADVANCED_TEXT_SELECTION
-    void setGranularity(TextGranularity granularity) {m_granularity = granularity;}
-    // P3TF_END
-    
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+	void setGranularity(TextGranularity granularity) {m_granularity = granularity;}
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
     void setStart(const VisiblePosition &, bool userTriggered = false);
     void setEnd(const VisiblePosition &, bool userTriggered = false);
     
@@ -144,6 +145,9 @@ public:
     bool recomputeCaretRect(); // returns true if caret rect moved
     void invalidateCaretRect();
     void paintCaret(GraphicsContext*, int tx, int ty, const IntRect& clipRect);
+//SISO_HTMLComposer start
+    void setSelectionIfOrphan();
+//SISO_HTMLComposer End
 
     // Used to suspend caret blinking while the mouse is down.
     void setCaretBlinkingSuspended(bool suspended) { m_isCaretBlinkingSuspended = suspended; }

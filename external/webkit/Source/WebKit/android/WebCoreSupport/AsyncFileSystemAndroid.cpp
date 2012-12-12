@@ -33,10 +33,10 @@
 #if ENABLE(FILE_SYSTEM)
 
 #include "AsyncFileSystemCallbacks.h"
-#include "AsyncFileWriterAndroid.h"
 #include "WebFileInfo.h"
 #include "WebFileWriter.h"
 #include "WebKit.h"
+#include "File.h"
 #include "FileSystem.h"
 #include "Logging.h"
 #include "FileError.h"
@@ -45,7 +45,26 @@
 #undef LOG
 #include <utils/Log.h>
 
-namespace WebCore {
+namespace WebCore{
+
+bool AsyncFileSystem::isAvailable()
+{
+    return true;
+}
+
+}
+
+using namespace WebCore;
+
+namespace android {
+
+//static const char* databaseName = "FileSystemQuota.db";
+
+unsigned AsyncFileSystemAndroid::s_quota;
+String AsyncFileSystemAndroid::s_basepath;
+String AsyncFileSystemAndroid::s_identifier;
+AsyncFileWriterAndroid* AsyncFileSystemAndroid::s_asyncFileWriterAndroid;
+
 
 AsyncFileSystemAndroid::AsyncFileSystemAndroid(AsyncFileSystem::Type type, const String& rootPath)
     : AsyncFileSystem(type, rootPath)
@@ -59,6 +78,8 @@ AsyncFileSystemAndroid::~AsyncFileSystemAndroid()
 
 void AsyncFileSystemAndroid::openFileSystem(const String& basePath, const String& storageIdentifier, Type type, bool, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
+    s_basepath = basePath;
+    s_identifier = storageIdentifier;
     String typeString = (type == Persistent) ? "Persistent" : "Temporary";
 
     String name = storageIdentifier;
@@ -66,14 +87,12 @@ void AsyncFileSystemAndroid::openFileSystem(const String& basePath, const String
     name += typeString;
 
     String rootPath = basePath;
-    LOGE("AsyncFileSystemAndroid::openFileSystem basePath value is %s",basePath.utf8().data());
     rootPath.append(PlatformFilePathSeparator);
     rootPath += storageIdentifier;
     rootPath.append(PlatformFilePathSeparator);
     rootPath += typeString;
     if(makeAllDirectories(rootPath)){
        rootPath.append(PlatformFilePathSeparator);
-       LOGE("AsyncFileSystemAndroid::openFileSystem path value is %s",rootPath.utf8().data());
        callbacks->didOpenFileSystem(name, AsyncFileSystemAndroid::create(type, rootPath));
     }
 }
@@ -90,11 +109,22 @@ void AsyncFileSystemAndroid::copy(const String& sourcePath, const String& destin
 
 void AsyncFileSystemAndroid::remove(const String& path, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
-    LOGE("Remove path value is %s",path.utf8().data());
+//    LOGV("AsyncFileSystemAndroid::remove path value is %s",path.utf8().data());
+    long long int len = 0 ;
+    getFileSize(path,len);
     int res = deleteFile(path);    
-    LOGE("res is %d",res);
-    if(!res)
+    if(res){
         callbacks->didSucceed();
+        if(len > 0){
+	   if(s_asyncFileWriterAndroid)
+	       s_asyncFileWriterAndroid->removeSize(len, s_identifier);
+	   else{
+	       PassOwnPtr<AsyncFileWriterAndroid> asyncFileWriterAndroid = adoptPtr(new AsyncFileWriterAndroid(NULL,path,s_quota,s_basepath, s_identifier));    
+	       AsyncFileWriterAndroid* asyncWriter = asyncFileWriterAndroid.get();
+	       asyncWriter->removeSize(len, s_identifier);
+	   }
+        }
+    }
     else
         callbacks->didFail(res);
            
@@ -102,13 +132,36 @@ void AsyncFileSystemAndroid::remove(const String& path, PassOwnPtr<AsyncFileSyst
 
 void AsyncFileSystemAndroid::removeRecursively(const String& path, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
-    LOGE("Removerecurse path value is %s",path.utf8().data());
-    int res = deleteDirectory(path);
-    LOGE("res recurse is %d",res);
-    if(!res)
-        callbacks->didSucceed();
-    else
-        callbacks->didFail(res);
+//    LOGV("AsyncFileSystemAndroid::removeRecursively path value is %s",path.utf8().data());
+
+    long long int len = 0 ;
+    Vector<String> list = listDirectory(path,"*");
+    unsigned size = list.size();
+    if(size == 0)
+        deleteDirectory(path);
+    else{
+        for(unsigned i=0;i<size;i++){
+            String dirName = list[i];
+	    getFileSize(dirName,len);
+	    int res = deleteFile(dirName);
+            if(res){
+                if(len > 0){
+	            if(s_asyncFileWriterAndroid)
+	                s_asyncFileWriterAndroid->removeSize(len, s_identifier);
+	            else{
+	                PassOwnPtr<AsyncFileWriterAndroid> asyncFileWriterAndroid = adoptPtr(new AsyncFileWriterAndroid(NULL,path,s_quota,s_basepath, s_identifier));    
+	                AsyncFileWriterAndroid* asyncWriter = asyncFileWriterAndroid.get();
+	                asyncWriter->removeSize(len, s_identifier);
+	            }
+               }
+	       deleteDirectory(path);
+	       callbacks->didSucceed();
+           }
+	   else
+	       callbacks->didFail(res);
+	    
+        }
+    }
 }
 
 void AsyncFileSystemAndroid::readMetadata(const String& path, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
@@ -127,23 +180,30 @@ void AsyncFileSystemAndroid::readMetadata(const String& path, PassOwnPtr<AsyncFi
 
 void AsyncFileSystemAndroid::createFile(const String& path, bool exclusive, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
-    LOGE("AsyncFileSystemAndroid:: createFile Path value is %s",path.utf8().data());
-    PlatformFileHandle file;
-    file=openFile(path,OpenForWrite);
-    if(isHandleValid(file)){
-        closeFile(file);
-        callbacks->didSucceed();
+//    LOGV("AsyncFileSystemAndroid:: createFile Path value is %s",path.utf8().data());
+      
+    String dirName = directoryName(path);
+    bool res = makeAllDirectories(dirName);
+    PlatformFileHandle file= NULL;
+    if(WebCore::fileExists(path)){
+	callbacks->didSucceed();
     }
-    else
-    {
-       callbacks->didFail(FileError::NOT_FOUND_ERR);
-    }
-    
+    else{
+        file=openFile(path,OpenForWrite);
+        if(isHandleValid(file)){
+	    callbacks->didSucceed();
+        }
+        else
+        {
+           callbacks->didFail(FileError::NOT_FOUND_ERR);
+        }
+     }
+    closeFile(file);
 }
 
 void AsyncFileSystemAndroid::createDirectory(const String& path, bool exclusive, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
-     LOGE("AsyncFileSystemAndroid:: createDirectory Path value is %s",path.utf8().data());
+//     LOGV("AsyncFileSystemAndroid:: createDirectory Path value is %s",path.utf8().data());
      if(makeAllDirectories(path)){
        callbacks->didSucceed();
       }
@@ -155,8 +215,13 @@ void AsyncFileSystemAndroid::createDirectory(const String& path, bool exclusive,
 
 void AsyncFileSystemAndroid::fileExists(const String& path, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
-    if(WebCore::fileExists(path))
+    if(WebCore::fileExists(path)){
         callbacks->didSucceed();
+    }
+    else{
+	callbacks->didFail(FileError::NOT_FOUND_ERR);
+    }
+    
 }
 
 void AsyncFileSystemAndroid::directoryExists(const String& path, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
@@ -166,15 +231,13 @@ void AsyncFileSystemAndroid::directoryExists(const String& path, PassOwnPtr<Asyn
 
 void AsyncFileSystemAndroid::readDirectory(const String& path, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
-    LOGE("directory path is %s",path.utf8().data());
     Vector<String> list = listDirectory(path,"*");
     unsigned size = list.size();
+ 
     for(unsigned i=0;i<size;i++){
      String dirName = list[i];
-     LOGE("directory Name is %s",dirName.utf8().data());
      int index = dirName.reverseFind("///");
      String dirExt = dirName.substring(index + 1);
-     LOGE("directory Ext is %s",dirExt.utf8().data());
      int index1 = dirExt.reverseFind('.');
      if(index1 == -1)
         isDirectory = true;
@@ -189,11 +252,17 @@ void AsyncFileSystemAndroid::readDirectory(const String& path, PassOwnPtr<AsyncF
 void AsyncFileSystemAndroid::createWriter(AsyncFileWriterClient* client, const String& path, PassOwnPtr<AsyncFileSystemCallbacks> callbacks)
 {
     long long int len ;
+    int exception = 0;
     getFileSize(path,len);
-    LOGE("AsyncFileSystemAndroid::createWriter len is %lld",len);
-    PassOwnPtr<AsyncFileWriterAndroid> asyncFileWriterAndroid = adoptPtr(new AsyncFileWriterAndroid(client,path));
-    callbacks->didCreateFileWriter(asyncFileWriterAndroid,len);
+    PassOwnPtr<AsyncFileWriterAndroid> asyncFileWriterAndroid = adoptPtr(new AsyncFileWriterAndroid(client,path,s_quota,s_basepath, s_identifier));
+    s_asyncFileWriterAndroid = asyncFileWriterAndroid.get();
+           callbacks->didCreateFileWriter(asyncFileWriterAndroid,len);
     
+}
+
+void AsyncFileSystemAndroid::fileSystemStorage(unsigned quota)
+{
+    s_quota = quota;
 }
 
 } // namespace WebCore

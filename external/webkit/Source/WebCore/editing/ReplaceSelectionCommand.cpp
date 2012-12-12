@@ -22,7 +22,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
-
+        
 #include "config.h"
 #include "ReplaceSelectionCommand.h"
 
@@ -72,7 +72,9 @@ public:
     Node* lastChild() const;
 
     bool isEmpty() const;
-    
+//SISO HTMLComposer Start
+    bool isImageFragment();
+//SISO HTMLComposer End
     bool hasInterchangeNewlineAtStart() const { return m_hasInterchangeNewlineAtStart; }
     bool hasInterchangeNewlineAtEnd() const { return m_hasInterchangeNewlineAtEnd; }
     
@@ -107,8 +109,30 @@ static bool isInterchangeConvertedSpaceSpan(const Node *node)
     return node->isHTMLElement() && 
            static_cast<const HTMLElement *>(node)->getAttribute(classAttr) == convertedSpaceSpanClassString;
 }
+//SISO HTMLComposer Start
+static bool isStyledText(const Node *node)
+{
+    if (!node || !node->isHTMLElement())
+        return false;
 
-static Position positionAvoidingPrecedingNodes(Position pos)
+	return (node->hasTagName(fontTag) || node->hasTagName(spanTag) || node->hasTagName(iTag) 
+		|| node->hasTagName(uTag) || node->hasTagName(bTag) || node->hasTagName(strongTag) 
+		|| node->hasTagName(strikeTag) || node->hasTagName(smallTag) || node->hasTagName(bigTag));
+}
+
+static Node* getStyledAncestor(Node* childNode)
+{
+	if(!childNode || !childNode->parentNode())
+		return 0;
+    for (Node* node = static_cast<Node*>(childNode->parentNode()); node != 0; node = static_cast<Node*>(node->parentNode())) {
+		if(isStyledText(const_cast<Node*>(node))){
+			return node;
+		}
+	}
+	return 0;
+}
+//SISO HTMLComposer End
+static Position positionAvoidingPrecedingNodes(Position pos , bool imageFragment) //SISO HTMLComposer
 {
     // If we're already on a break, it's probably a placeholder and we shouldn't change our position.
     if (editingIgnoresContent(pos.deprecatedNode()))
@@ -118,9 +142,16 @@ static Position positionAvoidingPrecedingNodes(Position pos)
     // same.  E.g.,
     //   <div>foo^</div>^
     // The two positions above are the same visual position, but we want to stay in the same block.
+//SISO HTMLComposer Start
+    Node* parentNode = getStyledAncestor(pos.deprecatedNode());
     Node* stopNode = pos.deprecatedNode()->enclosingBlockFlowElement();
-    while (stopNode != pos.deprecatedNode() && VisiblePosition(pos) == VisiblePosition(pos.next()))
-        pos = pos.next();
+    if(parentNode && parentNode != stopNode && imageFragment == true)
+        stopNode = parentNode;
+    if(stopNode) {
+        while (stopNode != pos.deprecatedNode() && VisiblePosition(pos) == VisiblePosition(pos.next()))
+            pos = pos.next();
+    }
+//SISO HTMLComposer End
     return pos;
 }
 
@@ -184,6 +215,19 @@ bool ReplacementFragment::isEmpty() const
 {
     return (!m_fragment || !m_fragment->firstChild()) && !m_hasInterchangeNewlineAtStart && !m_hasInterchangeNewlineAtEnd;
 }
+
+//SISO HTMLComposer Start
+bool ReplacementFragment::isImageFragment()
+{
+    if (!m_fragment || !m_fragment->firstChild()) {
+        return false;
+    }
+    Node *topNode = m_fragment->firstChild();
+    if(topNode->hasTagName(imgTag))
+        return true;
+    return false;
+}
+//SISO HTMLComposer End
 
 Node *ReplacementFragment::firstChild() const 
 { 
@@ -804,34 +848,7 @@ static bool isInlineNodeWithStyle(const Node* node)
 
     return false;
 }
-// HTML Composer Changes start
-inline void ReplaceSelectionCommand::respondToNodeInsertion(Node* node)
-{
-    if (!node)
-        return;
     
-    if (!m_firstNodeInserted)
-        m_firstNodeInserted = node;
-    
-    m_lastLeafInserted = node;
-}
-
-static void removeHeadContents(ReplacementFragment& fragment)
-{
-    Node* next = 0;
-    for (Node* node = fragment.firstChild(); node; node = next) {
-        if (node->hasTagName(baseTag)
-            || node->hasTagName(linkTag)
-            || node->hasTagName(metaTag)
-            || node->hasTagName(styleTag)
-            || node->hasTagName(titleTag)) {
-            next = node->traverseNextSibling();
-            fragment.removeNode(node);
-        } else
-            next = node->traverseNextNode();
-    }
-}
-// HTML Composer Changes end
 void ReplaceSelectionCommand::doApply()
 {
     VisibleSelection selection = endingSelection();
@@ -872,18 +889,7 @@ void ReplaceSelectionCommand::doApply()
     if ((selectionStartWasStartOfParagraph && selectionEndWasEndOfParagraph && !startIsInsideMailBlockquote) ||
         startBlock == currentRoot || isListItem(startBlock) || selectionIsPlainText)
         m_preventNesting = false;
-  
-//HTML Composer Start
-//Preventing the insert paragraph element in case of inserting the image in between the word,
-// because img node should insert inside the previous node to retain the property
-	 bool insertImageNotMiddleOfText=true;
-	 if (insertionPos.deprecatedNode()->isTextNode()&&fragment.firstChild()&&fragment.firstChild()->hasTagName(imgTag)) {
-				Text* textNode = static_cast<Text*>(insertionPos.deprecatedNode());
-				bool atEnd = (unsigned)insertionPos.deprecatedEditingOffset() >= textNode->length();
-				if (insertionPos.deprecatedEditingOffset() > 0 && !atEnd)
-					insertImageNotMiddleOfText=false;
-			 }
-//HTML Composer End
+    
     if (selection.isRange()) {
         // When the end of the selection being pasted into is at the end of a paragraph, and that selection
         // spans multiple blocks, not merging may leave an empty line.
@@ -918,7 +924,8 @@ void ReplaceSelectionCommand::doApply()
         // As long as the  div styles are the same, visually you'd expect: <div>xbar</div><div>bar</div><div>bazx</div>, 
         // not <div>xbar<div>bar</div><div>bazx</div></div>.
         // Don't do this if the selection started in a Mail blockquote.
-        if (m_preventNesting && insertImageNotMiddleOfText && !startIsInsideMailBlockquote && !isEndOfParagraph(visibleStart) && !isStartOfParagraph(visibleStart)) {
+        if (m_preventNesting && !startIsInsideMailBlockquote && !isEndOfParagraph(visibleStart) 
+            && !isStartOfParagraph(visibleStart) && !fragment.isImageFragment()) {  /*SISO HTMLComposer*/
             insertParagraphSeparator();
             setEndingSelection(endingSelection().visibleStart().previous());
         }
@@ -937,7 +944,10 @@ void ReplaceSelectionCommand::doApply()
         insertionPos = positionInParentBeforeNode(br);
         removeNode(br);
     }
-			  prepareWhitespaceAtPositionForSplit(insertionPos);
+    
+    // Inserting content could cause whitespace to collapse, e.g. inserting <div>foo</div> into hello^ world.
+    prepareWhitespaceAtPositionForSplit(insertionPos);
+
     // If the downstream node has been removed there's no point in continuing.
     if (!insertionPos.downstream().deprecatedNode())
       return;
@@ -957,11 +967,14 @@ void ReplaceSelectionCommand::doApply()
     if (m_preventNesting && startBlock && !startIsInsideMailBlockquote) {
         ASSERT(startBlock != currentRoot);
         VisiblePosition visibleInsertionPos(insertionPos);
-        if (isEndOfBlock(visibleInsertionPos) && !(isStartOfBlock(visibleInsertionPos) && fragment.hasInterchangeNewlineAtEnd()))
-           insertionPos = positionInParentAfterNode(startBlock);
+        if (isEndOfBlock(visibleInsertionPos) && !(isStartOfBlock(visibleInsertionPos) && fragment.hasInterchangeNewlineAtEnd()) && !fragment.isImageFragment()) /*SISO HTMLComposer*/
+            insertionPos = positionInParentAfterNode(startBlock);
         else if (isStartOfBlock(visibleInsertionPos))
             insertionPos = positionInParentBeforeNode(startBlock);
     }
+
+    // Paste into run of tabs splits the tab span.
+    insertionPos = positionOutsideTabSpan(insertionPos);
     
     // Paste at start or end of link goes outside of link.
     insertionPos = positionAvoidingSpecialElementBoundary(insertionPos);
@@ -970,17 +983,13 @@ void ReplaceSelectionCommand::doApply()
     // any work performed after this that queries or uses the typing style.
     if (Frame* frame = document()->frame())
         frame->selection()->clearTypingStyle();
+    
+    bool handledStyleSpans = handleStyleSpansBeforeInsertion(fragment, insertionPos);
 
-	//HTML Composer changes Start
-   	   removeHeadContents(fragment);
     // We don't want the destination to end up inside nodes that weren't selected.  To avoid that, we move the
     // position forward without changing the visible position so we're still at the same visible location, but
     // outside of preceding tags.
-     insertionPos = positionAvoidingPrecedingNodes(insertionPos);
-	  // Paste into run of tabs splits the tab span.
-    insertionPos = positionOutsideTabSpan(insertionPos);
-	//HTML Composer changes End
-    bool handledStyleSpans = handleStyleSpansBeforeInsertion(fragment, insertionPos);
+    insertionPos = positionAvoidingPrecedingNodes(insertionPos,fragment.isImageFragment()); //SISO HTMLComposer
 
     // If we are not trying to match the destination style we prefer a position
     // that is outside inline elements that provide style.
@@ -1031,12 +1040,7 @@ void ReplaceSelectionCommand::doApply()
         && blockStart->renderer()->isListItem())
         refNode = insertAsListItems(refNode, blockStart, insertionPos);
     else
-//HTML Composer changes Start
-	{
         insertNodeAtAndUpdateNodesInserted(refNode, insertionPos);
-		respondToNodeInsertion(refNode.get());
-	}
-//HTML Composer changes End
 
     // Mutation events (bug 22634) may have already removed the inserted content
     if (!refNode->inDocument())
@@ -1048,9 +1052,6 @@ void ReplaceSelectionCommand::doApply()
         RefPtr<Node> next = node->nextSibling();
         fragment.removeNode(node.get());
         insertNodeAfterAndUpdateNodesInserted(node, refNode.get());
-//HTML Composer changes Start
-		respondToNodeInsertion(refNode.get());
-//HTML Composer changes End
 
         // Mutation events (bug 22634) may have already removed the inserted content
         if (!node->inDocument())
@@ -1203,7 +1204,7 @@ void ReplaceSelectionCommand::doApply()
             }
         }
     }
-
+    
     // If we are dealing with a fragment created from plain text
     // no style matching is necessary.
     if (plainTextFragment)

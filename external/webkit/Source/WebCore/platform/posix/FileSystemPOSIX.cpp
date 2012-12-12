@@ -69,6 +69,7 @@ bool deleteFile(const String& path)
     return !unlink(fsRep.data());
 }
 
+//SAMSUNG CHANGE HTML5 FILEAPI <<
 bool deleteDirectory(const String& path)
 {
     CString fsRep1 = fileSystemRepresentation(path);
@@ -79,9 +80,7 @@ bool deleteDirectory(const String& path)
     // unlink(...) returns 0 on successful deletion of the path and non-zero in any other case (including invalid permissions or non-existent file)
     return !rmdir(fsRep1.data());
 }
-
-
-
+//SAMSUNG CHANGE HTML5 FILEAPI >>
 PlatformFileHandle openFile(const String& path, FileOpenMode mode)
 {
     CString fsRep = fileSystemRepresentation(path);
@@ -94,8 +93,10 @@ PlatformFileHandle openFile(const String& path, FileOpenMode mode)
         platformFlag |= O_RDONLY;
     else if (mode == OpenForWrite)
         platformFlag |= (O_WRONLY | O_CREAT | O_TRUNC);
+//SAMSUNG CHANGE HTML5 FILEAPI <<
     else if (mode == OpenForWriteOnly)
         platformFlag |= O_WRONLY;
+//SAMSUNG CHANGE HTML5 FILEAPI >>
     return open(fsRep.data(), platformFlag, 0666);
 }
 

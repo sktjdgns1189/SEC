@@ -53,7 +53,6 @@
 
 #define SAP_PIN_MAX 16
 
-//#define PADDING4(x) (4 - (x & 0x03))
 #define PADDING4(x) ((4 - ((x) & 0x03)) & 0x03)
 #define PARAMETER_SIZE(x) (sizeof(struct sap_parameter) + x + PADDING4(x))
 
@@ -89,8 +88,6 @@ struct sap_server {
 static DBusConnection *connection;
 static struct sap_server *server;
 static gboolean isRilConnected = FALSE;
-//static char sap_client[18];
-//static bdaddr_t client_to_be_authorized;
 
 static void start_guard_timer(struct sap_connection *conn, guint interval);
 static void stop_guard_timer(struct sap_connection *conn);
@@ -335,15 +332,18 @@ static void connect_req(struct sap_connection *conn,
 	conn->state = SAP_STATE_CONNECT_IN_PROGRESS;
 
 	if (maxmsgsize <= SAP_BUF_SIZE) {
-		DBG("juno - maxmsgsize <= SAP_BUF_SIZE - if");
-		conn->processing_req = SAP_CONNECT_REQ;
-		sap_connect_req(conn, maxmsgsize);
+		// open RIL Client
+		if (!isRilConnected)
+			isRilConnected = sap_open_ril();
 
-      //connect to RIL Client
-      if(!isRilConnected)
-         isRilConnected = com_samsung_ril_client_sap_connect();
+		if (isRilConnected) {
+			conn->processing_req = SAP_CONNECT_REQ;
+			sap_connect_req(conn, maxmsgsize);
+		} else {
+			sap_connect_rsp(conn, SAP_STATUS_CONNECTION_FAILED,
+								maxmsgsize);
+		}
 	} else {
-		DBG("juno - maxmsgsize <= SAP_BUF_SIZE - else");
 		sap_connect_rsp(conn, SAP_STATUS_MAX_MSG_SIZE_NOT_SUPPORTED,
 								SAP_BUF_SIZE);
 	}
@@ -752,65 +752,38 @@ int sap_transfer_apdu_rsp(void *sap_device, uint8_t result, uint8_t *apdu,
 	struct sap_parameter *param = (struct sap_parameter *) msg->param;
 	size_t size = sizeof(struct sap_message);
 
-   DBG("1 size(%d)", size);
-
 	if (!conn)
 		return -EINVAL;
 
 	DBG("state %d pr 0x%02x", conn->state, conn->processing_req);
 
 	if (conn->processing_req != SAP_TRANSFER_APDU_REQ)
-	{
-      DBG("returned !SAP_TRANSFER_APDU_REQ");
 		return 0;
-	}
 
 	if (result == SAP_RESULT_OK && (!apdu || (apdu && length == 0x00)))
-	{
-      DBG("returned EINVAL");
 		return -EINVAL;
-	}
-
-   DBG("original APDU length(%d)", length);
 
 	memset(buf, 0, sizeof(buf));
 	msg->id = SAP_TRANSFER_APDU_RESP;
 	msg->nparam = 0x01;
 	size += add_result_parameter(result, param);
 
-   DBG("2 size(%d)", size);
-
 	/* Add APDU response. */
 	if (result == SAP_RESULT_OK) {
-      DBG("result OK");
 		msg->nparam++;
 		param = (struct sap_parameter *) &buf[size];
 		param->id = SAP_PARAM_ID_RESPONSE_APDU;
 		param->len = htons(length);
 
-      DBG("param->len(%d)", param->len);
-
 		size += PARAMETER_SIZE(length);
 
-      DBG("3 size(%d)", size);
-
-      DBG("PARAMETER size(%d)", size);
-
 		if (size > SAP_BUF_SIZE)
-		{
-         DBG("returned EOVERFLOW");
 			return -EOVERFLOW;
-		}
 
 		memcpy(param->val, apdu, length);
-	} else {
-	   DBG("result not OK");
 	}
 
 	conn->processing_req = SAP_NO_REQ;
-
-   DBG("buf : %s", buf);
-   DBG("buf_len(%d), size(%d)", strlen(buf), size);
 
 	return send_message(sap_device, buf, size);
 }
@@ -1027,10 +1000,7 @@ int sap_status_ind(void *sap_device, uint8_t status_change)
 
 	if (conn->state != SAP_STATE_CONNECTED &&
 			conn->state != SAP_STATE_GRACEFUL_DISCONNECT)
-	{
-      DBG("state is invalid!!!");
 		return 0;
-	}
 
 	memset(buf, 0, sizeof(buf));
 	msg->id = SAP_STATUS_IND;
@@ -1069,8 +1039,6 @@ static int handle_cmd(void *data, void *buf, size_t size)
 
 	if (check_msg(msg) < 0)
 		goto error_rsp;
-
-	DBG("Msg id = %x",msg->id);
 
 	switch (msg->id) {
 	case SAP_CONNECT_REQ:
@@ -1113,10 +1081,12 @@ error_rsp:
 
 static void sap_conn_remove(struct sap_connection *conn)
 {
-	DBG("conn %p, isRilConnected %d", conn, isRilConnected);
+	DBG("conn %p", conn);
 
-   if(isRilConnected)
-      com_samsung_ril_client_sap_disconnect();
+	if (isRilConnected) {
+		sap_close_ril();
+		isRilConnected = FALSE;
+	}
 
 	if (!conn)
 		return;
@@ -1205,8 +1175,6 @@ static void sap_connect_cb(GIOChannel *io, GError *gerr, gpointer data)
 	if (!conn)
 		return;
 
-		isRilConnected = com_samsung_ril_client_sap_connect();
-
 	/* Timer will shutdown the channel in case of lack of client
 	   activity */
 	start_guard_timer(conn, SAP_TIMER_NO_ACTIVITY);
@@ -1247,7 +1215,7 @@ static void connect_confirm_cb(GIOChannel *io, gpointer data)
 	struct sap_connection *conn = server->conn;
 	GError *gerr = NULL;
 	bdaddr_t src, dst;
-   char srcaddr[18], dstaddr[18];
+	char srcaddr[18], dstaddr[18];
 	int err;
 
 	DBG("io %p data %p ", io, data);
@@ -1285,19 +1253,16 @@ static void connect_confirm_cb(GIOChannel *io, gpointer data)
 		return;
 	}
 
-	//client_to_be_authorized = &dst;
-
 	ba2str(&dst, dstaddr);
-   ba2str(&src, srcaddr);
+	ba2str(&src, srcaddr);
 
-   if(sap_check_weak_linkkey(srcaddr, dstaddr) == TRUE)
-   {
-      DBG("SAP weak_key was detected.");
-      sap_connect_rsp(conn, SAP_STATUS_CONNECTION_FAILED,
-								SAP_BUF_SIZE);
-      sap_conn_remove(conn);
-      return;
-   }
+	if(sap_check_weak_linkkey(srcaddr, dstaddr) == TRUE) {
+		DBG("SAP weak_key was detected.");
+		sap_connect_rsp(conn, SAP_STATUS_CONNECTION_FAILED,
+			SAP_BUF_SIZE);
+		sap_conn_remove(conn);
+		return;
+	}
 
 	err = btd_request_authorization(&src, &dst, SAP_UUID,
 					connect_auth_cb, conn);
@@ -1376,10 +1341,10 @@ static void server_free(struct sap_server *server)
 static DBusMessage *add_sap_service_record(DBusConnection *conn, DBusMessage *msg,
                         void *data)
 {
-   DBG("");
+	DBG("");
 
-   sdp_record_t *record = NULL;
-   GError *gerr = NULL;
+	sdp_record_t *record = NULL;
+	GError *gerr = NULL;
 
 	record = create_sap_record(SAP_SERVER_CHANNEL);
 	if (!record) {
@@ -1395,14 +1360,14 @@ static DBusMessage *add_sap_service_record(DBusConnection *conn, DBusMessage *ms
 
 	server->record_id = record->handle;
 
-   DBG("EXIT");
+	DBG("EXIT");
 
-   return dbus_message_new_method_return(msg);
+	return dbus_message_new_method_return(msg);
 
 sdp_err:
 	server_free(server);
 	sap_exit();
-   return dbus_message_new_method_return(msg);
+	return dbus_message_new_method_return(msg);
 }
 
 
@@ -1441,8 +1406,8 @@ static DBusMessage *get_properties(DBusConnection *c,
 static GDBusMethodTable server_methods[] = {
 	{"GetProperties", "", "a{sv}", get_properties},
 	{"Disconnect", "", "", disconnect},
-   { "DisconnectImmediate", "", "", disconnect_immediate},
-    { "addSapServiceRecord", "", "", add_sap_service_record},
+	{ "DisconnectImmediate", "", "", disconnect_immediate},
+	{ "addSapServiceRecord", "", "", add_sap_service_record},
 	{ }
 };
 
@@ -1481,8 +1446,8 @@ int sap_server_register(const char *path, bdaddr_t *src)
 	bacpy(&server->src, src);
 	server->path = g_strdup(path);
 
-    // moved to add_sap_service_record() for SAP SDP Feature
-    // BlueZ ORIGINAL CODE [
+	// moved to add_sap_service_record() for SAP SDP Feature
+	// BlueZ ORIGINAL CODE [
 	/*record = create_sap_record(SAP_SERVER_CHANNEL);
 	if (!record) {
 		error("Creating SAP SDP record failed.");
@@ -1496,7 +1461,7 @@ int sap_server_register(const char *path, bdaddr_t *src)
 	}
 
 	server->record_id = record->handle;*/
-    // ]
+	// ]
 
 	io = bt_io_listen(BT_IO_RFCOMM, NULL, connect_confirm_cb, server,
 			NULL, &gerr,
@@ -1537,7 +1502,6 @@ sdp_err:
 
 int sap_server_unregister(const char *path)
 {
-	DBG("");
 	if (!server)
 		return -EINVAL;
 
@@ -1561,14 +1525,12 @@ int sap_server_unregister(const char *path)
 
 int sap_server_init(DBusConnection *conn)
 {
-	DBG("");
 	connection = dbus_connection_ref(conn);
 	return 0;
 }
 
 void sap_server_exit(void)
 {
-	DBG("");
 	dbus_connection_unref(connection);
 	connection = NULL;
 }

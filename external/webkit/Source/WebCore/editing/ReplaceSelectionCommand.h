@@ -99,9 +99,9 @@ private:
     bool m_movingParagraph;
     EditAction m_editAction;
     bool m_shouldMergeEnd;
-//HTML Composer Start
+//SISO_HTMLComposer start
    void respondToNodeInsertion(Node* node);
-// HTML Composer End
+//SISO_HTMLComposer end
 };
 
 } // namespace WebCore

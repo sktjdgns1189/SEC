@@ -48,7 +48,7 @@ public:
     String markerTextWithSuffix() const;
 
     void updateListMarkerNumbers();
-    static RenderListItem* nextListItem(RenderObject* listRenderer, const RenderListItem* = 0);
+    static RenderListItem* nextListItem(RenderObject* listRenderer, const RenderListItem* = 0); //SAMSUNG CHANGES HTML5 OL REVERSED ATTRIBUTE <<
 
 private:
     virtual const char* renderName() const { return "RenderListItem"; }

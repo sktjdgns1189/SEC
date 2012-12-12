@@ -31,7 +31,12 @@
 #include "CollectionCache.h"
 #include "CollectionType.h"
 #include "Color.h"
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com) 
+#if ENABLE(SPELLCHECK)
 #include "DocumentMarkerController.h"
+#include "Settings.h"
+#endif
+//SAMSUNG CHANGES <<<
 #include "DOMTimeStamp.h"
 #include "DocumentTiming.h"
 #include "QualifiedName.h"
@@ -44,15 +49,11 @@
 #include <wtf/OwnPtr.h>
 #include <wtf/PassOwnPtr.h>
 #include <wtf/PassRefPtr.h>
-
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-#include "RenderStyle.h"
-//SAMSUNG CHANGE END webkit-text-size-adjust <<
-#endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
 #include "PageVisibilityState.h"
 #endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 
 namespace WebCore {
 
@@ -86,6 +87,7 @@ class EntityReference;
 class Event;
 class EventListener;
 class EventQueue;
+class FontData;
 class FormAssociatedElement;
 class Frame;
 class FrameView;
@@ -162,11 +164,11 @@ class RequestAnimationFrameCallback;
 class ScriptedAnimationController;
 #endif
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 class MicroDataItemList;
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 typedef int ExceptionCode;
 
 class FormElementKey {
@@ -208,68 +210,6 @@ struct FormElementKeyHashTraits : WTF::GenericHashTraits<FormElementKey> {
     static void constructDeletedValue(FormElementKey& slot) { new (&slot) FormElementKey(WTF::HashTableDeletedValue); }
     static bool isDeletedValue(const FormElementKey& value) { return value.isHashTableDeletedValue(); }
 };
-    
-#ifdef WEBKIT_TEXT_SIZE_ADJUST	
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-class TextAutoSizingKey {
-public:
-    TextAutoSizingKey();
-    TextAutoSizingKey(RenderStyle*, Document*);
-    ~TextAutoSizingKey();
-    TextAutoSizingKey(const TextAutoSizingKey&);
-    TextAutoSizingKey& operator=(const TextAutoSizingKey&);
-    Document* doc() const { return m_doc; }
-    RenderStyle* style() const { return m_style; }
-    inline bool isValidDoc() const { return m_doc && m_doc != deletedKeyDoc(); }
-    inline bool isValidStyle() const { return m_style && m_style != deletedKeyStyle(); }
-    static Document* deletedKeyDoc() { return (Document*) -1; }
-    static RenderStyle* deletedKeyStyle() { return (RenderStyle*) -1; }
-private:
-    void ref() const;
-    void deref() const;
-    RenderStyle *m_style;
-    Document *m_doc;
-};
-
-inline bool operator==(const TextAutoSizingKey& a, const TextAutoSizingKey& b)
-{
-    if (a.isValidStyle() && b.isValidStyle())
-        return a.style()->equalForTextAutosizing(b.style());
-    return a.style() == b.style();
-}
-
-struct TextAutoSizingHash {
-    static unsigned hash(const TextAutoSizingKey&k) { return k.style()->hashForTextAutosizing(); }
-    static bool equal(const TextAutoSizingKey& a, const TextAutoSizingKey& b) { return a == b; }
-    static const bool safeToCompareToEmptyOrDeleted = true;
-};
-
-struct TextAutoSizingTraits : WTF::GenericHashTraits<TextAutoSizingKey> {
-    static const bool emptyValueIsZero = true;
-    static void constructDeletedValue(TextAutoSizingKey& slot);
-    static bool isDeletedValue(const TextAutoSizingKey& value);
-};
-
-class TextAutoSizingValue : public RefCounted<TextAutoSizingValue>{
-public:
-    static PassRefPtr<TextAutoSizingValue> create()
-    {
-        return adoptRef(new TextAutoSizingValue());
-    }
-
-    void addNode(Node *node, float size);
-    bool adjustNodeSizes ();
-    int numNodes () const;
-    void reset();
-
-private:
-    TextAutoSizingValue() { }
-
-    HashSet<RefPtr<Node> > m_autoSizedNodes;
-};
-//SAMSUNG CHANGE end webkit-text-size-adjust >>
-#endif
-
 
 enum PageshowEventPersistence {
     PageshowEventNotPersisted = 0,
@@ -383,10 +323,11 @@ public:
 #if ENABLE(FULLSCREEN_API)
     DEFINE_ATTRIBUTE_EVENT_LISTENER(webkitfullscreenchange);
 #endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
     DEFINE_ATTRIBUTE_EVENT_LISTENER(webkitvisibilitychange);
 #endif
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 
     ViewportArguments viewportArguments() const { return m_viewportArguments; }
 
@@ -459,11 +400,13 @@ public:
     void setDocumentURI(const String&);
 
     virtual KURL baseURI() const;
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
     String webkitVisibilityState() const;
     bool webkitHidden() const;
     void dispatchVisibilityStateChangeEvent();
 #endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 
     PassRefPtr<Node> adoptNode(PassRefPtr<Node> source, ExceptionCode&);
 
@@ -618,6 +561,8 @@ public:
     PassRefPtr<RenderStyle> styleForElementIgnoringPendingStylesheets(Element*);
     PassRefPtr<RenderStyle> styleForPage(int pageIndex);
 
+    void retireCustomFont(FontData*);
+
     // Returns true if page box (margin boxes and page borders) is visible.
     bool isPageBoxVisible(int pageIndex);
 
@@ -759,13 +704,6 @@ public:
 
     bool setFocusedNode(PassRefPtr<Node>);
     Node* focusedNode() const { return m_focusedNode.get(); }
-
-	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-	void setCheckNode(PassRefPtr<Node>);
-	Node* checkNode() const{ return m_checkNode.get();}
-	bool getBackOrForward(){ return m_getBackOrForward;}
-	void setBackOrForward( bool getbackorforward){m_getBackOrForward = getbackorforward;}
-	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
 
     void getFocusableNodes(Vector<RefPtr<Node> >&);
     
@@ -1186,7 +1124,6 @@ public:
 
 #if ENABLE(TOUCH_EVENTS)
     PassRefPtr<Touch> createTouch(DOMWindow*, EventTarget*, int identifier, int pageX, int pageY, int screenX, int screenY, ExceptionCode&) const;
-    PassRefPtr<TouchList> createTouchList(ExceptionCode&) const;
 #endif
 
     const DocumentTiming* timing() const { return &m_documentTiming; }
@@ -1195,6 +1132,8 @@ public:
     int webkitRequestAnimationFrame(PassRefPtr<RequestAnimationFrameCallback>, Element*);
     void webkitCancelRequestAnimationFrame(int id);
     void serviceScriptedAnimations(DOMTimeStamp);
+    void pauseScriptedAnimations();
+    void resumeScriptedAnimations();
 #endif
 
     virtual EventTarget* errorEventTarget();
@@ -1203,14 +1142,14 @@ public:
     void initDNSPrefetch();
 
     ContentSecurityPolicy* contentSecurityPolicy() { return m_contentSecurityPolicy.get(); }
-
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
     PassRefPtr<NodeList> getItems();
     PassRefPtr<NodeList> getItems(const String& typeNames);
     void removeCachedMicroDataItemList(MicroDataItemList*, const String&);
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
+
 protected:
     Document(Frame*, const KURL&, bool isXHTML, bool isHTML);
 
@@ -1253,20 +1192,24 @@ private:
 
     void createStyleSelector();
 
+    void deleteRetiredCustomFonts();
+
     PassRefPtr<NodeList> handleZeroPadding(const HitTestRequest&, HitTestResult&) const;
 
     void loadEventDelayTimerFired(Timer<Document>*);
 
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
     PageVisibilityState visibilityState() const;
 #endif
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
     int m_guardRefCount;
 
     OwnPtr<CSSStyleSelector> m_styleSelector;
     bool m_didCalculateStyleSelector;
     bool m_hasDirtyStyleSelector;
-    
+    Vector<OwnPtr<FontData> > m_retiredCustomFonts;
+
     mutable RefPtr<CSSPrimitiveValueCache> m_cssPrimitiveValueCache;
 
     Frame* m_frame;
@@ -1327,12 +1270,6 @@ private:
     Color m_textColor;
 
     RefPtr<Node> m_focusedNode;
-
-	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-	RefPtr<Node> m_checkNode;
-	bool m_getBackOrForward;
-	//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
-
     RefPtr<Node> m_hoverNode;
     RefPtr<Node> m_activeNode;
     mutable RefPtr<Element> m_documentElement;
@@ -1527,18 +1464,6 @@ private:
 #endif
 
     RefPtr<ContentSecurityPolicy> m_contentSecurityPolicy;
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-public:
-    void addAutoSizingNode(Node *node, float size);
-    void validateAutoSizingNodes();
-    void resetAutoSizingNodes();
-
-private:
-    typedef HashMap<TextAutoSizingKey, RefPtr<TextAutoSizingValue>, TextAutoSizingHash, TextAutoSizingTraits> TextAutoSizingMap;
-    TextAutoSizingMap m_textAutoSizedNodes;
-#endif
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
 };
 
 // Put these methods here, because they require the Document definition, but we really want to inline them.

@@ -211,17 +211,10 @@ GLES2Canvas::GLES2Canvas(SharedGraphicsContext3D* context, DrawingBuffer* drawin
 
 GLES2Canvas::~GLES2Canvas()
 {
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-    if (m_pathIndexBuffer)
-        m_context->deleteBuffer(m_pathIndexBuffer);
-    if (m_pathVertexBuffer)
-        m_context->deleteBuffer(m_pathVertexBuffer);
-#else
     if (m_pathIndexBuffer)
         m_context->graphicsContext3D()->deleteBuffer(m_pathIndexBuffer);
     if (m_pathVertexBuffer)
         m_context->graphicsContext3D()->deleteBuffer(m_pathVertexBuffer);
-#endif	
 }
 
 void GLES2Canvas::bindFramebuffer()
@@ -618,17 +611,10 @@ typedef void (*TESSCB)();
 
 void GLES2Canvas::tesselateAndFillPath(const Path& path, const Color& color)
 {
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-    if (!m_pathVertexBuffer)
-        m_pathVertexBuffer = m_context->createBuffer();
-    if (!m_pathIndexBuffer)
-        m_pathIndexBuffer = m_context->createBuffer();
-#else
     if (!m_pathVertexBuffer)
         m_pathVertexBuffer = m_context->graphicsContext3D()->createBuffer();
     if (!m_pathIndexBuffer)
         m_pathIndexBuffer = m_context->graphicsContext3D()->createBuffer();
-#endif
 
     AffineTransform matrix(m_flipMatrix);
     matrix *= m_state->m_ctm;
@@ -666,17 +652,10 @@ void GLES2Canvas::tesselateAndFillPath(const Path& path, const Color& color)
 #endif
 
     if (contours.size() == 1 && LoopBlinnMathUtils::isConvex(inVertices.begin(), inVertices.size())) {
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)		
-        m_context->bindBuffer(GraphicsContext3D::ARRAY_BUFFER, m_pathVertexBuffer);
-        m_context->bufferData(GraphicsContext3D::ARRAY_BUFFER, inVertices.size() * 2 * sizeof(float), inVertices.data(), GraphicsContext3D::STREAM_DRAW);
-        m_context->useFillSolidProgram(matrix, color);
-        m_context->drawArrays(GraphicsContext3D::TRIANGLE_FAN, 0, inVertices.size());
-#else
         m_context->graphicsContext3D()->bindBuffer(GraphicsContext3D::ARRAY_BUFFER, m_pathVertexBuffer);
         m_context->graphicsContext3D()->bufferData(GraphicsContext3D::ARRAY_BUFFER, inVertices.size() * 2 * sizeof(float), inVertices.data(), GraphicsContext3D::STREAM_DRAW);
         m_context->useFillSolidProgram(matrix, color);
         m_context->graphicsContext3D()->drawArrays(GraphicsContext3D::TRIANGLE_FAN, 0, inVertices.size());
-#endif
         return;
     }
 
@@ -712,20 +691,7 @@ void GLES2Canvas::tesselateAndFillPath(const Path& path, const Color& color)
     }
     internal_gluTessEndPolygon(tess);
     internal_gluDeleteTess(tess);
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-    m_context->bindBuffer(GraphicsContext3D::ARRAY_BUFFER, m_pathVertexBuffer);
-    checkGLError("createVertexBufferFromPath, bindBuffer ARRAY_BUFFER");
-    m_context->bufferData(GraphicsContext3D::ARRAY_BUFFER, vertices.size() * 2 * sizeof(float), vertices.data(), GraphicsContext3D::STREAM_DRAW);
-    checkGLError("createVertexBufferFromPath, bufferData ARRAY_BUFFER");
 
-    m_context->bindBuffer(GraphicsContext3D::ELEMENT_ARRAY_BUFFER, m_pathIndexBuffer);
-    checkGLError("createVertexBufferFromPath, bindBuffer ELEMENT_ARRAY_BUFFER");
-    m_context->bufferData(GraphicsContext3D::ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(short), indices.data(), GraphicsContext3D::STREAM_DRAW);
-    checkGLError("createVertexBufferFromPath, bufferData ELEMENT_ARRAY_BUFFER");
-
-    m_context->useFillSolidProgram(matrix, color);
-    m_context->drawElements(GraphicsContext3D::TRIANGLES, indices.size(), GraphicsContext3D::UNSIGNED_SHORT, 0);
-#else
     m_context->graphicsContext3D()->bindBuffer(GraphicsContext3D::ARRAY_BUFFER, m_pathVertexBuffer);
     checkGLError("createVertexBufferFromPath, bindBuffer ARRAY_BUFFER");
     m_context->graphicsContext3D()->bufferData(GraphicsContext3D::ARRAY_BUFFER, vertices.size() * 2 * sizeof(float), vertices.data(), GraphicsContext3D::STREAM_DRAW);
@@ -738,7 +704,6 @@ void GLES2Canvas::tesselateAndFillPath(const Path& path, const Color& color)
 
     m_context->useFillSolidProgram(matrix, color);
     m_context->graphicsContext3D()->drawElements(GraphicsContext3D::TRIANGLES, indices.size(), GraphicsContext3D::UNSIGNED_SHORT, 0);
-#endif
 }
 
 void GLES2Canvas::fillPathInternal(const Path& path, const Color& color)
@@ -909,19 +874,11 @@ void GLES2Canvas::beginStencilDraw(unsigned op)
     checkGLError("enable STENCIL_TEST");
 
     // Stencil test never passes, so colorbuffer is not drawn.
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-    m_context->stencilFunc(GraphicsContext3D::NEVER, 1, 1);
-#else
     m_context->graphicsContext3D()->stencilFunc(GraphicsContext3D::NEVER, 1, 1);
-#endif
     checkGLError("stencilFunc");
 
     // All writes incremement the stencil buffer.
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)    
-    m_context->stencilOp(op, op, op);
-#else
     m_context->graphicsContext3D()->stencilOp(op, op, op);
-#endif
     checkGLError("stencilOp");
 }
 
@@ -930,23 +887,12 @@ void GLES2Canvas::applyClipping(bool enable)
     m_context->enableStencil(enable);
     if (enable) {
         // Enable drawing only where stencil is non-zero.
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)        
-        m_context->stencilFunc(GraphicsContext3D::EQUAL, m_state->m_numClippingPaths, -1);
-#else
-       m_context->graphicsContext3D()->stencilFunc(GraphicsContext3D::EQUAL, m_state->m_numClippingPaths, -1);
-#endif
+        m_context->graphicsContext3D()->stencilFunc(GraphicsContext3D::EQUAL, m_state->m_numClippingPaths, -1);
         checkGLError("stencilFunc");
         // Keep all stencil values the same.
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)        
-        m_context->stencilOp(GraphicsContext3D::KEEP,
+        m_context->graphicsContext3D()->stencilOp(GraphicsContext3D::KEEP,
                                                   GraphicsContext3D::KEEP,
                                                   GraphicsContext3D::KEEP);
-#else
-       m_context->graphicsContext3D()->stencilOp(GraphicsContext3D::KEEP,
-                                                  GraphicsContext3D::KEEP,
-                                                  GraphicsContext3D::KEEP);
-
-#endif
         checkGLError("stencilOp");
     }
 }

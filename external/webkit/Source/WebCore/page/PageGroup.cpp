@@ -354,6 +354,16 @@ StorageNamespace* PageGroup::localStorage()
 
 #endif
 
+// Samsung Change - HTML5 FileSystem API	>>
+#if ENABLE(FILE_SYSTEM)
+unsigned PageGroup::fileSystemStorage()
+{
+    unsigned quota = m_groupSettings->fileSystemQuotaBytes();
+    return quota;
+}
+
+#endif
+// Samsung Change - HTML5 FileSystem API	<<
 #if ENABLE(INDEXED_DATABASE)
 IDBFactoryBackendInterface* PageGroup::idbFactory()
 {

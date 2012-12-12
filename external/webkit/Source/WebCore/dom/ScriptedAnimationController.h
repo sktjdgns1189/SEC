@@ -36,7 +36,6 @@
 #if USE(REQUEST_ANIMATION_FRAME_TIMER) //SISO CHANGES ANIMATION
 #include "Timer.h"
 #endif
-
 namespace WebCore {
 
 class Document;
@@ -65,7 +64,7 @@ private:
     typedef Vector<RefPtr<RequestAnimationFrameCallback> > CallbackList;
     CallbackList m_callbacks;
 
-//SISO CHANGES ANIMATION << 
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION <<
     void scheduleAnimation();
 #if USE(REQUEST_ANIMATION_FRAME_TIMER)
     void animationTimerFired(Timer<ScriptedAnimationController>*);
@@ -73,7 +72,7 @@ private:
     double m_lastAnimationFrameTime;
 
 #endif
-//SISO CHANGES ANIMATION >>
+//SAMSUNG CHANGES HTML5 REQUEST ANIMATION >>
     Document* m_document;
     CallbackId m_nextCallbackId;
     int m_suspendCount;

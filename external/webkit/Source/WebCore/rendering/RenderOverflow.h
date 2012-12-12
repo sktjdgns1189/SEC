@@ -58,10 +58,6 @@ public:
     int maxXLayoutOverflow() const { return m_maxXLayoutOverflow; }
     IntRect layoutOverflowRect() const;
 
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-	 IntRect visibleOverflowRect() const;
-#endif
-
     int minYVisualOverflow() const { return m_minYVisualOverflow; }
     int maxYVisualOverflow() const { return m_maxYVisualOverflow; }
     int minXVisualOverflow() const { return m_minXVisualOverflow; }

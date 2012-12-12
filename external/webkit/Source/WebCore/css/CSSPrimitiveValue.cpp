@@ -46,7 +46,18 @@
 
 using namespace WTF;
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
+static inline bool isValidCSSUnitTypeForDoubleConversion(CSSPrimitiveValue::UnitTypes unitType)
+{
+    switch (unitType) {
+    case CSSPrimitiveValue:: CSS_QUAD:
+        return false;
+    }
+    ASSERT_NOT_REACHED();
+    return false;
+}
 
 static CSSPrimitiveValue::UnitCategory unitCategory(CSSPrimitiveValue::UnitTypes type)
 {
@@ -222,6 +233,13 @@ void CSSPrimitiveValue::init(PassRefPtr<Rect> r)
     m_value.rect = r.releaseRef();
 }
 
+void CSSPrimitiveValue::init(PassRefPtr<Quad> quad)
+{
+    m_type = CSS_QUAD;
+    m_hasCachedCSSText = false;
+    m_value.quad = quad.releaseRef();
+}
+
 #if ENABLE(DASHBOARD_SUPPORT)
 void CSSPrimitiveValue::init(PassRefPtr<DashboardRegion> r)
 {
@@ -259,6 +277,9 @@ void CSSPrimitiveValue::cleanup()
         case CSS_RECT:
             m_value.rect->deref();
             break;
+        case CSS_QUAD:
+            m_value.quad->deref();
+            break;
         case CSS_PAIR:
             m_value.pair->deref();
             break;
@@ -279,46 +300,36 @@ void CSSPrimitiveValue::cleanup()
     }
 }
 
-int CSSPrimitiveValue::computeLengthInt(RenderStyle* style, RenderStyle* rootStyle)
+template<> int CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<int, INT_MAX, INT_MIN>(computeLengthDouble(style, rootStyle));
-}
-
-int CSSPrimitiveValue::computeLengthInt(RenderStyle* style, RenderStyle* rootStyle, double multiplier)
-{
-    return roundForImpreciseConversion<int, INT_MAX, INT_MIN>(computeLengthDouble(style, rootStyle, multiplier));
+    return roundForImpreciseConversion<int, INT_MAX, INT_MIN>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
 }
 
 // Lengths expect an int that is only 28-bits, so we have to check for a
 // different overflow.
-int CSSPrimitiveValue::computeLengthIntForLength(RenderStyle* style, RenderStyle* rootStyle)
+int CSSPrimitiveValue::computeLengthIntForLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<int, intMaxForLength, intMinForLength>(computeLengthDouble(style, rootStyle));
+    return roundForImpreciseConversion<int, intMaxForLength, intMinForLength>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
 }
 
-int CSSPrimitiveValue::computeLengthIntForLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier)
+template<> Length CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<int, intMaxForLength, intMinForLength>(computeLengthDouble(style, rootStyle, multiplier));
+    return Length(computeLengthIntForLength(style, rootStyle, multiplier, computingFontSize), Fixed);
 }
 
-short CSSPrimitiveValue::computeLengthShort(RenderStyle* style, RenderStyle* rootStyle)
+template<> short CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<short, SHRT_MAX, SHRT_MIN>(computeLengthDouble(style, rootStyle));
+    return roundForImpreciseConversion<short, SHRT_MAX, SHRT_MIN>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
 }
 
-short CSSPrimitiveValue::computeLengthShort(RenderStyle* style, RenderStyle* rootStyle, double multiplier)
-{
-    return roundForImpreciseConversion<short, SHRT_MAX, SHRT_MIN>(computeLengthDouble(style, rootStyle, multiplier));
-}
-
-float CSSPrimitiveValue::computeLengthFloat(RenderStyle* style, RenderStyle* rootStyle, bool computingFontSize)
-{
-    return static_cast<float>(computeLengthDouble(style, rootStyle, 1.0, computingFontSize));
-}
-
-float CSSPrimitiveValue::computeLengthFloat(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
+template<> float CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
 {
     return static_cast<float>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
+}
+
+template<> double CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
+{
+    return computeLengthDouble(style, rootStyle, multiplier, computingFontSize);
 }
 
 double CSSPrimitiveValue::computeLengthDouble(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
@@ -346,7 +357,8 @@ double CSSPrimitiveValue::computeLengthDouble(RenderStyle* style, RenderStyle* r
             break;
         case CSS_REMS:
             applyZoomMultiplier = false;
-            factor = computingFontSize ? rootStyle->fontDescription().specifiedSize() : rootStyle->fontDescription().computedSize();
+            if (rootStyle)
+                factor = computingFontSize ? rootStyle->fontDescription().specifiedSize() : rootStyle->fontDescription().computedSize();
             break;
         case CSS_PX:
             break;
@@ -591,6 +603,17 @@ Rect* CSSPrimitiveValue::getRectValue(ExceptionCode& ec) const
     return m_value.rect;
 }
 
+Quad* CSSPrimitiveValue::getQuadValue(ExceptionCode& ec) const
+{
+    ec = 0;
+    if (m_type != CSS_QUAD) {
+        ec = INVALID_ACCESS_ERR;
+        return 0;
+    }
+
+    return m_value.quad;
+}
+
 PassRefPtr<RGBColor> CSSPrimitiveValue::getRGBColorValue(ExceptionCode& ec) const
 {
     ec = 0;
@@ -775,6 +798,26 @@ String CSSPrimitiveValue::cssText() const
             text = String::adopt(result);
             break;
         }
+        case CSS_QUAD: {
+            Quad* quadVal = getQuadValue();
+            Vector<UChar> result;
+            result.reserveInitialCapacity(32);
+            append(result, quadVal->top()->cssText());
+            if (quadVal->right() != quadVal->top() || quadVal->bottom() != quadVal->top() || quadVal->left() != quadVal->top()) {
+                result.append(' ');
+                append(result, quadVal->right()->cssText());
+                if (quadVal->bottom() != quadVal->top() || quadVal->right() != quadVal->left()) {
+                    result.append(' ');
+                    append(result, quadVal->bottom()->cssText());
+                    if (quadVal->left() != quadVal->right()) {
+                        result.append(' ');
+                        append(result, quadVal->left()->cssText());
+                    }
+                }
+            }
+            text = String::adopt(result);
+            break;
+        }
         case CSS_RGBCOLOR:
         case CSS_PARSER_HEXCOLOR: {
             DEFINE_STATIC_LOCAL(const String, commaSpace, (", "));
@@ -811,8 +854,10 @@ String CSSPrimitiveValue::cssText() const
         }
         case CSS_PAIR:
             text = m_value.pair->first()->cssText();
-            text += " ";
-            text += m_value.pair->second()->cssText();
+            if (m_value.pair->second() != m_value.pair->first()) {
+                text += " ";
+                text += m_value.pair->second()->cssText();
+            }
             break;
 #if ENABLE(DASHBOARD_SUPPORT)
         case CSS_DASHBOARD_REGION:

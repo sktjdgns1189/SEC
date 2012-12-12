@@ -1,6 +1,5 @@
 ##
 ## Copyright 2009, The Android Open Source Project
-## Copyright (C) 2011, Sony Ericsson Mobile Communications AB
 ##
 ## Redistribution and use in source and binary forms, with or without
 ## modification, are permitted provided that the following conditions
@@ -24,23 +23,13 @@
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
 
-# Define common C flag for VZW_LTE
-ifeq ($(TARGET_PRODUCT),SCH-I815)
-	LOCAL_CFLAGS += -DVZW_LTE
-endif
-
-# Define common C flag for SEA devices
-ifeq ($(X_BUILD_LOCALE),SEA_OPEN)
-	LOCAL_CFLAGS += -DFEATURE_SEA_OPEN
-endif
-
-
 LOCAL_SRC_FILES := \
 	bindings/generic/ActiveDOMCallback.cpp \
 	bindings/generic/BindingSecurityBase.cpp \
 	bindings/generic/RuntimeEnabledFeatures.cpp \
 	\
 	css/CSSBorderImageValue.cpp \
+        css/CSSBorderImageSliceValue.cpp \
 	css/CSSCanvasValue.cpp \
 	css/CSSCharsetRule.cpp \
 	css/CSSComputedStyleDeclaration.cpp \
@@ -139,6 +128,7 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	dom/DOMImplementation.cpp \
 	dom/DOMStringList.cpp \
 	dom/DOMStringMap.cpp \
+	dom/DOMTextContentWalker.cpp \
 	dom/DatasetDOMStringMap.cpp \
 	dom/DecodedDataDocumentParser.cpp \
 	dom/DeviceMotionController.cpp \
@@ -403,6 +393,7 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	\
 	html/canvas/ArrayBuffer.cpp \
 	html/canvas/ArrayBufferView.cpp \
+	html/canvas/CanvasContextAttributes.cpp \
 	html/canvas/CanvasGradient.cpp \
 	html/canvas/CanvasPattern.cpp \
 	html/canvas/CanvasPixelArray.cpp \
@@ -415,34 +406,28 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	html/canvas/Int16Array.cpp \
 	html/canvas/Int32Array.cpp \
 	html/canvas/Int8Array.cpp \
+	html/canvas/OESStandardDerivatives.cpp \
 	html/canvas/OESTextureFloat.cpp \
 	html/canvas/OESVertexArrayObject.cpp \
 	html/canvas/Uint16Array.cpp \
 	html/canvas/Uint32Array.cpp \
 	html/canvas/Uint8Array.cpp \
-	html/canvas/WebGLExtension.cpp \
-	html/canvas/WebGLObject.cpp \
-	html/canvas/WebGLVertexArrayObjectOES.cpp
-
-ifeq ($(ENABLE_WEBGL), true)
-LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
-	html/canvas/CanvasContextAttributes.cpp \
-	html/canvas/OESStandardDerivatives.cpp \
 	html/canvas/WebGLBuffer.cpp \
 	html/canvas/WebGLContextAttributes.cpp \
 	html/canvas/WebGLContextEvent.cpp \
+	html/canvas/WebGLExtension.cpp \
 	html/canvas/WebGLFramebuffer.cpp \
 	html/canvas/WebGLGetInfo.cpp \
+	html/canvas/WebGLObject.cpp \
 	html/canvas/WebGLProgram.cpp \
 	html/canvas/WebGLRenderbuffer.cpp \
 	html/canvas/WebGLRenderingContext.cpp \
 	html/canvas/WebGLShader.cpp \
 	html/canvas/WebGLTexture.cpp \
 	html/canvas/WebGLUniformLocation.cpp \
-	html/canvas/WebKitLoseContext.cpp
-endif
-
-LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
+	html/canvas/WebGLVertexArrayObjectOES.cpp \
+	html/canvas/WebKitLoseContext.cpp \
+	\
 	html/parser/HTMLConstructionSite.cpp \
 	html/parser/HTMLDocumentParser.cpp \
 	html/parser/HTMLElementStack.cpp \
@@ -675,6 +660,7 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	platform/graphics/GlyphPageTreeNode.cpp \
 	platform/graphics/Gradient.cpp \
 	platform/graphics/GraphicsContext.cpp \
+	platform/graphics/GraphicsContext3D.cpp \
 	platform/graphics/GraphicsLayer.cpp \
 	platform/graphics/GraphicsTypes.cpp \
 	platform/graphics/Image.cpp \
@@ -691,107 +677,81 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	platform/graphics/WidthIterator.cpp \
 	platform/graphics/WOFFFileFormat.cpp \
 	\
-	platform/graphics/android/AndroidAnimation.cpp \
-	platform/graphics/android/BaseLayerAndroid.cpp \
-	platform/graphics/android/BaseRenderer.cpp \
-	platform/graphics/android/BaseTile.cpp \
-	platform/graphics/android/BaseTileTexture.cpp \
 	platform/graphics/android/BitmapAllocatorAndroid.cpp \
-	platform/graphics/android/ClassTracker.cpp \
-	platform/graphics/android/DoubleBufferedTexture.cpp \
-	platform/graphics/android/FontAndroid.cpp \
-	platform/graphics/android/FontCacheAndroid.cpp \
-	platform/graphics/android/FontCustomPlatformData.cpp \
-	platform/graphics/android/FontDataAndroid.cpp \
-	platform/graphics/android/FontPlatformDataAndroid.cpp \
-	platform/graphics/android/GaneshContext.cpp \
-	platform/graphics/android/GaneshRenderer.cpp \
-	platform/graphics/android/GLExtras.cpp \
-	platform/graphics/android/GLUtils.cpp \
-	platform/graphics/android/GLWebViewState.cpp \
-	platform/graphics/android/GlyphMapAndroid.cpp \
-	platform/graphics/android/GradientAndroid.cpp \
-	platform/graphics/android/GraphicsContextAndroid.cpp \
+	platform/graphics/android/Extensions3DAndroid.cpp \
 	platform/graphics/android/GraphicsLayerAndroid.cpp \
+	platform/graphics/android/GLWebViewState.cpp \
 	platform/graphics/android/ImageAndroid.cpp \
 	platform/graphics/android/ImageBufferAndroid.cpp \
 	platform/graphics/android/ImageSourceAndroid.cpp \
-	platform/graphics/android/ImagesManager.cpp \
-	platform/graphics/android/ImageTexture.cpp \
-	platform/graphics/android/Layer.cpp \
-	platform/graphics/android/LayerAndroid.cpp \
-	platform/graphics/android/MediaLayer.cpp \
-	platform/graphics/android/MediaTexture.cpp \
-	platform/graphics/android/PaintTileOperation.cpp \
-	platform/graphics/android/PaintedSurface.cpp \
 	platform/graphics/android/PathAndroid.cpp \
 	platform/graphics/android/PatternAndroid.cpp \
-	platform/graphics/android/PlatformGraphicsContext.cpp \
-	platform/graphics/android/PerformanceMonitor.cpp \
-	platform/graphics/android/RasterRenderer.cpp \
-	platform/graphics/android/ScrollableLayerAndroid.cpp \
 	platform/graphics/android/SharedBufferStream.cpp \
-	platform/graphics/android/ShaderProgram.cpp \
-	platform/graphics/android/SharedTexture.cpp \
-	platform/graphics/android/TextureInfo.cpp \
-	platform/graphics/android/TexturesGenerator.cpp \
-	platform/graphics/android/TilesManager.cpp \
-	platform/graphics/android/TilesProfiler.cpp \
-	platform/graphics/android/TiledPage.cpp \
-	platform/graphics/android/TiledTexture.cpp \
-	platform/graphics/android/TransferQueue.cpp \
-	platform/graphics/android/TreeManager.cpp \
-	platform/graphics/android/VerticalTextMap.cpp \
-	platform/graphics/android/VideoLayerAndroid.cpp \
-	platform/graphics/android/VideoLayerManager.cpp \
-	platform/graphics/android/ZoomManager.cpp \
-	platform/graphics/android/android_graphics.cpp \
-	platform/graphics/android/CanvasLayerAndroid.cpp \
-	platform/graphics/android/CanvasLayerShader.cpp
+	\
+	platform/graphics/android/context/GraphicsContextAndroid.cpp \
+	platform/graphics/android/context/GraphicsContext3DAndroid.cpp \
+	platform/graphics/android/context/GraphicsContext3DInternal.cpp \
+	platform/graphics/android/context/GraphicsContext3DProxy.cpp \
+	platform/graphics/android/context/GraphicsOperationCollection.cpp \
+	platform/graphics/android/context/PlatformGraphicsContext.cpp \
+	platform/graphics/android/PlatformWebGLTexture.cpp \
+	platform/graphics/android/context/PlatformGraphicsContextRecording.cpp \
+	platform/graphics/android/context/PlatformGraphicsContextSkia.cpp \
+	\
+	platform/graphics/android/fonts/FontAndroid.cpp \
+	platform/graphics/android/fonts/FontCacheAndroid.cpp \
+	platform/graphics/android/fonts/FontCustomPlatformData.cpp \
+	platform/graphics/android/fonts/FontDataAndroid.cpp \
+	platform/graphics/android/fonts/FontPlatformDataAndroid.cpp \
+	platform/graphics/android/fonts/GlyphMapAndroid.cpp \
+	platform/graphics/android/fonts/ThaiReshaperWebkit.cpp \
+	platform/graphics/android/fonts/VerticalTextMap.cpp \
+	\
+	platform/graphics/android/layers/AndroidAnimation.cpp \
+	platform/graphics/android/layers/BaseLayerAndroid.cpp \
+	platform/graphics/android/layers/CanvasLayer.cpp \
+	platform/graphics/android/layers/CanvasTexture.cpp \
+	platform/graphics/android/layers/DumpLayer.cpp \
+	platform/graphics/android/layers/FixedPositioning.cpp \
+	platform/graphics/android/layers/IFrameContentLayerAndroid.cpp \
+	platform/graphics/android/layers/IFrameLayerAndroid.cpp \
+	platform/graphics/android/layers/Layer.cpp \
+	platform/graphics/android/layers/LayerAndroid.cpp \
+	platform/graphics/android/layers/MediaLayer.cpp \
+	platform/graphics/android/layers/MediaTexture.cpp \
+	platform/graphics/android/layers/PictureLayerContent.cpp \
+	platform/graphics/android/layers/PicturePileLayerContent.cpp \
+	platform/graphics/android/layers/ScrollableLayerAndroid.cpp \
+	platform/graphics/android/layers/VideoLayerAndroid.cpp \
+	platform/graphics/android/layers/VideoLayerManager.cpp \
+	platform/graphics/android/layers/WebGLLayer.cpp \
+	\
+	platform/graphics/android/rendering/BaseRenderer.cpp \
+	platform/graphics/android/rendering/GaneshContext.cpp \
+	platform/graphics/android/rendering/GaneshRenderer.cpp \
+	platform/graphics/android/rendering/GLExtras.cpp \
+	platform/graphics/android/rendering/GLUtils.cpp \
+	platform/graphics/android/rendering/ImagesManager.cpp \
+	platform/graphics/android/rendering/ImageTexture.cpp \
+	platform/graphics/android/rendering/InspectorCanvas.cpp \
+	platform/graphics/android/rendering/PaintTileOperation.cpp \
+	platform/graphics/android/rendering/RasterRenderer.cpp \
+	platform/graphics/android/rendering/ShaderProgram.cpp \
+	platform/graphics/android/rendering/Surface.cpp \
+	platform/graphics/android/rendering/SurfaceBacking.cpp \
+	platform/graphics/android/rendering/SurfaceCollection.cpp \
+	platform/graphics/android/rendering/SurfaceCollectionManager.cpp \
+	platform/graphics/android/rendering/TextureInfo.cpp \
+	platform/graphics/android/rendering/TexturesGenerator.cpp \
+	platform/graphics/android/rendering/Tile.cpp \
+	platform/graphics/android/rendering/TileGrid.cpp \
+	platform/graphics/android/rendering/TileTexture.cpp \
+	platform/graphics/android/rendering/TilesManager.cpp \
+	platform/graphics/android/rendering/TilesProfiler.cpp \
+	platform/graphics/android/rendering/TransferQueue.cpp \
+	\
+	platform/graphics/android/utils/ClassTracker.cpp
 
-ifeq ($(ENABLE_WEBGL), true)
-LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
-	platform/graphics/ANGLEWebKitBridge.cpp \
-	platform/graphics/GraphicsContext3D.cpp \
-	platform/graphics/android/Extensions3DAndroid.cpp \
-	platform/graphics/android/GraphicsContext3DAndroid.cpp \
-	platform/graphics/android/GraphicsContext3DInternal.cpp \
-	platform/graphics/android/GraphicsContext3DProxy.cpp \
-	platform/graphics/gpu/DrawingBuffer.cpp \
-	platform/graphics/android/WebGLLayer.cpp \
-	platform/image-decoders/png/PNGImageDecoder.cpp
-endif
-
-ifeq ($(ENABLE_ACCELERATED_2D_CANVAS), true)
-LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
-	platform/graphics/gpu/SharedGraphicsContext3D.cpp \
-	platform/graphics/gpu/Shader.cpp \
-	platform/graphics/gpu/Texture.cpp \
-	platform/graphics/gpu/SolidFillShader.cpp \
-	platform/graphics/gpu/TexShader.cpp \
-	platform/graphics/gpu/BicubicShader.cpp \
-	platform/graphics/gpu/ConvolutionShader.cpp \
-	platform/graphics/gpu/LoopBlinnSolidFillShader.cpp \
-	platform/graphics/gpu/TilingData.cpp \
-	platform/graphics/gpu/LoopBlinnShader.cpp \
-	platform/graphics/gpu/LoopBlinnPathCache.cpp \
-	platform/graphics/gpu/LoopBlinnPathProcessor.cpp \
-	platform/graphics/gpu/LoopBlinnMathUtils.cpp \
-	platform/graphics/gpu/LoopBlinnLocalTriangulator.cpp \
-	platform/graphics/gpu/LoopBlinnClassifier.cpp \
-	platform/graphics/gpu/LoopBlinnTextureCoords.cpp \
-	platform/graphics/chromium/GLES2Canvas.cpp \
-	thirdparty/glu/libtess/dict.c \
-	thirdparty/glu/libtess/geom.c \
-	thirdparty/glu/libtess/memalloc.c \
-	thirdparty/glu/libtess/mesh.c \
-	thirdparty/glu/libtess/normal.c \
-	thirdparty/glu/libtess/priorityq.c \
-	thirdparty/glu/libtess/render.c \
-	thirdparty/glu/libtess/sweep.c \
-	thirdparty/glu/libtess/tess.c \
-	thirdparty/glu/libtess/tessmono.c 
-endif
 ifeq ($(ENABLE_SVG), true)
 LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	platform/graphics/filters/DistantLightSource.cpp \
@@ -818,6 +778,7 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	platform/graphics/skia/FloatPointSkia.cpp \
 	platform/graphics/skia/FloatRectSkia.cpp \
 	platform/graphics/skia/GlyphPageTreeNodeSkia.cpp \
+	platform/graphics/skia/GradientSkia.cpp \
 	platform/graphics/skia/IntPointSkia.cpp \
 	platform/graphics/skia/IntRectSkia.cpp \
 	platform/graphics/skia/NativeImageSkia.cpp \
@@ -918,6 +879,7 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	plugins/DOMPluginArray.cpp \
 	plugins/PluginData.cpp \
 	plugins/PluginDatabase.cpp \
+	plugins/PluginDebug.cpp \
 	plugins/PluginMainThreadScheduler.cpp \
 	plugins/PluginPackage.cpp \
 	plugins/PluginStream.cpp \
@@ -1064,7 +1026,7 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	rendering/RenderWidget.cpp \
 	rendering/RenderWordBreak.cpp \
 	rendering/RootInlineBox.cpp \
-	rendering/BidiCheck.cpp \	
+	rendering/BidiCheck.cpp \
 
 LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	rendering/ScrollBehavior.cpp \
@@ -1417,97 +1379,9 @@ LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
 	websockets/WebSocketHandshakeResponse.cpp \
 	websockets/ThreadableWebSocketChannel.cpp \
 	websockets/WorkerThreadableWebSocketChannel.cpp
-
-# for att operator
-ifeq ($(SEC_PROJECT_REGION_OPERATOR),U1_USA_ATT)	
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_USA_U1_ATT    	
-
-else ifeq ($(SEC_PROJECT_REGION_OPERATOR),CELOX_USA_ATT)	
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_USA_CELOX_ATT    	
-else ifeq ($(SEC_PROJECT_REGION_OPERATOR),CELOX_USA_TMO)	
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_USA_CELOX_TMO    	
-else ifeq ($(SEC_PROJECT_REGION_OPERATOR),P5LTE_USA_ATT)	
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_USA_P5LTE_ATT    	
-else ifeq ($(SEC_PROJECT_REGION_OPERATOR),Q1_USA_ATT)	
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_USA_Q1_ATT    	
-else ifeq ($(SEC_PROJECT_REGION_OPERATOR),Q1_USA_TMO)	
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_USA_Q1_TMO    	
-else ifeq ($(SEC_PROJECT_REGION_OPERATOR),N1_USA_ATT)	
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-    	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_USA_N1_ATT    
-else ifeq ($(SEC_PROJECT_REGION_OPERATOR),U1_EUR_OPEN)
-    ifeq ($(X_BUILD_LOCALE),EUR_ORG)        
-	LOCAL_C_INCLUDES += \
-	vendor/samsung/feature/CscFeature/libsecnativefeature  \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature//TN_EUR_U1_ORG
-    else ifeq ($(X_BUILD_LOCALE),EUR_TMO)        
-	LOCAL_C_INCLUDES += \
-	vendor/samsung/feature/CscFeature/libsecnativefeature  \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature//TN_EUR_U1_TMO
-
-    else ifeq ($(X_BUILD_LOCALE),EUR_VODA)        
-	LOCAL_C_INCLUDES += \
-	vendor/samsung/feature/CscFeature/libsecnativefeature  \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature//TN_EUR_U1_VODA
-    else ifeq ($(X_BUILD_LOCALE),EUR_XEC)        
-	LOCAL_C_INCLUDES += \
-	vendor/samsung/feature/CscFeature/libsecnativefeature  \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature//TN_EUR_U1_XEC
-
-    else
-	LOCAL_C_INCLUDES += \
-	vendor/samsung/feature/CscFeature/libsecnativefeature  \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_DEFAULT
-
-    endif
-else
-LOCAL_C_INCLUDES += \
-      vendor/samsung/feature/CscFeature/libsecnativefeature  \
-      vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-      vendor/samsung/common/frameworks/FEATURE/libsecnativefeature/TN_DEFAULT
-endif 
-
-#latin_browser:sm0827.park:120216:Apply Latin UAP
-ifeq ($(LTN_BUILD_LOCALE),LTN)
-	LOCAL_C_INCLUDES += \
-	vendor/samsung/feature/CscFeature/libsecnativefeature  \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature   \
-	vendor/samsung/common/frameworks/FEATURE/libsecnativefeature//TN_LTN_COMM
-endif
-
-ifeq ($(PROJECT_NAME),m0)
-LOCAL_CFLAGS += -DFEATURE_COMMON_M0
-endif
-
-#latin_browser:mc.son:120208:Apply Latin Seine UAP
-     
+	
 # For complex scripts(Arabic, Thai, Hindi...).
 ifeq ($(SUPPORT_COMPLEX_SCRIPTS),true)
 LOCAL_SRC_FILES := $(LOCAL_SRC_FILES) \
-	platform/graphics/android/HarfbuzzSkia.cpp
+	platform/graphics/android/fonts/HarfbuzzSkia.cpp
 endif

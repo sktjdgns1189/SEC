@@ -30,6 +30,7 @@
 #include "MainThread.h"
 #include "UrlInterceptResponse.h"
 #include "WebCoreFrameBridge.h"
+#include "WebCoreJni.h"
 #include "WebRequestContext.h"
 #include "WebResourceRequest.h"
 #include "WebUrlLoaderClient.h"
@@ -42,9 +43,12 @@
 #include <cutils/log.h>
 #include <openssl/x509.h>
 #include <string>
-#include <utils/AssetManager.h>
+#include <androidfw/AssetManager.h>
 
 extern android::AssetManager* globalAssetManager();
+
+// SAMSUNG CHANGE : reduce events in main thread
+#define _USE_SAMSUNG_PERFORMANCE_IMPROVE_ 0
 //SAMSUNG_CHANGES >>
 #define TYPE_ATOM "application/atom+xml"
 #define TYPE_RDF  "application/rdf+xml"
@@ -54,6 +58,12 @@ extern android::AssetManager* globalAssetManager();
 #define TYPE_APPLICATION_XML "application/xml"
 #define HTTP_OK 200
 //SAMSUNG_CHANGES <<
+// SAMSUNG CHANGES : add_network_log >>
+#define LOG_NDEBUG 1
+#include <utils/Log.h>
+static bool gbNetworkLogEnabled = false;
+#define LOGIFDEBUG(...) if (gbNetworkLogEnabled) __android_log_print(ANDROID_LOG_VERBOSE,"WebRequest",__VA_ARGS__);
+// SAMSUNG CHANGES : add_network_log <<
 
 // TODO:
 // - Finish the file upload. Testcase is mobile buzz
@@ -71,12 +81,35 @@ while (0)
 namespace android {
 
 namespace {
-    const int kInitialReadBufSize = 32768;
+// SAMSUNG CHANGE : reduce events in main thread
+#if _USE_SAMSUNG_PERFORMANCE_IMPROVE_
+const int kInitialReadBufSize = 32768;
+const int kSendDataReceivedEventThreshold = 16384; // 16KB
+#else
+const int kInitialReadBufSize = 32768;
+#endif
+// SAMSUNG CHANGE : reduce events in main thread
+const char* kXRequestedWithHeader = "X-Requested-With";
+
+struct RequestPackageName {
+    std::string value;
+    RequestPackageName();
+};
+
+RequestPackageName::RequestPackageName() {
+    JNIEnv* env = JSC::Bindings::getJNIEnv();
+    jclass bridgeClass = env->FindClass("android/webkit/JniUtil");
+    jmethodID method = env->GetStaticMethodID(bridgeClass, "getPackageName", "()Ljava/lang/String;");
+    value = jstringToStdString(env, static_cast<jstring>(env->CallStaticObjectMethod(bridgeClass, method)));
+    env->DeleteLocalRef(bridgeClass);
+}
+
+base::LazyInstance<RequestPackageName> s_packageName(base::LINKER_INITIALIZED);
+
 }
 
 WebRequest::WebRequest(WebUrlLoaderClient* loader, const WebResourceRequest& webResourceRequest)
     : m_urlLoader(loader)
-    , m_androidUrl(false)
     , m_url(webResourceRequest.url())
     , m_userAgent(webResourceRequest.userAgent())
     , m_loadState(Created)
@@ -85,29 +118,35 @@ WebRequest::WebRequest(WebUrlLoaderClient* loader, const WebResourceRequest& web
     , m_runnableFactory(this)
     , m_wantToPause(false)
     , m_isPaused(false)
-	//SAMSUNG_CHANGES >>
+    //SAMSUNG_CHANGES >>
     , m_ShouldSniffFeed(false)
     , m_isMainResource(false)
-	, m_isMainFrame(false)
-	//SAMSUNG_CHANGES <<
+    , m_isMainFrame(false)
+    //SAMSUNG_CHANGES <<
     , m_isSync(false)
+    // SAMSUNG CHANGE : reduce events in main thread
+    , m_BytesInBuffer(0)
+    , m_stockedCounter(0)
 {
     GURL gurl(m_url);
 
     m_request = new net::URLRequest(gurl, this);
 
     m_request->SetExtraRequestHeaders(webResourceRequest.requestHeaders());
+// SAMSUNG CHANGE: disabling sending X-Requested-with header.
+//    m_request->SetExtraRequestHeaderByName(kXRequestedWithHeader, s_packageName.Get().value, false);
+// SAMSUNG CHANGE
     m_request->set_referrer(webResourceRequest.referrer());
     m_request->set_method(webResourceRequest.method());
     m_request->set_load_flags(webResourceRequest.loadFlags());
-	//SAMSUNG_CHANGES >>
-	WebCore::Settings* settings = m_urlLoader->frame()->page()?m_urlLoader->frame()->page()->settings():NULL;
+    //SAMSUNG_CHANGES >>
+    WebCore::Settings* settings = m_urlLoader->frame()->page()?m_urlLoader->frame()->page()->settings():NULL;
     if(settings){
     	m_rssSniffingEnabled = settings->rssSniffingEnabled();
     } else {
-		m_rssSniffingEnabled = false;
-	}
-	//SAMSUNG_CHANGES <<
+        m_rssSniffingEnabled = false;
+    }
+    //SAMSUNG_CHANGES <<
 }
 
 // This is a special URL for Android. Query the Java InputStream
@@ -115,7 +154,6 @@ WebRequest::WebRequest(WebUrlLoaderClient* loader, const WebResourceRequest& web
 WebRequest::WebRequest(WebUrlLoaderClient* loader, const WebResourceRequest& webResourceRequest, UrlInterceptResponse* intercept)
     : m_urlLoader(loader)
     , m_interceptResponse(intercept)
-    , m_androidUrl(true)
     , m_url(webResourceRequest.url())
     , m_userAgent(webResourceRequest.userAgent())
     , m_loadState(Created)
@@ -124,21 +162,24 @@ WebRequest::WebRequest(WebUrlLoaderClient* loader, const WebResourceRequest& web
     , m_runnableFactory(this)
     , m_wantToPause(false)
     , m_isPaused(false)
-	//SAMSUNG_CHANGES >>
+    //SAMSUNG_CHANGES >>
     , m_ShouldSniffFeed(false)
     , m_isMainResource(false)
-	, m_isMainFrame(false)
-	//SAMSUNG_CHANGES <<
+    , m_isMainFrame(false)
+    //SAMSUNG_CHANGES <<
     , m_isSync(false)
+    // SAMSUNG CHANGE : reduce events in main thread
+    , m_BytesInBuffer(0)
+    , m_stockedCounter(0)
 {
-	//SAMSUNG_CHANGES >>
-	WebCore::Settings* settings = m_urlLoader->frame()->page()?m_urlLoader->frame()->page()->settings():NULL;
+    //SAMSUNG_CHANGES >>
+    WebCore::Settings* settings = m_urlLoader->frame()->page()?m_urlLoader->frame()->page()->settings():NULL;
     if(settings){
     	m_rssSniffingEnabled = settings->rssSniffingEnabled();
     } else {
-		m_rssSniffingEnabled = false;
-	}
-	//SAMSUNG_CHANGES <<
+        m_rssSniffingEnabled = false;
+    }
+    //SAMSUNG_CHANGES <<
 }
 
 WebRequest::~WebRequest()
@@ -180,37 +221,45 @@ void WebRequest::finish(bool success)
     strftime(buffer, 80, "Time: %M:%S",timeinfo);
     android_printLog(ANDROID_LOG_DEBUG, "KM", "(%p) finish (%d) (%s) (%d) (%s)", this, --remaining, buffer, success, m_url.c_str());
 #endif
+    // SAMSUNG CHANGES : add_network_log
+    LOGIFDEBUG("finish(%d) url(%s) isMainFrame(%d) isMainResource(%d)",success, m_url.c_str(), m_isMainFrame, m_isMainResource);
 
     // Make sure WebUrlLoaderClient doesn't delete us in the middle of this method.
     scoped_refptr<WebRequest> guard(this);
 
+    // SAMSUNG CHANGE : reduce events in main thread >>
+#if _USE_SAMSUNG_PERFORMANCE_IMPROVE_
+    // send remaining data before close the connection
+    if (m_BytesInBuffer > 0)
+        sendDataReceivedEvent(true);
+    // SAMSUNG CHANGE : reduce events in main thread <<
+#endif
     m_loadState = Finished;
     if (success) {
-		//SAMSUNG_CHANGES >>
-		if(m_rssSniffingEnabled)
-		{
-			if( m_ShouldSniffFeed) { 
-				m_ShouldSniffFeed = false;
-				m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
-							m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
-
-			}
-		}
-		//SAMSUNG_CHANGES <<
+        //SAMSUNG_CHANGES >>
+        if(m_rssSniffingEnabled)
+        {
+            if( m_ShouldSniffFeed) { 
+                m_ShouldSniffFeed = false;
+                m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
+                        m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
+            }
+        }
+        //SAMSUNG_CHANGES <<
         m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
                 m_urlLoader.get(), &WebUrlLoaderClient::didFinishLoading));
     } else {
         if (m_interceptResponse == NULL) {
-			//SAMSUNG_CHANGES >>
+            //SAMSUNG_CHANGES >>
             if(m_rssSniffingEnabled)
-			{
-	            if( m_ShouldSniffFeed) { 
-				m_ShouldSniffFeed = false;
-				m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
-							m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
-	            }
-			}
-			//SAMSUNG_CHANGES <<
+            {
+	        if( m_ShouldSniffFeed) { 
+                    m_ShouldSniffFeed = false;
+                        m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
+                                m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
+	        }
+            }
+            //SAMSUNG_CHANGES <<
             OwnPtr<WebResponse> webResponse(new WebResponse(m_request.get()));
             m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
                     m_urlLoader.get(), &WebUrlLoaderClient::didFail, webResponse.release()));
@@ -275,10 +324,13 @@ void WebRequest::start(bool isMainResource, bool isMainFrame) //SAMSUNG_CHANGES
     android_printLog(ANDROID_LOG_DEBUG, "KM", "(%p) start (%d) (%s)", this, ++remaining, m_url.c_str());
     time(&m_startTime);
 #endif
-	//SAMSUNG_CHANGES >>
-	m_isMainResource = isMainResource;
-	m_isMainFrame = isMainFrame;
-	//SAMSUNG_CHANGES <<
+    // SAMSUNG CHANGES : add_network_log
+    LOGIFDEBUG("start() url(%s) isMainFrame(%d) isMainResource(%d)", m_url.c_str(), isMainResource, isMainFrame);
+
+    //SAMSUNG_CHANGES >>
+    m_isMainResource = isMainResource;
+    m_isMainFrame = isMainFrame;
+    //SAMSUNG_CHANGES <<
     m_loadState = Started;
 
     if (m_interceptResponse != NULL)
@@ -309,6 +361,9 @@ void WebRequest::cancel()
 {
     ASSERT(m_loadState >= Started, "Cancel called on a not started WebRequest: (%s)", m_url.c_str());
     ASSERT(m_loadState != Cancelled, "Cancel called on an already cancelled WebRequest: (%s)", m_url.c_str());
+    
+    // SAMSUNG CHANGES : add_network_log
+    LOGIFDEBUG("cancel() url(%s) isMainFrame(%d) isMainResource(%d)", m_url.c_str(), m_isMainFrame, m_isMainResource);
 
     // There is a possible race condition between the IO thread finishing the request and
     // the WebCore thread cancelling it. If the request has already finished, do
@@ -347,15 +402,9 @@ void WebRequest::handleInterceptedURL()
     // Get the MIME type from the URL. "text/html" is a last resort, hopefully overridden.
     std::string mimeType("text/html");
     if (mime == "") {
-        // Gmail appends the MIME to the end of the URL, with a ? separator.
-        size_t mimeTypeIndex = m_url.find_last_of('?');
-        if (mimeTypeIndex != std::string::npos) {
-            mimeType.assign(m_url.begin() + mimeTypeIndex + 1, m_url.end());
-        } else {
-            // Get the MIME type from the file extension, if any.
-            FilePath path(m_url);
-            net::GetMimeTypeFromFile(path, &mimeType);
-        }
+        // Get the MIME type from the file extension, if any.
+        FilePath path(m_url);
+        net::GetMimeTypeFromFile(path, &mimeType);
     } else {
         // Set from the intercept response.
         mimeType = mime;
@@ -504,26 +553,28 @@ void WebRequest::OnCertificateRequested(net::URLRequest* request, net::SSLCertRe
 void WebRequest::OnResponseStarted(net::URLRequest* request)
 {
     ASSERT(m_loadState == Started, "Got response after receiving response");
+    // SAMSUNG CHANGES : add_network_log
+    LOGIFDEBUG("OnResponseStarted() url(%s) isMainFrame(%d) isMainResource(%d)", m_url.c_str(), m_isMainFrame, m_isMainResource);
 
     // SAMSUNG CHANGE: read timer stop
     timer_.Stop();
     // SAMSUNG CHANGE
 
     m_loadState = Response;
-	//SAMSUNG_CHANGES >>
+    //SAMSUNG_CHANGES >>
     m_webResponse = new WebResponse(request);
     if (request && request->status().is_success()) {
-		if(m_rssSniffingEnabled)
-		{
-	       	std::string mimeType = m_webResponse->getMimeType();
-	       	if(m_isMainResource && m_isMainFrame &&   HTTP_OK == m_webResponse->getStatusCode() && (TYPE_TEXT_XML == mimeType || TYPE_APPLICATION_XML == mimeType))	{
-				m_ShouldSniffFeed = true;
-				startReading();
-				return;
-		   	}
-		if(TYPE_ATOM == mimeType ||TYPE_RDF  == mimeType || TYPE_RSS == mimeType)
-			m_webResponse-> setMimeType(TYPE_MAYBE_FEED );
-		}
+        if(m_rssSniffingEnabled)
+        {
+            std::string mimeType = m_webResponse->getMimeType();
+            if(m_isMainResource && m_isMainFrame &&   HTTP_OK == m_webResponse->getStatusCode() && (TYPE_TEXT_XML == mimeType || TYPE_APPLICATION_XML == mimeType))	{
+                m_ShouldSniffFeed = true;
+                startReading();
+                return;
+            }
+            if(TYPE_ATOM == mimeType ||TYPE_RDF  == mimeType || TYPE_RSS == mimeType)
+                m_webResponse-> setMimeType(TYPE_MAYBE_FEED );
+        }
 	//SAMSUNG_CHANGES <<
         m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
             m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
@@ -568,6 +619,8 @@ void WebRequest::cancelAuth()
 void WebRequest::followDeferredRedirect()
 {
     ASSERT(m_loadState < Response, "Redirect after receiving response");
+    // SAMSUNG CHANGES : add_network_log
+    LOGIFDEBUG("followDeferredRedirect() url(%s) isMainFrame(%d) isMainResource(%d)", m_url.c_str(), m_isMainFrame, m_isMainResource);
 
     m_request->FollowDeferredRedirect();
     // SAMSUNG CHANGE: read timer start
@@ -601,7 +654,9 @@ void WebRequest::sslClientCert(EVP_PKEY* pkey, scoped_refptr<net::X509Certificat
 
 void WebRequest::startReading()
 {
+#if !_USE_SAMSUNG_PERFORMANCE_IMPROVE_
     ASSERT(m_networkBuffer == 0, "startReading called with a nonzero buffer");
+#endif
     ASSERT(m_isPaused == 0, "startReading called in paused state");
     ASSERT(m_loadState == Response || m_loadState == GotData, "StartReading in state other than RESPONSE and GOTDATA");
     if (m_loadState > GotData) // We have been cancelled between reads
@@ -619,43 +674,64 @@ void WebRequest::startReading()
             return; // Wait for OnReadCompleted()
         return finish(false);
     }
-	//SAMSUNG_CHANGES >>
-	if(m_rssSniffingEnabled) 	
-	{
-	    if( m_ShouldSniffFeed) { 
-			std::string currentMimeType, newMimeType;
-			m_request->GetMimeType(&currentMimeType);
-			bool sniffResult = false;
-			GURL sniffURL(m_url);
-//			sniffResult = net::SniffMimeType(m_networkBuffer->data(), bytesRead, sniffURL,currentMimeType, &newMimeType);		// OSS_C1
-			m_ShouldSniffFeed = false;
-			if(TYPE_ATOM == newMimeType ||TYPE_RDF  == newMimeType || TYPE_RSS == newMimeType)
-				m_webResponse-> setMimeType(TYPE_MAYBE_FEED );
-			m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
-						m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
-
-	    }
-	}
-	//SAMSUNG_CHANGES <<
+    //SAMSUNG_CHANGES >>
+    if(m_rssSniffingEnabled) 	
+    {
+        if( m_ShouldSniffFeed) { 
+            std::string currentMimeType, newMimeType;
+            m_request->GetMimeType(&currentMimeType);
+            bool sniffResult = false;
+            GURL sniffURL(m_url);
+            sniffResult = net::SniffMimeType(m_networkBuffer->data(), bytesRead, sniffURL,currentMimeType, &newMimeType);
+            m_ShouldSniffFeed = false;
+            if(TYPE_ATOM == newMimeType ||TYPE_RDF  == newMimeType || TYPE_RSS == newMimeType)
+                m_webResponse-> setMimeType(TYPE_MAYBE_FEED );
+                m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
+                        m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
+        }
+    }
+    //SAMSUNG_CHANGES <<
     // bytesRead == 0 indicates finished
     if (!bytesRead)
         return finish(true);
 
     m_loadState = GotData;
     // Read ok, forward buffer to webcore
+#if _USE_SAMSUNG_PERFORMANCE_IMPROVE_
+    // SAMSUNG CHANGE : reduce events in main thread >>
+    m_BytesInBuffer += bytesRead;
+    sendDataReceivedEvent(false);
+    // SAMSUNG CHANGE : reduce events in main thread <<
+#else
     m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(m_urlLoader.get(), &WebUrlLoaderClient::didReceiveData, m_networkBuffer, bytesRead));
     m_networkBuffer = 0;
+#endif
     MessageLoop::current()->PostTask(FROM_HERE, m_runnableFactory.NewRunnableMethod(&WebRequest::startReading));
 }
 
 bool WebRequest::read(int* bytesRead)
 {
     ASSERT(m_loadState == Response || m_loadState == GotData, "read in state other than RESPONSE and GOTDATA");
+#if !_USE_SAMSUNG_PERFORMANCE_IMPROVE_
     ASSERT(m_networkBuffer == 0, "Read called with a nonzero buffer");
 
+#endif
     // TODO: when asserts work, check that the buffer is 0 here
+#if _USE_SAMSUNG_PERFORMANCE_IMPROVE_
+    // SAMSUNG CHANGE : reduce events in main thread >>
+    // don't need to assign new buffer everytime.
+    // use previous one if buffer is not filled
+    if (m_BytesInBuffer == 0) {
+        m_networkBuffer = new net::IOBuffer(kInitialReadBufSize);
+        m_networkBufferData = m_networkBuffer->data();
+    } else {
+        m_networkBuffer->setData(m_networkBufferData + m_BytesInBuffer);
+    }
+    return m_request->Read(m_networkBuffer, kInitialReadBufSize - m_BytesInBuffer, bytesRead);
+#else
     m_networkBuffer = new net::IOBuffer(kInitialReadBufSize);
     return m_request->Read(m_networkBuffer, kInitialReadBufSize, bytesRead);
+#endif
 }
 
 // This is called when there is data available
@@ -672,30 +748,37 @@ void WebRequest::OnReadCompleted(net::URLRequest* request, int bytesRead)
     ASSERT(m_loadState == Response || m_loadState == GotData, "OnReadCompleted in state other than RESPONSE and GOTDATA");
 
     if (request->status().is_success()) {
-	//SAMSUNG_CHANGES >>
-	if(m_rssSniffingEnabled) 
-	{
-	        if( m_ShouldSniffFeed) { 
-			std::string  currentMimeType, newMimeType;
-			bool sniffResult = false;
-			GURL sniffURL(m_url);
-			m_request->GetMimeType(&currentMimeType);
-//			sniffResult = net::SniffMimeType(m_networkBuffer->data(), bytesRead, sniffURL,currentMimeType, &newMimeType);		// OSS_C1
-			m_ShouldSniffFeed = false;
-			if(TYPE_ATOM == newMimeType ||TYPE_RDF  == newMimeType || TYPE_RSS == newMimeType)
-				m_webResponse-> setMimeType(TYPE_MAYBE_FEED );
-				
-			m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
-					m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
+        //SAMSUNG_CHANGES >>
+        if(m_rssSniffingEnabled) 
+        {
+            if( m_ShouldSniffFeed) { 
+                std::string  currentMimeType, newMimeType;
+                bool sniffResult = false;
+                GURL sniffURL(m_url);
+                m_request->GetMimeType(&currentMimeType);
+                sniffResult = net::SniffMimeType(m_networkBuffer->data(), bytesRead, sniffURL,currentMimeType, &newMimeType);
+                m_ShouldSniffFeed = false;
+                if(TYPE_ATOM == newMimeType ||TYPE_RDF  == newMimeType || TYPE_RSS == newMimeType)
+                    m_webResponse-> setMimeType(TYPE_MAYBE_FEED );
+					
+                    m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
+                            m_urlLoader.get(), &WebUrlLoaderClient::didReceiveResponse, m_webResponse.release()));
 	
-	        }
-	}
-	//SAMSUNG_CHANGES <<
+            }
+        }
+        //SAMSUNG_CHANGES <<
         m_loadState = GotData;
+#if _USE_SAMSUNG_PERFORMANCE_IMPROVE_
+		// SAMSUNG CHANGE : reduce events in main thread >>
+        m_BytesInBuffer += bytesRead;
+        sendDataReceivedEvent(false);
+        // SAMSUNG CHANGE : reduce events in main thread <<
+#else
         m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(
                 m_urlLoader.get(), &WebUrlLoaderClient::didReceiveData, m_networkBuffer, bytesRead));
         m_networkBuffer = 0;
 
+#endif
         // Get the rest of the data
         startReading();
     } else {
@@ -703,4 +786,22 @@ void WebRequest::OnReadCompleted(net::URLRequest* request, int bytesRead)
     }
 }
 
+// SAMSUNG CHANGE : reduce events in main thread >>
+void WebRequest::sendDataReceivedEvent(bool forced)
+{
+#if _USE_SAMSUNG_PERFORMANCE_IMPROVE_
+    if (forced || m_BytesInBuffer > kSendDataReceivedEventThreshold || m_stockedCounter > 3) {
+        m_networkBuffer->setData(m_networkBufferData);
+        m_urlLoader->maybeCallOnMainThread(NewRunnableMethod(m_urlLoader.get(),
+                &WebUrlLoaderClient::didReceiveData, m_networkBuffer, m_BytesInBuffer));
+        m_networkBuffer = 0;
+        m_BytesInBuffer = 0;
+        m_networkBufferData = 0;
+        m_stockedCounter = 0;
+    } else {
+        ++m_stockedCounter;
+    }
+#endif
+}
+// SAMSUNG CHANGE : reduce events in main thread <<
 } // namespace android

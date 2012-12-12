@@ -37,7 +37,7 @@
 #include "PlatformString.h"
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
-#include "EntryBase.h"
+#include "EntryBase.h" //SAMSUNG CHANGE HTML5 FILEAPI 
 
 namespace WebCore {
 
@@ -66,6 +66,11 @@ public:
     String fileSystemBasePath() const;
 #endif
 
+// Samsung Change - HTML5 FileSystem API	>>
+#if PLATFORM(ANDROID)
+    void fileSystemStorage(unsigned);
+#endif
+// Samsung Change - HTML5 FileSystem API	<<
 private:
     LocalFileSystem(const String& basePath)
         : m_basePath(basePath)

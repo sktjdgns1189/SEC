@@ -90,7 +90,7 @@ public:
     void publishToPlatformLayer();
 #endif
 
-#if PLATFORM(CHROMIUM) || (PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS))
+#if PLATFORM(CHROMIUM)
     class WillPublishCallback {
         WTF_MAKE_NONCOPYABLE(WillPublishCallback);
     public:
@@ -136,9 +136,6 @@ private:
     Platform3DObject m_multisampleFBO;
     Platform3DObject m_multisampleColorBuffer;
 
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-    OwnPtr<WillPublishCallback> m_callback;
-#endif
 #if PLATFORM(CHROMIUM)
     OwnPtr<WillPublishCallback> m_callback;
     OwnPtr<DrawingBufferInternal> m_internal;

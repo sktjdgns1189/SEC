@@ -35,17 +35,21 @@
 #include "KeyGeneratorClient.h"
 #include "MemoryUsage.h"
 #include "PluginView.h"
+#include "RenderLayer.h"
+#include "RenderView.h"
 #include "Settings.h"
 #include "WebCookieJar.h"
 #include "WebRequestContext.h"
 #include "WebViewCore.h"
 #include "npruntime.h"
 
-#include <surfaceflinger/SurfaceComposerClient.h>
+#include <gui/SurfaceComposerClient.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
 #include <wtf/android/AndroidThreading.h>
 #include <wtf/MainThread.h>
+
+#include <algorithm>
 
 using namespace android;
 
@@ -71,62 +75,40 @@ String PlatformBridge::getSignedPublicKeyAndChallengeString(unsigned index, cons
 
 void PlatformBridge::setCookies(const Document* document, const KURL& url, const String& value)
 {
-#if USE(CHROME_NETWORK_STACK)
     std::string cookieValue(value.utf8().data());
     GURL cookieGurl(url.string().utf8().data());
     bool isPrivateBrowsing = document->settings() && document->settings()->privateBrowsingEnabled();
-    WebCookieJar::get(isPrivateBrowsing)->cookieStore()->SetCookie(cookieGurl, cookieValue);
-#else
-    CookieClient* client = JavaSharedClient::GetCookieClient();
-    if (!client)
-        return;
-
-    client->setCookies(url, value);
-#endif
+    WebCookieJar* cookieJar = WebCookieJar::get(isPrivateBrowsing);
+    if (cookieJar->allowCookies())
+        cookieJar->cookieStore()->SetCookie(cookieGurl, cookieValue);
 }
 
 String PlatformBridge::cookies(const Document* document, const KURL& url)
 {
-#if USE(CHROME_NETWORK_STACK)
     GURL cookieGurl(url.string().utf8().data());
     bool isPrivateBrowsing = document->settings() && document->settings()->privateBrowsingEnabled();
-    std::string cookies = WebCookieJar::get(isPrivateBrowsing)->cookieStore()->GetCookies(cookieGurl);
-    String cookieString(cookies.c_str());
+    WebCookieJar* cookieJar = WebCookieJar::get(isPrivateBrowsing);
+    String cookieString;
+    if (cookieJar->allowCookies()) {
+        std::string cookies = cookieJar->cookieStore()->GetCookies(cookieGurl);
+        cookieString = cookies.c_str();
+    }
     return cookieString;
-#else
-    CookieClient* client = JavaSharedClient::GetCookieClient();
-    if (!client)
-        return String();
-
-    return client->cookies(url);
-#endif
 }
 
 bool PlatformBridge::cookiesEnabled(const Document* document)
 {
-#if USE(CHROME_NETWORK_STACK)
     bool isPrivateBrowsing = document->settings() && document->settings()->privateBrowsingEnabled();
     return WebCookieJar::get(isPrivateBrowsing)->allowCookies();
-#else
-    CookieClient* client = JavaSharedClient::GetCookieClient();
-    if (!client)
-        return false;
-
-    return client->cookiesEnabled();
-#endif
 }
 
 NPObject* PlatformBridge::pluginScriptableObject(Widget* widget)
 {
-#if USE(V8)
     if (!widget->isPluginView())
         return 0;
 
     PluginView* pluginView = static_cast<PluginView*>(widget);
     return pluginView->getNPObject();
-#else
-    return 0;
-#endif
 }
 
 bool PlatformBridge::isWebViewPaused(const WebCore::FrameView* frameView)
@@ -175,15 +157,11 @@ int PlatformBridge::screenHeightInDocCoord(const WebCore::FrameView* frameView)
 
 String PlatformBridge::computeDefaultLanguage()
 {
-#if USE(CHROME_NETWORK_STACK)
     String acceptLanguages = WebRequestContext::acceptLanguage();
     size_t length = acceptLanguages.find(',');
     if (length == std::string::npos)
         length = acceptLanguages.length();
     return acceptLanguages.substring(0, length);
-#else
-    return "en";
-#endif
 }
 
 void PlatformBridge::updateViewport(FrameView* frameView)
@@ -199,10 +177,15 @@ void PlatformBridge::updateTextfield(FrameView* frameView, Node* nodePtr, bool c
 }
 
 void PlatformBridge::setScrollPosition(ScrollView* scrollView, int x, int y) {
+    FrameView* frameView = scrollView->frameView();
+    if (!frameView) return;
     // Check to make sure the view is the main FrameView.
     android::WebViewCore *webViewCore = android::WebViewCore::getWebViewCore(scrollView);
-    if (webViewCore->mainFrame()->view() == scrollView)
+    if (webViewCore->mainFrame()->view() == scrollView) {
+        x = std::max(0, std::min(frameView->contentsWidth(), x));
+        y = std::max(0, std::min(frameView->contentsHeight(), y));
         webViewCore->scrollTo(x, y);
+    }
 }
 
 int PlatformBridge::lowMemoryUsageMB()

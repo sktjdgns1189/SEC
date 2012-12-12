@@ -80,13 +80,6 @@
 #include <wtf/MainThread.h>
 #include <wtf/text/CString.h>
 
-#if USE(JSC)
-#include "API/JSClassRef.h"
-#include "JNIUtilityPrivate.h"
-#include "JavaScriptCallFrame.h"
-#include "ScriptDebugServer.h"
-#endif
-
 using namespace WebCore;
 
 /********************************************************/
@@ -112,7 +105,7 @@ void Icon::paint(GraphicsContext*, const IntRect&) { }
 
 }  // namespace WebCore
 
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 /* // FIXME, no support for spelling yet.
 Pasteboard* Pasteboard::generalPasteboard()
 {
@@ -168,7 +161,7 @@ Pasteboard::~Pasteboard()
 }
 
 */
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 ContextMenu::ContextMenu()
 {
     ASSERT_NOT_REACHED();
@@ -306,10 +299,10 @@ void* WebCore::Frame::dragImageForSelection()
     return 0;
 }
 
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 /// commented 
 //void WebCore::Pasteboard::writeImage(WebCore::Node*, WebCore::KURL const&, WTF::String const&) {}
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 
 namespace WebCore {
 
@@ -404,18 +397,6 @@ PassRefPtr<SharedBuffer> SharedBuffer::createWithContentsOfFile(const String&)
     return 0;
 }
 
-
-#if USE(JSC)
-namespace JSC { namespace Bindings {
-bool dispatchJNICall(ExecState*, const void* targetAppletView, jobject obj, bool isStatic, JavaType returnType,
-        jmethodID methodID, jvalue* args, jvalue& result, const char* callingURL, JSValue& exceptionDescription)
-{
-    notImplemented();
-    return false;
-}
-
-} }  // namespace Bindings
-#endif
 
 char* dirname(const char*)
 {

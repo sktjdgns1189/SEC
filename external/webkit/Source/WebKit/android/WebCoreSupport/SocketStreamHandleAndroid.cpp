@@ -61,7 +61,7 @@ SocketStreamHandlePrivate::SocketStreamHandlePrivate(SocketStreamHandle* streamH
     m_port = url.hasPort() ? url.port() : (m_isSecure ? 443 : 80);
     m_url = std::string(url.string().utf8().data(), url.string().utf8().length());
 
-//	net::WebSocketJob::EnsureInit();			//OSS_C1
+	net::WebSocketJob::EnsureInit();
 
 	m_sockhost = new SocketStreamHost(this, 0);
 
@@ -169,27 +169,27 @@ SocketStreamHandle::SocketStreamHandle(const KURL& url, SocketStreamHandleClient
     : SocketStreamHandleBase(url, client)
 {
     //LOG(Network, "SocketStreamHandle %p new client %p", this, client);
-   // m_p = new SocketStreamHandlePrivate(this, url);                      TEMP PATCH FOR MPSG4203
+    // m_p = new SocketStreamHandlePrivate(this, url); http://www.huffingtonpost.com desktop [live] crash.
 }
 
 SocketStreamHandle::~SocketStreamHandle()
 {
-    //LOG(Network, "SocketStreamHandle %p delete", this);                  >>TEMP PATCH FOR MPSG4203 - START
+    //LOG(Network, "SocketStreamHandle %p delete", this);
     //setClient(0);
-    //delete m_p;                                                            <<TEMP PATCH FOR MPSG4203 - END
+    //delete m_p;
 }
 
 int SocketStreamHandle::platformSend(const char* data, int len)
 {
-    //LOG(Network, "SocketStreamHandle %p platformSend", this);           >>TEMP PATCH FOR MPSG4203 - START
-    //return m_p->send(data, len);                                      	
-	return 0;                                                           //<< TEMP PATCH FOR MPSG4203 - END
+    //LOG(Network, "SocketStreamHandle %p platformSend", this);
+    //return m_p->send(data, len);
+	return 0;
 }
 
 void SocketStreamHandle::platformClose()
 {
-    //LOG(Network, "SocketStreamHandle %p platformClose", this);           >>TEMP PATCH FOR MPSG4203 - START
-    //m_p->close();                                                        <<TEMP PATCH FOR MPSG4203 - END
+    //LOG(Network, "SocketStreamHandle %p platformClose", this);
+    //m_p->close();
 }
 
 void SocketStreamHandle::didReceiveAuthenticationChallenge(const AuthenticationChallenge&)

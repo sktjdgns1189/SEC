@@ -58,7 +58,7 @@
 #include "StrokeStyleApplier.h"
 #include "TextMetrics.h"
 #include "TextRun.h"
-#include "PlatformGraphicsContext.h"
+
 #if ENABLE(ACCELERATED_2D_CANVAS)
 #include "Chrome.h"
 #include "ChromeClient.h"
@@ -130,17 +130,9 @@ CanvasRenderingContext2D::CanvasRenderingContext2D(HTMLCanvasElement* canvas, bo
     if (!p->settings()->accelerated2dCanvasEnabled())
         return;
     if (GraphicsContext* c = drawingContext()) {
-#if PLATFORM(ANDROID)		
-	 m_context3D = SharedGraphicsContext3D::create(canvas,p->chrome());
-#else
-	 m_context3D = p->sharedGraphicsContext3D();	 
-#endif
+        m_context3D = p->sharedGraphicsContext3D();
         if (m_context3D) {
-#if PLATFORM(ANDROID)				
-           m_drawingBuffer = m_context3D->createDrawingBuffer(IntSize(canvas->width(), canvas->height()));
-#else
-	   m_drawingBuffer = m_context3D->graphicsContext3D()->createDrawingBuffer(IntSize(canvas->width(), canvas->height()));
-#endif
+            m_drawingBuffer = m_context3D->graphicsContext3D()->createDrawingBuffer(IntSize(canvas->width(), canvas->height()));
             if (!m_drawingBuffer) {
                 c->setSharedGraphicsContext3D(0, 0, IntSize());
                 m_context3D.clear();
@@ -186,9 +178,6 @@ void CanvasRenderingContext2D::reset()
     if (GraphicsContext* c = drawingContext()) {
         if (m_context3D && m_drawingBuffer) {
             if (m_drawingBuffer->reset(IntSize(canvas()->width(), canvas()->height()))) {
-#if PLATFORM(ANDROID)
-		m_context3D->reshape(canvas()->width(), canvas()->height());
-#endif
                 c->setSharedGraphicsContext3D(m_context3D.get(), m_drawingBuffer.get(), IntSize(canvas()->width(), canvas()->height()));
 #if USE(ACCELERATED_COMPOSITING)
                 RenderBox* renderBox = canvas()->renderBox();
@@ -549,14 +538,6 @@ void CanvasRenderingContext2D::setGlobalCompositeOperation(const String& operati
     if (!c)
         return;
     c->setCompositeOperation(op);
-
-    if(op != CompositeSourceOver){
-        canvas()->setSupportedCompositing(false);
-        canvas()->disableGpuRendering();
-        canvas()->setNeedsStyleRecalc(SyntheticStyleChange);
-    }
-    else
-        canvas()->setSupportedCompositing(true);
 #if ENABLE(ACCELERATED_2D_CANVAS) && !ENABLE(SKIA_GPU)
     if (isAccelerated() && op != CompositeSourceOver) {
         c->setSharedGraphicsContext3D(0, 0, IntSize());
@@ -997,19 +978,12 @@ void CanvasRenderingContext2D::clearRect(float x, float y, float width, float he
 {
     if (!validateRectForCanvas(x, y, width, height))
         return;
-    FloatRect rect(x, y, width, height);
-#if PLATFORM(ANDROID) && !ENABLE(ACCELERATED_2D_CANVAS)
-    canvas()->clearRecording(rect);
-#endif
     GraphicsContext* context = drawingContext();
     if (!context)
         return;
     if (!state().m_invertibleCTM)
         return;
-
-#if PLATFORM(ANDROID) && !ENABLE(ACCELERATED_2D_CANVAS)
-    context->setCurrentTransform(state().m_transform);
-#endif
+    FloatRect rect(x, y, width, height);
 
     save();
     setAllAttributesToDefault();
@@ -1036,15 +1010,6 @@ void CanvasRenderingContext2D::fillRect(float x, float y, float width, float hei
     if (gradient && gradient->isZeroSize())
         return;
 
-    //Force animation flag to be set, so that in HTMLCanvas Paint recording canvas is used, if we fill rect with Gardient 
-#if PLATFORM(ANDROID) && !ENABLE(ACCELERATED_2D_CANVAS)
-    if(gradient)
-    {   
-	if(c->platformContext())     
-    	    c->platformContext()->setIsAnimating();
-    }
-
-#endif	
     FloatRect rect(x, y, width, height);
 
     c->fillRect(rect);

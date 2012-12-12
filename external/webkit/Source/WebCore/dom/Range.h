@@ -62,11 +62,9 @@ public:
     static Node* commonAncestorContainer(Node* containerA, Node* containerB);
     void setStart(PassRefPtr<Node> container, int offset, ExceptionCode&);
     void setEnd(PassRefPtr<Node> container, int offset, ExceptionCode&);
-	
-	//SAMSUNG CHANGE - Merged from P1 Gingerbread - fixes MPSG3078 - Start
+	//SAMSUNG CHANGE >> Merged from ICS to JELLYBEAN - This code is for Range.setRect() Implementation(fixes MPSG3078 Issue) - Start
     void setRect(int x, int y, int width, int height, ExceptionCode&);
-	//SAMSUNG CHANGE - Merged from P1 Gingerbread - fixes MPSG3078 - End
-	
+	//SAMSUNG CHANGE >> Merged from ICS to JELLYBEAN - This code is for Range.setRect() Implementation(fixes MPSG3078 Issue) - End
     void collapse(bool toStart, ExceptionCode&);
     bool isPointInRange(Node* refNode, int offset, ExceptionCode&);
     short comparePoint(Node* refNode, int offset, ExceptionCode&) const;
@@ -111,7 +109,11 @@ public:
     Node* shadowTreeRootNode() const;
 
     IntRect boundingBox();
-    Vector<IntRect> boundingBoxEx();// SAMSUNG CHANGE RTL selection fix
+
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN	
+    Vector<IntRect> boundingBoxEx();
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
     // Not transform-friendly
     void textRects(Vector<IntRect>&, bool useSelectionHeight = false);
     // Transform-friendly

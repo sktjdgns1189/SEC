@@ -32,11 +32,14 @@ namespace WebCore {
 class Counter;
 class DashboardRegion;
 class Pair;
+class Quad;
 class RGBColor;
 class Rect;
 class RenderStyle;
 
 struct Length;
+
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
 
 template<typename T, T max, T min> inline T roundForImpreciseConversion(double value)
 {
@@ -98,7 +101,9 @@ public:
         CSS_REMS = 108,
 
         // This is used internally for counter names (as opposed to counter values)
-        CSS_COUNTER_NAME = 109
+        CSS_COUNTER_NAME = 109,
+        // Used by border images.
+        CSS_QUAD = 112
     };
     
     // This enum follows the CSSParser::Units enum augmented with UNIT_FREQUENCY for frequencies.
@@ -156,15 +161,8 @@ public:
      * this is screen/printer dependent, so we probably need a config option for this,
      * and some tool to calibrate.
      */
-    int computeLengthInt(RenderStyle* currStyle, RenderStyle* rootStyle);
-    int computeLengthInt(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier);
-    int computeLengthIntForLength(RenderStyle* currStyle, RenderStyle* rootStyle);
-    int computeLengthIntForLength(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier);
-    short computeLengthShort(RenderStyle* currStyle, RenderStyle* rootStyle);
-    short computeLengthShort(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier);
-    float computeLengthFloat(RenderStyle* currStyle, RenderStyle* rootStyle, bool computingFontSize = false);
-    float computeLengthFloat(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier, bool computingFontSize = false);
-    double computeLengthDouble(RenderStyle* currentStyle, RenderStyle* rootStyle, double multiplier = 1.0, bool computingFontSize = false);
+    template<typename T> T computeLength(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier = 1.0, bool computingFontSize = false);
+    int computeLengthIntForLength(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier = 1.0, bool computingFontSize = false);
 
     // use with care!!!
     void setPrimitiveType(unsigned short type) { m_type = type; }
@@ -192,6 +190,9 @@ public:
     Rect* getRectValue(ExceptionCode&) const;
     Rect* getRectValue() const { return m_type != CSS_RECT ? 0 : m_value.rect; }
 
+    Quad* getQuadValue(ExceptionCode&) const;
+    Quad* getQuadValue() const { return m_type != CSS_QUAD ? 0 : m_value.quad; }
+    
     PassRefPtr<RGBColor> getRGBColorValue(ExceptionCode&) const;
     RGBA32 getRGBA32Value() const { return m_type != CSS_RGBCOLOR ? 0 : m_value.rgbcolor; }
 
@@ -244,8 +245,11 @@ private:
     void init(PassRefPtr<Counter>);
     void init(PassRefPtr<Rect>);
     void init(PassRefPtr<Pair>);
+    void init(PassRefPtr<Quad>);
     void init(PassRefPtr<DashboardRegion>); // FIXME: Dashboard region should not be a primitive value.
     bool getDoubleValueInternal(UnitTypes targetUnitType, double* result) const;
+
+    double computeLengthDouble(RenderStyle* currentStyle, RenderStyle* rootStyle, double multiplier, bool computingFontSize);
 
     virtual bool isPrimitiveValue() const { return true; }
 
@@ -267,6 +271,7 @@ private:
         StringImpl* string;
         Counter* counter;
         Rect* rect;
+        Quad* quad;
         unsigned rgbcolor;
         Pair* pair;
         DashboardRegion* region;

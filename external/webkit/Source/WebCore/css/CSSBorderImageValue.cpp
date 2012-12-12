@@ -24,13 +24,17 @@
 #include "PlatformString.h"
 #include "Rect.h"
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
-CSSBorderImageValue::CSSBorderImageValue(PassRefPtr<CSSValue> image, PassRefPtr<Rect> imageRect, int horizontalRule, int verticalRule)
+CSSBorderImageValue::CSSBorderImageValue(PassRefPtr<CSSValue> image, PassRefPtr<CSSBorderImageSliceValue> imageSlice,
+    PassRefPtr<CSSValue> borderSlice, PassRefPtr<CSSValue> outset, PassRefPtr<CSSValue> repeat)
     : m_image(image)
-    , m_imageSliceRect(imageRect)
-    , m_horizontalSizeRule(horizontalRule)
-    , m_verticalSizeRule(verticalRule)
+    , m_imageSlice(imageSlice)
+    , m_borderSlice(borderSlice)
+    , m_outset(outset)
+    , m_repeat(repeat)
 {
 }
 
@@ -44,20 +48,25 @@ String CSSBorderImageValue::cssText() const
     String text(m_image->cssText());
     text += " ";
 
-    // Now the rect, but it isn't really a rect, so we dump manually
-    text += m_imageSliceRect->top()->cssText();
-    text += " ";
-    text += m_imageSliceRect->right()->cssText();
-    text += " ";
-    text += m_imageSliceRect->bottom()->cssText();
-    text += " ";
-    text += m_imageSliceRect->left()->cssText();
+    // Now the slices.
+    text += m_imageSlice->cssText();
 
-    // Now the keywords.
-    text += " ";
-    text += CSSPrimitiveValue::createIdentifier(m_horizontalSizeRule)->cssText();
-    text += " ";
-    text += CSSPrimitiveValue::createIdentifier(m_verticalSizeRule)->cssText();
+    // Now the border widths.
+    if (m_borderSlice) {
+        text += " / ";
+        text += m_borderSlice->cssText();
+    }
+
+    if (m_outset) {
+        text += " / ";
+        text += m_outset->cssText();
+    }
+
+    if (m_repeat) {
+        // Now the keywords.
+        text += " ";
+        text += m_repeat->cssText();
+    }
 
     return text;
 }

@@ -816,9 +816,7 @@ void ContainerNode::cloneChildNodes(ContainerNode *clone)
         document()->frame()->editor()->deleteButtonController()->enable();
 }
 
-//SAMSUNG CHNAGES >>
-bool ContainerNode::getUpperLeftCorner(FloatPoint& point, bool force) const
-//SAMSUNG CHNAGES <<
+bool ContainerNode::getUpperLeftCorner(FloatPoint& point) const
 {
     if (!renderer())
         return false;
@@ -826,9 +824,7 @@ bool ContainerNode::getUpperLeftCorner(FloatPoint& point, bool force) const
     RenderObject *o = renderer();
     RenderObject *p = o;
 
-//SAMSUNG CHNAGES >>
-    if (!force && (!o->isInline() || o->isReplaced())) {
-//SAMSUNG CHNAGES <<
+    if (!o->isInline() || o->isReplaced()) {
         point = o->localToAbsolute(FloatPoint(), false, true);
         return true;
     }
@@ -853,9 +849,7 @@ bool ContainerNode::getUpperLeftCorner(FloatPoint& point, bool force) const
         }
         ASSERT(o);
 
-//SAMSUNG CHNAGES >>
-        if (!force && (!o->isInline() || o->isReplaced())) {
-//SAMSUNG CHNAGES <<
+        if (!o->isInline() || o->isReplaced()) {
             point = o->localToAbsolute(FloatPoint(), false, true);
             return true;
         }
@@ -886,17 +880,13 @@ bool ContainerNode::getUpperLeftCorner(FloatPoint& point, bool force) const
 }
 
 // FIXME: This doesn't work correctly with transforms.
-//SAMSUNG CHNAGES >>
-bool ContainerNode::getLowerRightCorner(FloatPoint& point, bool force) const
-//SAMSUNG CHNAGES <<
+bool ContainerNode::getLowerRightCorner(FloatPoint& point) const
 {
     if (!renderer())
         return false;
 
     RenderObject* o = renderer();
-//SAMSUNG CHNAGES >>
-    if (!force && (!o->isInline() || o->isReplaced())) {
-//SAMSUNG CHNAGES <<
+    if (!o->isInline() || o->isReplaced()) {
         RenderBox* box = toRenderBox(o);
         point = o->localToAbsolute(FloatPoint(), false, true);
         point.move(box->width(), box->height());
@@ -959,31 +949,6 @@ IntRect ContainerNode::getRect() const
     
     return enclosingIntRect(FloatRect(upperLeft, lowerRight - upperLeft));
 }
-
-//SAMSUNG CHNAGES >>
-IntRect ContainerNode::getRectForce() const
-{
-    FloatPoint upperLeft;
-    bool const foundUpperLeft = getUpperLeftCorner(upperLeft, true);
-
-    FloatPoint lowerRight;
-    bool const foundLowerRight = getLowerRightCorner(lowerRight, true);
-
-    // If we've found one corner, but not the other,
-    // then we should just return a point at the corner that we did find.
-    if (foundUpperLeft != foundLowerRight) {
-        if (foundUpperLeft) {
-            lowerRight = upperLeft;
-        } else {
-            upperLeft = lowerRight;
-        }
-    }
-
-    lowerRight.set(max(upperLeft.x(), lowerRight.x()), max(upperLeft.y(), lowerRight.y()));
-
-    return enclosingIntRect(FloatRect(upperLeft, lowerRight - upperLeft));
-}
-//SAMSUNG CHNAGES <<
 
 void ContainerNode::setFocus(bool received)
 {

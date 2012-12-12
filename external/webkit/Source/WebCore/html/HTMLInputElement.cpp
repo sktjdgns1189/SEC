@@ -474,13 +474,6 @@ void HTMLInputElement::updateType()
     m_inputType = newType.release();
     m_inputType->createShadowSubtree();
 
-//SAMSUNG INPUT TYPE RANGE CHANGES <<
-#if PLATFORM(ANDROID) && ENABLE(TOUCH_EVENTS)	
-    if(m_inputType->isRangeControl())
-        document()->addListenerTypeIfNeeded(eventNames().touchstartEvent);
-#endif	
-//SAMSUNG INPUT TYPE RANGE CHANGES >>
-
 //SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
     if( m_inputType->formControlType() == InputTypeNames::datetime()
 	||  m_inputType->formControlType() == InputTypeNames::datetimelocal()
@@ -490,7 +483,6 @@ void HTMLInputElement::updateType()
 	||  m_inputType->formControlType() == InputTypeNames::week())
 	 m_data.setSize(19);
 //SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
-
     setNeedsWillValidateCheck();
 
     bool willStoreValue = m_inputType->storesValueSeparateFromAttribute();
@@ -623,8 +615,8 @@ void HTMLInputElement::parseMappedAttribute(Attribute* attr)
 	    StyledElement* s = static_cast<StyledElement*>(this);
 	    if(!(s->isValidFormControlElement()))
        	        attr->setValue("");
-		}
 //SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES >>
+	}
     } else if (attr->name() == checkedAttr) {
         // Another radio button in the same group might be checked by state
         // restore. We shouldn't call setChecked() even if this has the checked
@@ -1627,5 +1619,25 @@ void HTMLInputElement::handleBeforeTextInsertedEvent(Event* event)
 {
     InputElement::handleBeforeTextInsertedEvent(m_data, this, this, event);
 }
+
+#if PLATFORM(ANDROID) && ENABLE(MEDIA_CAPTURE)
+String HTMLInputElement::capture() const
+{
+    if (!isFileUpload()) {
+        // capture has no meaning on anything other than file pickers.
+        return String();
+    }
+
+    String capture = fastGetAttribute(captureAttr).lower();
+    if (capture == "camera"
+        || capture == "camcorder"
+        || capture == "microphone"
+        || capture == "filesystem")
+        return capture;
+    // According to the HTML Media Capture specification, the invalid and
+    // missing default value is filesystem.
+    return "filesystem";
+}
+#endif
 
 } // namespace

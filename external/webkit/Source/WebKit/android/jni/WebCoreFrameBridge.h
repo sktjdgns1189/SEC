@@ -64,19 +64,16 @@ class WebFrame : public WebCoreRefObject {
     // helper function
     static WebFrame* getWebFrame(const WebCore::Frame* frame);
 
-    virtual PassRefPtr<WebCore::ResourceLoaderAndroid> startLoadingResource(WebCore::ResourceHandle*,
-            const WebCore::ResourceRequest& request, bool mainResource,
-            bool synchronous);
-
     UrlInterceptResponse* shouldInterceptRequest(const WTF::String& url);
 
     void reportError(int errorCode, const WTF::String& description,
             const WTF::String& failingUrl);
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
-// SAMSUNG CHANGE + Spell Check
 	void didFinishSpellCheck( int misspelledWordCount);
-// SAMSUNG CHANGE -
 #endif
+//SAMSUNG CHANGES <<<	
+    
     void loadStarted(WebCore::Frame* frame);
 
     void transitionToCommitted(WebCore::Frame* frame);
@@ -107,6 +104,11 @@ class WebFrame : public WebCoreRefObject {
     // Returns true if it should handle it, otherwise false.
     virtual bool canHandleRequest(const WebCore::ResourceRequest& request);
 
+// Samsung Change - Bing search >>
+    int isBingSearch();
+    bool setBingSearch();
+// Samsung Change - Bing search <<
+
     WebCore::Frame* createWindow(bool dialog, bool userGesture);
 
     void requestFocus() const;
@@ -121,7 +123,6 @@ class WebFrame : public WebCoreRefObject {
 
     float density() const;
 
-#if USE(CHROME_NETWORK_STACK)
     void didReceiveAuthenticationChallenge(WebUrlLoaderClient*, const std::string& host, const std::string& realm, bool useCachedCredentials, bool suppressDialog);
     void reportSslCertError(WebUrlLoaderClient* client, int cert_error, const std::string& cert, const std::string& url);
     void requestClientCert(WebUrlLoaderClient* client, const std::string& hostAndPort);
@@ -129,7 +130,6 @@ class WebFrame : public WebCoreRefObject {
     void didReceiveData(const char* data, int size);
     void didFinishLoading();
     void setCertificate(const std::string& cert);
-#endif
 
     void maybeSavePassword(WebCore::Frame* frame, const WebCore::ResourceRequest& request);
 
@@ -137,13 +137,6 @@ class WebFrame : public WebCoreRefObject {
     // Parse the x-auto-login header and propagate the parameters to the
     // application.
     void autoLogin(const std::string& loginHeader);
-
-    /**
-     * When the user initiates a click, we set mUserInitiatedAction to true.
-     * If a load happens due to this click, then we ask the application if it wants
-     * to override the load. Otherwise, we attempt to load the resource internally.
-     */
-    void setUserInitiatedAction(bool userInitiatedAction) { mUserInitiatedAction = userInitiatedAction; }
 
     WebCore::Page* page() const { return mPage; }
 
@@ -167,17 +160,12 @@ class WebFrame : public WebCoreRefObject {
     // Convert a URL from potential punycode I18nDomainName to safe to-be-displayed Unicode.
     static WTF::String convertIDNToUnicode(const WebCore::KURL& kurl);
 
-// SAMSUNG CHANGE HTML5 History <<
-    void UpdateUrl(const WTF::String& url);
-// SAMSUNG CHANGE HTML5 History >>
-
   private:
     struct JavaBrowserFrame;
     JavaBrowserFrame* mJavaFrame;
     WebCore::Page* mPage;
     WTF::String mUserAgent;
     bool mBlockNetworkLoads;
-    bool mUserInitiatedAction;
     WebCore::RenderSkinAndroid* m_renderSkins;
 };
 

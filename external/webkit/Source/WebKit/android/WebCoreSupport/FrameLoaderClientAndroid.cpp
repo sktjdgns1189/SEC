@@ -70,7 +70,6 @@
 #include "SkRect.h"
 #include "TextEncoding.h"
 #include "WebCoreFrameBridge.h"
-#include "WebCoreResourceLoader.h"
 #include "WebHistory.h"
 #include "WebIconDatabase.h"
 #include "WebFrameView.h"
@@ -79,7 +78,7 @@
 #include "autofill/WebAutofill.h"
 #include "android_graphics.h"
 
-#include <utils/AssetManager.h>
+#include <androidfw/AssetManager.h>
 #include <wtf/text/CString.h>
 
 #define verifiedOk() // Verified that we don't need to implement this.
@@ -230,11 +229,7 @@ void FrameLoaderClientAndroid::dispatchDidChangeLocationWithinPage() {
 
 void FrameLoaderClientAndroid::dispatchDidPushStateWithinPage()
 {
-//    notImplemented();
-// SAMSUNG CHANGE HTML5 History <<
-    WTF::String url(m_frame->document()->url().string());	
-    m_webFrame->UpdateUrl(url);
-// SAMSUNG CHANGE HTML5 History >>
+    notImplemented();
 }
 
 void FrameLoaderClientAndroid::dispatchDidReplaceStateWithinPage()
@@ -271,11 +266,11 @@ void FrameLoaderClientAndroid::dispatchDidReceiveIcon() {
     // There is a bug in webkit where cancelling an icon load is treated as a
     // failure. When this is fixed, we can ASSERT again that we have an icon.
     if (icon) {
-        LOGV("Received icon (%p) for %s", icon,
+        ALOGV("Received icon (%p) for %s", icon,
                 url.utf8().data());
         m_webFrame->didReceiveIcon(icon);
     } else {
-        LOGV("Icon data for %s unavailable, registering for notification...",
+        ALOGV("Icon data for %s unavailable, registering for notification...",
                 url.utf8().data());
         registerForIconNotification();
     }
@@ -436,7 +431,9 @@ void FrameLoaderClientAndroid::dispatchDidFirstLayout() {
     // so that about:blank will update the screen.
     if (!m_frame->tree()->parent()) {
         // Only need to notify Java side for the top frame
-        WebViewCore::getWebViewCore(m_frame->view())->didFirstLayout();
+        WebViewCore* core = WebViewCore::getWebViewCore(m_frame->view());
+        if (core)
+            core->didFirstLayout();
     }
 }
 
@@ -811,8 +808,7 @@ bool FrameLoaderClientAndroid::canShowMIMEType(const String& mimeType) const {
     // FIXME: This looks like it has to do with whether or not a type can be
     // shown "internally" (i.e. inside the browser) regardless of whether
     // or not the browser is doing the rendering, e.g. a full page plugin.
-    #ifdef GLOBALCONFIG_NEXTI_PV_PLAYREADY
-    // DrmLicenseService modification start
+#if defined(GLOBALCONFIG_NEXTI_PV_PLAYREADY)|| defined(SEC_PRODUCT_FEATURE_NEXTI_PV_PLAYREADY)     // DrmLicenseService modification start
     if (mimeType == "application/vnd.ms-playready.initiator+xml")
         return false;
     // DrmLicenseService modification end	
@@ -827,7 +823,6 @@ bool FrameLoaderClientAndroid::canShowMIMEType(const String& mimeType) const {
             (DOMImplementation::isTextMIMEType(mimeType) &&
              !mimeType.startsWith("text/vnd")) ||
             DOMImplementation::isXMLMIMEType(mimeType))
-// SAMSUNG CHANGE >>
 	{
 		if(isOmaorDrmMimeType(mimeType) || ispdfMimeType(mimeType))                //SAMSUNG CHANGE - MPSG4642
 		{
@@ -837,8 +832,6 @@ bool FrameLoaderClientAndroid::canShowMIMEType(const String& mimeType) const {
 	}
     return false;
 }
-
-
 
 bool  FrameLoaderClientAndroid::isOmaorDrmMimeType(const String& mimeType) const {
 	if(mimeType == "application/vnd.oma.dd+xml" || mimeType == "application/vnd.oma.drm.roap-trigger+xml" )
@@ -990,11 +983,11 @@ void FrameLoaderClientAndroid::transitionToCommittedForNewPage() {
     Retain(webViewCore);
 
     // Save the old WebFrameView's bounds and apply them to the new WebFrameView
-    WebFrameView* oldWebFrameView = static_cast<WebFrameView*> (m_frame->view()->platformWidget());
-    IntRect bounds = oldWebFrameView->getBounds();
-    IntRect visBounds = oldWebFrameView->getVisibleBounds();
-    IntRect windowBounds = oldWebFrameView->getWindowBounds();
-    WebCore::FrameView* oldFrameView = oldWebFrameView->view();
+    RefPtr<WebCore::FrameView> oldFrameView = m_frame->view();
+    WebFrameView* oldWebFrameView = static_cast<WebFrameView*> (oldFrameView->platformWidget());
+    IntRect bounds;
+    if (oldWebFrameView)
+        bounds = oldWebFrameView->getBounds();
     const float oldZoomFactor = oldFrameView->frame()->textZoomFactor();
     m_frame->createView(bounds.size(), oldFrameView->baseBackgroundColor(), oldFrameView->isTransparent(),
             oldFrameView->fixedLayoutSize(), oldFrameView->useFixedLayout());
@@ -1002,21 +995,19 @@ void FrameLoaderClientAndroid::transitionToCommittedForNewPage() {
         m_frame->setTextZoomFactor(oldZoomFactor);
     }
 
-    // Create a new WebFrameView for the new FrameView
-    WebFrameView* newFrameView = new WebFrameView(m_frame->view(), webViewCore);
-
-#if ENABLE(ANDROID_OVERFLOW_SCROLL)
-#else
-    webViewCore->clearContent();
-#endif
-
-    newFrameView->setLocation(bounds.x(), bounds.y());
-    newFrameView->setSize(bounds.width(), bounds.height());
-    newFrameView->setVisibleSize(visBounds.width(), visBounds.height());
-    newFrameView->setWindowBounds(windowBounds.x(), windowBounds.y(), windowBounds.width(), windowBounds.height());
-    // newFrameView attaches itself to FrameView which Retains the reference, so
-    // call Release for newFrameView
-    Release(newFrameView);
+    if (oldWebFrameView) {
+        IntRect visBounds = oldWebFrameView->getVisibleBounds();
+        IntRect windowBounds = oldWebFrameView->getWindowBounds();
+        // Create a new WebFrameView for the new FrameView
+        WebFrameView* newFrameView = new WebFrameView(m_frame->view(), webViewCore);
+        newFrameView->setLocation(bounds.x(), bounds.y());
+        newFrameView->setSize(bounds.width(), bounds.height());
+        newFrameView->setVisibleSize(visBounds.width(), visBounds.height());
+        newFrameView->setWindowBounds(windowBounds.x(), windowBounds.y(), windowBounds.width(), windowBounds.height());
+        // newFrameView attaches itself to FrameView which Retains the reference, so
+        // call Release for newFrameView
+        Release(newFrameView);
+    }
     // WebFrameView Retains webViewCore, so call Release for webViewCore
     Release(webViewCore);
 
@@ -1026,12 +1017,7 @@ void FrameLoaderClientAndroid::transitionToCommittedForNewPage() {
 void FrameLoaderClientAndroid::dispatchDidBecomeFrameset(bool)
 {
 }
-void FrameLoaderClientAndroid::didSaveToPageCache()
-{
-}
-void FrameLoaderClientAndroid::didRestoreFromPageCache()
-{
-}
+
 bool FrameLoaderClientAndroid::canCachePage() const {
     return true;
 }
@@ -1057,15 +1043,11 @@ WTF::PassRefPtr<WebCore::Frame> FrameLoaderClientAndroid::createFrame(const KURL
     newFrame->tree()->setName(name);
     // Create a new FrameView and WebFrameView for the child frame to draw into.
     RefPtr<FrameView> frameView = FrameView::create(newFrame);
-    WebFrameView* webFrameView = new WebFrameView(frameView.get(),
-            WebViewCore::getWebViewCore(parent->view()));
-    // frameView Retains webFrameView, so call Release for webFrameView
-    Release(webFrameView);
     // Attach the frameView to the newFrame.
     newFrame->setView(frameView);
     newFrame->init();
     newFrame->selection()->setFocused(true);
-    LOGV("::WebCore:: createSubFrame returning %p", newFrame);
+    ALOGV("::WebCore:: createSubFrame returning %p", newFrame);
 
     // The creation of the frame may have run arbitrary JavaScript that removed it from the page already.
     if (!pFrame->page())
@@ -1380,8 +1362,8 @@ void FrameLoaderClientAndroid::dispatchDidClearWindowObjectInWorld(DOMWrapperWor
         return;
 
     ASSERT(m_frame);
-    LOGV("::WebCore:: windowObjectCleared called on frame %p for %s\n",
-    		m_frame, m_frame->loader()->url().string().ascii().data());
+    ALOGV("::WebCore:: windowObjectCleared called on frame %p for %s\n",
+            m_frame, m_frame->document()->url().string().ascii().data());
     m_webFrame->windowObjectCleared(m_frame);
 }
 
@@ -1431,16 +1413,13 @@ PassRefPtr<FrameNetworkingContext> FrameLoaderClientAndroid::createNetworkingCon
 {
     return FrameNetworkingContextAndroid::create(getFrame());
 }
+
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
 void FrameLoaderClientAndroid::didFinishSpellCheck(int misspelledWordCount) {
     m_webFrame->didFinishSpellCheck(misspelledWordCount);
 }
 #endif
-
-//SAMSUNG CHANGE +
-void FrameLoaderClientAndroid::storeAnimationTimer(Image* image) {
-    WebViewCore::getWebViewCore(m_frame->view())->storeAnimationTimer(image);
-}
-//SAMSUNG CHANGE -
+//SAMSUNG CHANGES <<<	    
 
 }

@@ -265,10 +265,6 @@ protected:
     }
     virtual Color solidColor() const { return m_solidColor; }
     
-    // SAMSUNG CHANGE +
-    bool checkForVisibleImageAnimation();
-    // SAMSUNG CHANGE -
-
     ImageSource m_source;
     mutable IntSize m_size; // The size to use for the overall image (will just be the size of the first image).
     

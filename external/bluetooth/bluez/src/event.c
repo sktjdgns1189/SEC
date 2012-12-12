@@ -606,7 +606,10 @@ int btd_event_encrypt_change(bdaddr_t *local, bdaddr_t *peer, uint8_t status)
 
 	if (status == 0x06 && device_is_le(device)) {
 		device_set_paired(device, FALSE);
-		device_set_bonded(device, FALSE);
+		DBG("device bonded will be set to false when the device storage is removed");
+		//device_set_bonded(device, FALSE);
+		DBG("added device_set_temporary to true to cause removal of device after disconnection");
+		device_set_temporary(device, TRUE);
 	}
 	return 0;
 }

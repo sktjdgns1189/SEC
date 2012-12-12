@@ -45,7 +45,7 @@ inline HTMLSourceElement::HTMLSourceElement(const QualifiedName& tagName, Docume
     : HTMLElement(tagName, document)
     , m_errorEventTimer(this, &HTMLSourceElement::errorEventTimerFired)
 {
-   // LOG(Media, "HTMLSourceElement::HTMLSourceElement - %p", this);
+    LOG(Media, "HTMLSourceElement::HTMLSourceElement - %p", this);
     ASSERT(hasTagName(sourceTag));
 }
 
@@ -95,7 +95,7 @@ void HTMLSourceElement::setType(const String& type)
 
 void HTMLSourceElement::scheduleErrorEvent()
 {
-   // LOG(Media, "HTMLSourceElement::scheduleErrorEvent - %p", this);
+    LOG(Media, "HTMLSourceElement::scheduleErrorEvent - %p", this);
     if (m_errorEventTimer.isActive())
         return;
 
@@ -104,13 +104,13 @@ void HTMLSourceElement::scheduleErrorEvent()
 
 void HTMLSourceElement::cancelPendingErrorEvent()
 {
-    //LOG(Media, "HTMLSourceElement::cancelPendingErrorEvent - %p", this);
+    LOG(Media, "HTMLSourceElement::cancelPendingErrorEvent - %p", this);
     m_errorEventTimer.stop();
 }
 
 void HTMLSourceElement::errorEventTimerFired(Timer<HTMLSourceElement>*)
 {
-   // LOG(Media, "HTMLSourceElement::errorEventTimerFired - %p", this);
+    LOG(Media, "HTMLSourceElement::errorEventTimerFired - %p", this);
     dispatchEvent(Event::create(eventNames().errorEvent, false, true));
 }
 
@@ -119,7 +119,7 @@ bool HTMLSourceElement::isURLAttribute(Attribute* attribute) const
     return attribute->name() == srcAttr;
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLSourceElement::itemValueText() const
 {
@@ -131,7 +131,7 @@ void HTMLSourceElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(srcAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 }
 
 #endif

@@ -37,6 +37,7 @@
 #include "SQLiteTransaction.h"
 #include "SecurityOrigin.h"
 
+#include <wtf/text/CString.h>
 namespace WebCore {
 
 IDBSQLiteBackingStore::IDBSQLiteBackingStore(String identifier, IDBFactoryBackendImpl* factory)

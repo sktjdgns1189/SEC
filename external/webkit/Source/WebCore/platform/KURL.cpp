@@ -577,7 +577,10 @@ String KURL::lastPathComponent() const
 
 String KURL::protocol() const
 {
-    return m_string.left(m_schemeEnd);
+   if(!m_string || m_string.isNull() || m_string.isEmpty() ) // Samsung changes P120821-1777
+      return String();
+   else
+	  return m_string.left(m_schemeEnd);
 }
 
 String KURL::host() const
@@ -708,7 +711,7 @@ String KURL::query() const
 
 String KURL::path() const
 {
-    return decodeURLEscapeSequences(m_string.substring(m_portEnd, m_pathEnd - m_portEnd)); 
+    return m_string.substring(m_portEnd, m_pathEnd - m_portEnd);
 }
 
 bool KURL::setProtocol(const String& s)
@@ -866,7 +869,7 @@ void KURL::setPath(const String& s)
     parse(m_string.left(m_portEnd) + encodeWithURLEscapeSequences(path) + m_string.substring(m_pathEnd));
 }
 
-String KURL::prettyURL() const
+String KURL::deprecatedString() const
 {
     if (!m_isValid)
         return m_string;
@@ -996,7 +999,7 @@ static void appendEscapingBadChars(char*& buffer, const char* strStart, size_t l
     buffer = p;
 }
 
-static void escapeAndAppendFragment(char*& buffer, const char* strStart, size_t length)
+static void escapeAndAppendNonHierarchicalPart(char*& buffer, const char* strStart, size_t length)
 {
     char* p = buffer;
 
@@ -1137,6 +1140,23 @@ static inline bool hostPortIsEmptyButCredentialsArePresent(int hostStart, int po
     return userEndChar == '@' && hostStart == portEnd;
 }
 
+static bool isNonFileHierarchicalScheme(const char* scheme, size_t schemeLength)
+{
+    switch (schemeLength) {
+    case 2:
+        return equal("ws", 2, scheme, schemeLength);
+    case 3:
+        return equal("ftp", 3, scheme, schemeLength) || equal("wss", 3, scheme, schemeLength);
+    case 4:
+        return equal("http", 4, scheme, schemeLength);
+    case 5:
+        return equal("https", 5, scheme, schemeLength);
+    case 6:
+        return equal("gopher", 6, scheme, schemeLength);
+    }
+    return false;
+}
+
 void KURL::parse(const char* url, const String* originalString)
 {
     if (!url || url[0] == '\0') {
@@ -1173,6 +1193,7 @@ void KURL::parse(const char* url, const String* originalString)
     int portEnd;
 
     bool hierarchical = url[schemeEnd + 1] == '/';
+    bool hasSecondSlash = hierarchical && url[schemeEnd + 2] == '/';
 
     bool isFile = schemeEnd == 4
         && matchLetter(url[0], 'f')
@@ -1186,12 +1207,15 @@ void KURL::parse(const char* url, const String* originalString)
         && matchLetter(url[3], 'p')
         && (url[4] == ':' || (matchLetter(url[4], 's') && url[5] == ':'));
 
-    if (hierarchical && url[schemeEnd + 2] == '/') {
+    if ((hierarchical && hasSecondSlash) || isNonFileHierarchicalScheme(url, schemeEnd)) {
         // The part after the scheme is either a net_path or an abs_path whose first path segment is empty.
         // Attempt to find an authority.
-
         // FIXME: Authority characters may be scanned twice, and it would be nice to be faster.
-        userStart += 2;
+
+        if (hierarchical)
+            userStart++;
+        if (hasSecondSlash)
+            userStart++;
         userEnd = userStart;
 
         int colonPos = 0;
@@ -1379,28 +1403,29 @@ void KURL::parse(const char* url, const String* originalString)
         m_hostEnd = p - buffer.data();
 
         // Copy in the port if the URL has one (and it's not default).
-	//>>> SAMSUNG CHANGES
-		// As per this issue (MPSG100003387) the visted link is not updated.Thats why we reverting the ICS port copy code to Honeycomb port copy.
-        // This issue can be observed in the safari 5.1.2 version.		
         if (hostEnd != portStart) {
-            *p++ = ':';
-            strPtr = url + portStart;
-            const char *portEndPtr = url + portEnd;
-            while (strPtr < portEndPtr)
-                *p++ = *strPtr++;
+            const char* portStr = url + portStart;
+            size_t portLength = portEnd - portStart;
+            if (portLength && !isDefaultPortForScheme(portStr, portLength, buffer.data(), m_schemeEnd)) {
+                *p++ = ':';
+                const char* portEndPtr = url + portEnd;
+                while (portStr < portEndPtr)
+                    *p++ = *portStr++;
+            }
         }
-	//<<< SAMSUNG CHANGES
         m_portEnd = p - buffer.data();
     } else
         m_userStart = m_userEnd = m_passwordEnd = m_hostEnd = m_portEnd = p - buffer.data();
 
     // For canonicalization, ensure we have a '/' for no path.
-    // Do this only for hierarchical URL with protocol http or https.
-    if (m_protocolInHTTPFamily && hierarchical && pathEnd == pathStart)
+    // Do this only for URL with protocol http or https.
+    if (m_protocolInHTTPFamily && pathEnd == pathStart)
         *p++ = '/';
 
     // add path, escaping bad characters
-    if (!hierarchical || !hasSlashDotOrDotDot(url))
+    if (!hierarchical)
+        escapeAndAppendNonHierarchicalPart(p, url + pathStart, pathEnd - pathStart);
+    else if (!hasSlashDotOrDotDot(url))
         appendEscapingBadChars(p, url + pathStart, pathEnd - pathStart);
     else {
         CharBuffer pathBuffer(pathEnd - pathStart + 1);
@@ -1426,7 +1451,7 @@ void KURL::parse(const char* url, const String* originalString)
     // add fragment, escaping bad characters
     if (fragmentEnd != queryEnd) {
         *p++ = '#';
-        escapeAndAppendFragment(p, url + fragmentStart, fragmentEnd - fragmentStart);
+        escapeAndAppendNonHierarchicalPart(p, url + fragmentStart, fragmentEnd - fragmentStart);
     }
     m_fragmentEnd = p - buffer.data();
 

@@ -26,7 +26,9 @@
 #define LOG_TAG "webcoreglue"
 
 #include "config.h"
+#include "IntRect.h"
 #include "WebCoreJni.h"
+#include "wtf/Vector.h"
 
 #include "NotImplemented.h"
 #include <JNIUtility.h>
@@ -38,7 +40,7 @@ namespace android {
 AutoJObject getRealObject(JNIEnv* env, jobject obj)
 {
     jobject real = env->NewLocalRef(obj);
-    LOG_ASSERT(real, "The real object has been deleted!");
+    ALOG_ASSERT(real, "The real object has been deleted!");
     return AutoJObject(env, real);
 }
 
@@ -50,7 +52,7 @@ bool checkException(JNIEnv* env)
 {
     if (env->ExceptionCheck() != 0)
     {
-        LOGE("*** Uncaught exception returned from Java call!\n");
+        ALOGE("*** Uncaught exception returned from Java call!\n");
         env->ExceptionDescribe();
         return true;
     }
@@ -77,8 +79,6 @@ jstring wtfStringToJstring(JNIEnv* env, const WTF::String& str, bool validOnZero
     return length || validOnZeroLength ? env->NewString(str.characters(), length) : 0;
 }
 
-
-#if USE(CHROME_NETWORK_STACK)
 string16 jstringToString16(JNIEnv* env, jstring jstr)
 {
     if (!jstr || !env)
@@ -112,6 +112,37 @@ jstring stdStringToJstring(JNIEnv* env, const std::string& str, bool validOnZero
     return !str.empty() || validOnZeroLength ? env->NewStringUTF(str.c_str()) : 0;
 }
 
-#endif
+jobject intRectToRect(JNIEnv* env, const WebCore::IntRect& rect)
+{
+    jclass rectClass = env->FindClass("android/graphics/Rect");
+    ALOG_ASSERT(rectClass, "Could not find android/graphics/Rect");
+    jmethodID rectInit = env->GetMethodID(rectClass, "<init>", "(IIII)V");
+    ALOG_ASSERT(rectInit, "Could not find init method on Rect");
+    jobject jrect = env->NewObject(rectClass, rectInit, rect.x(), rect.y(),
+            rect.maxX(), rect.maxY());
+    env->DeleteLocalRef(rectClass);
+    return jrect;
+}
+
+jobjectArray intRectVectorToRectArray(JNIEnv* env, Vector<WebCore::IntRect>& rects)
+{
+    jclass rectClass = env->FindClass("android/graphics/Rect");
+    ALOG_ASSERT(rectClass, "Could not find android/graphics/Rect");
+    jmethodID rectInit = env->GetMethodID(rectClass, "<init>", "(IIII)V");
+    ALOG_ASSERT(rectInit, "Could not find init method on Rect");
+    jobjectArray array = env->NewObjectArray(rects.size(), rectClass, 0);
+    ALOG_ASSERT(array, "Could not create a Rect array");
+    for (size_t i = 0; i < rects.size(); i++) {
+        jobject rect = env->NewObject(rectClass, rectInit,
+                rects[i].x(), rects[i].y(),
+                rects[i].maxX(), rects[i].maxY());
+        if (rect) {
+            env->SetObjectArrayElement(array, i, rect);
+            env->DeleteLocalRef(rect);
+        }
+    }
+    env->DeleteLocalRef(rectClass);
+    return array;
+}
 
 }

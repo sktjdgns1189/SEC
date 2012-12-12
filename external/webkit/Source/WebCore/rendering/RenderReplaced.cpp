@@ -29,9 +29,11 @@
 #include "RenderTheme.h"
 #include "RenderView.h"
 #include "VisiblePosition.h"
-#include "Settings.h" // SAMSUNG CHANGE ADVANCED TEXT SELECTION
+#include "Settings.h" //SAMSUNG ADVANCED TEXT SELECTION
 
 using namespace std;
+
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
 
 namespace WebCore {
 
@@ -58,6 +60,14 @@ RenderReplaced::~RenderReplaced()
 {
 }
 
+void RenderReplaced::destroy()
+{
+    if (!documentBeingDestroyed() && parent())
+        parent()->dirtyLinesFromChangedChild(this);
+
+    RenderBox::destroy();
+}
+
 void RenderReplaced::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
 {
     RenderBox::styleDidChange(diff, oldStyle);
@@ -80,7 +90,7 @@ void RenderReplaced::layout()
     computeLogicalHeight();
 
     m_overflow.clear();
-    addShadowOverflow();
+    addBoxShadowAndBorderOverflow();
     updateLayerTransform();
     
     repainter.repaintAfterLayout();
@@ -152,12 +162,13 @@ void RenderReplaced::paint(PaintInfo& paintInfo, int tx, int ty)
     if (drawSelectionTint) {
         IntRect selectionPaintingRect = localSelectionRect();
         selectionPaintingRect.move(tx, ty);
-        //SAMSUNG CHANGE BEGIN : Advance Text Selection
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
         if(true  == (document()->settings() && document()->settings()->advancedSelectionEnabled() )){
             paintInfo.context->fillTransparentRect(selectionPaintingRect, selectionBackgroundColor());
         }else {
             paintInfo.context->fillRect(selectionPaintingRect, selectionBackgroundColor(), style()->colorSpace());
         }
+//SAMSUNG ADVANCED TEXT SELECTION - END
     }
 }
 

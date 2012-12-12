@@ -98,8 +98,6 @@ int ScrollView::platformActualScrollY() const
 
 void ScrollView::platformSetScrollPosition(const WebCore::IntPoint& pt)
 {
-    if (parent()) // don't attempt to scroll subframes; they're fully visible
-        return;
     PlatformBridge::setScrollPosition(this, m_scrollOrigin.x() + pt.x(),
             m_scrollOrigin.y() + pt.y());
 }
@@ -133,13 +131,7 @@ void ScrollView::platformOffscreenContentRectangle(const IntRect& vis, const Int
     android::WebViewCore* core = android::WebViewCore::getWebViewCore(this);
     if (!core) // SVG does not instantiate webviewcore
         return; // and doesn't need to record drawing offscreen
-    SkRegion rectRgn = SkRegion(rect);
-    rectRgn.op(vis, SkRegion::kDifference_Op);
-    SkRegion::Iterator iter(rectRgn);
-    for (; !iter.done(); iter.next()) {
-        const SkIRect& diff = iter.rect();
-        core->offInvalidate(diff);
-    }
+    core->offInvalidate(rect);
 }
 #endif
 

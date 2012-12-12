@@ -33,9 +33,9 @@
 #include "VisiblePosition.h"
 #include "visible_units.h"
 #include "Range.h"
-// SAMSUNG CHANGE- ADVANCED TEXT SELECTIION -BEGIN
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 #include "Settings.h"
-// SAMSUNG CHANGE- ADVANCED TEXT SELECTIION -END
+//SAMSUNG ADVANCED TEXT SELECTION - END
 #include <stdio.h>
 #include <wtf/Assertions.h>
 #include <wtf/text/CString.h>
@@ -54,6 +54,9 @@ VisibleSelection::VisibleSelection(const Position& pos, EAffinity affinity)
     : m_base(pos)
     , m_extent(pos)
     , m_affinity(affinity)
+//SISO_HTMLComposer Start
+    , m_selectionType(NoSelection)
+//SISO_HTMLComposer End
 {
     validate();
 }
@@ -62,6 +65,9 @@ VisibleSelection::VisibleSelection(const Position& base, const Position& extent,
     : m_base(base)
     , m_extent(extent)
     , m_affinity(affinity)
+//SISO_HTMLComposer Start
+    , m_selectionType(NoSelection)
+//SISO_HTMLComposer End
 {
     validate();
 }
@@ -70,6 +76,9 @@ VisibleSelection::VisibleSelection(const VisiblePosition& pos)
     : m_base(pos.deepEquivalent())
     , m_extent(pos.deepEquivalent())
     , m_affinity(pos.affinity())
+//SISO_HTMLComposer Start
+    , m_selectionType(NoSelection)
+//SISO_HTMLComposer End
 {
     validate();
 }
@@ -78,6 +87,9 @@ VisibleSelection::VisibleSelection(const VisiblePosition& base, const VisiblePos
     : m_base(base.deepEquivalent())
     , m_extent(extent.deepEquivalent())
     , m_affinity(base.affinity())
+//SISO_HTMLComposer Start
+    , m_selectionType(NoSelection)
+//SISO_HTMLComposer End
 {
     validate();
 }
@@ -86,6 +98,9 @@ VisibleSelection::VisibleSelection(const Range* range, EAffinity affinity)
     : m_base(range->startPosition())
     , m_extent(range->endPosition())
     , m_affinity(affinity)
+//SISO_HTMLComposer Start
+    , m_selectionType(NoSelection)
+//SISO_HTMLComposer End
 {
     validate();
 }
@@ -254,19 +269,27 @@ void VisibleSelection::setBaseAndExtentToDeepEquivalents()
     if (m_extent.isNotNull() && !baseAndExtentEqual)
         m_extent = VisiblePosition(m_extent, m_affinity).deepEquivalent();
 
-// SAMSUNG CHANGE- ADVANCED TEXT SELECTIION -BEGIN
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
    if ((selectionType() == RangeSelection) && 
 	(m_base.isNotNull() &&  m_extent.isNotNull() ) &&
 	(m_base.anchorNode()->document()->settings() && m_base.anchorNode()->document()->settings()->advancedSelectionEnabled() ))
     {
 		if ((m_base.anchorNode()==m_extent.anchorNode())&& (m_extent.offsetInContainerNode() == m_base.offsetInContainerNode()))
 		{
-			m_extent.moveToOffset(m_base.offsetInContainerNode()+1);
+			if ( (isEndOfLine(m_extent) ||isEndOfParagraph(m_extent) || isEndOfDocument(m_extent)) && m_extent.offsetInContainerNode() > 0)
+			{
+				m_extent.moveToOffset(m_base.offsetInContainerNode()-1);
+
+			}
+			else
+			{
+				m_extent.moveToOffset(m_base.offsetInContainerNode()+1);
+			}
 		}
     }
 
-// SAMSUNG CHANGE- ADVANCED TEXT SELECTIION -END
-	
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
     // Make sure we do not have a dangling base or extent.
     if (m_base.isNull() && m_extent.isNull())
         m_baseIsFirst = true;
@@ -303,31 +326,39 @@ void VisibleSelection::setStartAndEndFromBaseAndExtentRespectingGranularity(Text
             VisiblePosition start = VisiblePosition(m_start, m_affinity);
             VisiblePosition originalEnd(m_end, m_affinity);
             EWordSide side = RightWordIfOnBoundary;
-			// SAMSUNG CHANGE +
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
 			Document *doc = NULL;
 			if (m_start.anchorNode())
 				doc = m_start.anchorNode()->document();
-			if (doc && doc->settings() && doc->settings()->advancedSelectionEnabled()) {
+			if (doc && doc->settings() && doc->settings()->advancedSelectionEnabled()) 
+			{
 				bool endOfDocument;
-				if ( (endOfDocument = isEndOfDocument(start)) || ( (isEndOfLine(start) || isStartOfSpace(start)) && !isStartOfLine(start))) {
-	                side = LeftWordIfOnBoundary;
-					if (!endOfDocument && isEndOfParagraph(start)) {
+				if ( (endOfDocument = isEndOfDocument(start)) || ( (isEndOfLine(start) || isStartOfSpace(start)) && !isStartOfLine(start))) 
+				{
+					side = LeftWordIfOnBoundary;
+					if (!endOfDocument && isEndOfParagraph(start)) 
+					{
 						originalEnd = start;
 					}
 				}
-	            m_start = startOfWord(start, side).deepEquivalent();
-	            side = RightWordIfOnBoundary;
-			     if (isStartOfSpace(start)) {
-				 	side = LeftWordIfOnBoundary;
-			     	}
-	            if (isEndOfDocument(originalEnd) || (isEndOfLine(originalEnd) && !isStartOfLine(originalEnd)))
-	                side = LeftWordIfOnBoundary;
-	                
-	            VisiblePosition wordEnd(endOfWord(originalEnd, side));
-	            VisiblePosition end(wordEnd);
-	            m_end = end.deepEquivalent();
-			} else {			
-			// SAMSUNG CHANGE -
+				m_start = startOfWord(start, side).deepEquivalent();
+				side = RightWordIfOnBoundary;
+
+				if (isStartOfSpace(start)) 
+				{
+					side = LeftWordIfOnBoundary;
+				}
+
+				if (isEndOfDocument(originalEnd) || (isEndOfLine(originalEnd) && !isStartOfLine(originalEnd)))
+				side = LeftWordIfOnBoundary;
+
+				VisiblePosition wordEnd(endOfWord(originalEnd, side));
+				VisiblePosition end(wordEnd);
+				m_end = end.deepEquivalent();
+			} 
+			else 
+			{			
+//SAMSUNG ADVANCED TEXT SELECTION - END
             if (isEndOfDocument(start) || (isEndOfLine(start) && !isStartOfLine(start) && !isEndOfParagraph(start)))
                 side = LeftWordIfOnBoundary;
             m_start = startOfWord(start, side).deepEquivalent();
@@ -358,7 +389,9 @@ void VisibleSelection::setStartAndEndFromBaseAndExtentRespectingGranularity(Text
             }
                 
             m_end = end.deepEquivalent();
-			}// SAMSUNG CHANGE
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN			
+			}
+//SAMSUNG ADVANCED TEXT SELECTION - END			
             break;
         }
         case SentenceGranularity: {
@@ -392,14 +425,14 @@ void VisibleSelection::setStartAndEndFromBaseAndExtentRespectingGranularity(Text
             
             // Include the "paragraph break" (the space from the end of this paragraph to the start
             // of the next one) in the selection.
-            // SAMSUNG CHANGE +
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
             // Here it tries to extend the end point from current paragraph to beginning of next paragraph. So somehow it is 
             // selecting the next paragraph also and it looks wrong when we do backward paragraph selection.
             // Even though user is trying to extend selection in backward direction, because of this condition it extends selection
             // in both directions. So commented the below code to avoid wrong backward text selection
-            //VisiblePosition end(visibleParagraphEnd.next());
+            // WAS: VisiblePosition end(visibleParagraphEnd.next());
             VisiblePosition end(visibleParagraphEnd);
-			// SAMSUNG CHANGE -
+//SAMSUNG ADVANCED TEXT SELECTION - END
              
             if (Node* table = isFirstPositionAfterTable(end)) {
                 // The paragraph break after the last paragraph in the last cell of a block table ends

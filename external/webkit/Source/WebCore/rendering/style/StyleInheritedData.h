@@ -51,11 +51,7 @@ public:
     // could be packed in a short but doesn't
     // make a difference currently because of padding
     Length line_height;
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    Length specified_line_height;
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-#endif
+
     RefPtr<StyleImage> list_style_image;
 
     Font font;

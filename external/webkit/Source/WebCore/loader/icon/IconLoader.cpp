@@ -48,6 +48,7 @@ namespace WebCore {
 IconLoader::IconLoader(Frame* frame)
     : m_frame(frame)
     , m_loadIsInProgress(false)
+    , m_status(0)
 {
 }
 
@@ -72,6 +73,10 @@ void IconLoader::startLoading()
     ResourceRequest resourceRequest(m_frame->loader()->iconURL());
     resourceRequest.setPriority(ResourceLoadPriorityLow);
 
+// SAMSUNG CHANGE : not sending favicon request once 404 not found error received for the favicon.
+    m_iconUrl = m_frame->loader()->iconURL();
+// SAMSUNG CHANGE
+
     RefPtr<SubresourceLoader> loader = resourceLoadScheduler()->scheduleSubresourceLoad(m_frame, this, resourceRequest);
     if (!loader)
         LOG_ERROR("Failed to start load for icon at url %s", m_frame->loader()->iconURL().string().ascii().data());
@@ -92,6 +97,11 @@ void IconLoader::didReceiveResponse(SubresourceLoader* resourceLoader, const Res
     // If we got a status code indicating an invalid response, then lets
     // ignore the data and not try to decode the error page as an icon.
     int status = response.httpStatusCode();
+
+// SAMSUNG CHANGE : not sending favicon request once 404 not found error received for the favicon.
+    m_status = response.httpStatusCode();
+// SAMSUNG CHANGE
+
     LOG(IconDatabase, "IconLoader::didReceiveResponse() - Loader %p, response %i", resourceLoader, status);
 
     if (status && (status < 200 || status > 299)) {

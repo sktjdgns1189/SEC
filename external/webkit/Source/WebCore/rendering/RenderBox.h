@@ -27,6 +27,8 @@
 #include "RenderOverflow.h"
 #include "ScrollTypes.h"
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 struct PaintInfo;
@@ -133,13 +135,6 @@ public:
     // For horizontal-tb and vertical-lr they will match physical directions, but for horizontal-bt and vertical-rl, the top/bottom and left/right
     // respectively are flipped when compared to their physical counterparts.  For example minX is on the left in vertical-lr,
     // but it is on the right in vertical-rl.
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-	IntRect visibleOverflowRect() const { return hasOverflowClip() ? visualOverflowRect() : (m_overflow ? m_overflow->visibleOverflowRect() : borderBoxRect()); }
-    int minYVisibleOverflow() const { return hasOverflowClip() ? minYVisualOverflow() : std::min(minYLayoutOverflow(), minYVisualOverflow()); }
-    int maxYVisibleOverflow() const { return hasOverflowClip() ? maxYVisualOverflow() : std::max(maxYLayoutOverflow(), maxYVisualOverflow()); }
-    int minXVisibleOverflow() const { return hasOverflowClip() ? minXVisualOverflow() : std::min(minXLayoutOverflow(), minXVisualOverflow()); }
-    int maxXVisibleOverflow() const { return hasOverflowClip() ? maxXVisualOverflow() :  std::max(maxXLayoutOverflow(), maxXVisualOverflow()); }
-#endif
     IntRect layoutOverflowRect() const { return m_overflow ? m_overflow->layoutOverflowRect() : clientBoxRect(); }
     int minYLayoutOverflow() const { return m_overflow? m_overflow->minYLayoutOverflow() : borderTop(); }
     int maxYLayoutOverflow() const { return m_overflow ? m_overflow->maxYLayoutOverflow() : borderTop() + clientHeight(); }
@@ -159,7 +154,7 @@ public:
     void addLayoutOverflow(const IntRect&);
     void addVisualOverflow(const IntRect&);
     
-    void addShadowOverflow();
+    void addBoxShadowAndBorderOverflow();
     void addOverflowFromChild(RenderBox* child) { addOverflowFromChild(child, IntSize(child->x(), child->y())); }
     void addOverflowFromChild(RenderBox* child, const IntSize& delta);
     void clearLayoutOverflow();
@@ -340,9 +335,12 @@ public:
     bool scrollsOverflow() const { return scrollsOverflowX() || scrollsOverflowY(); }
     bool scrollsOverflowX() const { return hasOverflowClip() && (style()->overflowX() == OSCROLL || hasAutoHorizontalScrollbar()); }
     bool scrollsOverflowY() const { return hasOverflowClip() && (style()->overflowY() == OSCROLL || hasAutoVerticalScrollbar()); }
-// SAMSUNG Adding for Multicolumn text selection - Begin    
+    
+//SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    // WAS: virtual IntRect localCaretRect(InlineBox*, int caretOffset, int* extraWidthToEndOfLine = 0);
     virtual IntRect localCaretRect(InlineBox*, int caretOffset, int* extraWidthToEndOfLine = 0,bool bTextSelection=false);
-// SAMSUNG Adding for Multicolumn text selection - End
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
     virtual IntRect overflowClipRect(int tx, int ty, OverlayScrollbarSizeRelevancy relevancy = IgnoreOverlayScrollbarSize);
     IntRect clipRect(int tx, int ty);
     virtual bool hasControlClip() const { return false; }
@@ -385,6 +383,8 @@ public:
     virtual void markForPaginationRelayoutIfNeeded() { }
 
     bool isWritingModeRoot() const { return !parent() || parent()->style()->writingMode() != style()->writingMode(); }
+
+    bool isDeprecatedFlexItem() const { return !isInline() && !isFloatingOrPositioned() && parent() && parent()->isFlexibleBox(); }
     
     virtual int lineHeight(bool firstLine, LineDirectionMode, LinePositionMode = PositionOnContainingLine) const;
     virtual int baselinePosition(FontBaseline, bool firstLine, LineDirectionMode, LinePositionMode = PositionOnContainingLine) const;

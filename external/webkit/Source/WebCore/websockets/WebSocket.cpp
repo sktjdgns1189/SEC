@@ -172,7 +172,6 @@ bool WebSocket::send(const String& message, ExceptionCode& ec)
 
 void WebSocket::close()
 {
-// SAMSUNG CHANGE added from chrome source >>
 #if 0	
     LOG(Network, "WebSocket %p close", this);
     if (m_state == CLOSED)

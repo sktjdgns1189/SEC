@@ -25,9 +25,12 @@
 #include "config.h"
 #include "PopupMenuAndroid.h"
 
+#include "IntRect.h"
 #include "PopupMenuClient.h"
 #include "SkTDArray.h"
 #include "WebViewCore.h"
+
+using namespace WebCore;
 
 class PopupReply : public android::WebCoreReply {
 public:
@@ -150,10 +153,7 @@ void PopupMenuAndroid::show(const IntRect& rect, FrameView* frameView, int)
                 *selectedArray.append() = i;
         }
     }
-	
-    if(viewImpl==NULL)  // Preventive Fix for P120521-3102
-      return;
-	  
+
     viewImpl->listBoxRequest(m_reply,
                              names.begin(),
                              size,
@@ -161,8 +161,7 @@ void PopupMenuAndroid::show(const IntRect& rect, FrameView* frameView, int)
                              enabledArray.count(),
                              multiple,
                              selectedArray.begin(),
-                             multiple ? selectedArray.count() : m_popupClient->selectedIndex(),
-                             static_cast<WebCore::Element*>(viewImpl->getCurrentCursor())/*SAMSUNG CHANGE - Form Navigation*/);
+                             multiple ? selectedArray.count() : m_popupClient->selectedIndex());
 }
 
 } // namespace WebCore

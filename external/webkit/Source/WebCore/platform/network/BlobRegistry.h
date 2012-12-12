@@ -62,7 +62,7 @@ public:
     virtual void unregisterBlobURL(const KURL&) = 0;
     virtual PassRefPtr<ResourceHandle> createResourceHandle(const ResourceRequest&, ResourceHandleClient*) = 0;
     virtual bool loadResourceSynchronously(const ResourceRequest&, ResourceError&, ResourceResponse&, Vector<char>& data) = 0;
-    
+
 protected:
     virtual ~BlobRegistry() { }
 };

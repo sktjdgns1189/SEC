@@ -359,8 +359,13 @@ static DBusMessage *register_watcher(DBusConnection *conn,
 {
 	const char *sender = dbus_message_get_sender(msg);
 	struct gatt_service *gatt = data;
+	struct btd_device *device = gatt->dev;
 	struct watcher *watcher;
 	char *path;
+	if(!device_is_gatt_connected(device)){
+		DBG("gatt not connected");
+		return btd_error_not_connected(msg);
+	}
 
 	if (!dbus_message_get_args(msg, NULL, DBUS_TYPE_OBJECT_PATH, &path,
 							DBUS_TYPE_INVALID))
@@ -494,10 +499,15 @@ static DBusMessage *set_value(DBusConnection *conn, DBusMessage *msg,const char*
 			DBusMessageIter *iter, struct characteristic *chr)
 {
 	struct gatt_service *gatt = chr->gatt;
+	struct btd_device *device = gatt->dev;
 	DBusMessageIter sub;
 	struct query_data *qdata;
 	uint8_t *value;
 	int len;
+	if(!device_is_gatt_connected(device)){
+		DBG("gatt not connected");
+		return btd_error_not_connected(msg);
+	}
 
 // SSBT :: SISO LE (02/22/2012), changed from || to &&
 	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_ARRAY &&
@@ -604,15 +614,19 @@ static DBusMessage *set_client_config_desc(DBusConnection *conn, DBusMessage *ms
 			DBusMessageIter *iter, struct characteristic *chr)
 {
 	struct gatt_service *gatt = chr->gatt;
+	struct btd_device *device = gatt->dev;
 	struct query_data *qvalue;
 	DBusMessageIter sub;
-	GError *gerr = NULL;
 	uint8_t *value;
 	int len;
 
 	DBG("");
+	if(!device_is_gatt_connected(device)){
+		DBG("gatt not connected");
+		return btd_error_not_connected(msg);
+	}
 
-	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_ARRAY  && 
+	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_ARRAY  &&
 			dbus_message_iter_get_element_type(iter) != DBUS_TYPE_BYTE)
 		return btd_error_invalid_args(msg);
 
@@ -1233,9 +1247,14 @@ static DBusMessage *discover_char(DBusConnection *conn, DBusMessage *msg,
 								void *data)
 {
 	struct gatt_service *gatt = data;
+	struct btd_device *device = gatt->dev;
 	struct query *query;
 	struct query_data *qchr;
 
+	if(!device_is_gatt_connected(device)){
+		DBG("gatt not connected");
+		return btd_error_not_connected(msg);
+	}
 	if (gatt->query)
 		return btd_error_busy(msg);
 
@@ -1326,8 +1345,11 @@ static struct gatt_service *primary_register(DBusConnection *conn,
 	gatt->prim = prim;
 	gatt->psm = psm;
 	gatt->conn = dbus_connection_ref(conn);
-	gatt->path = g_strdup_printf("%s/service%04x", device_path,
+	gchar **temppath = g_strsplit(device_path, "/",-1);
+	gchar *resultant_path = g_strconcat("/",temppath[5],NULL);
+	gatt->path = g_strdup_printf("%s/service%04x", resultant_path,
 								prim->start);
+	DBG("GATT path = %s",gatt->path);
 
 	if(g_dbus_register_interface(gatt->conn, gatt->path,
 					CHAR_INTERFACE, prim_methods,

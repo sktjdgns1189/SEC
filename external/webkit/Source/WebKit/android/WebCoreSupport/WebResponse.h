@@ -48,11 +48,6 @@ public:
     WebResponse(const std::string &url, const std::string &mimeType, long long expectedSize, const std::string &encoding, int httpStatusCode);
 
     const std::string& getUrl() const;
-	
-	//SAMSUNG_CHANGES MPSG100002728 >>
-	const std::string& getReferrer() const;
-	//SAMSUNG_CHANGES MPSG100002728 <<
-	
     void setUrl(const std::string&);
 	//SAMSUNG_CHANGES >>
     void setMimeType(const std::string& );
@@ -82,7 +77,6 @@ private:
     long long m_expectedSize;
     std::string m_mime;
     std::string m_url;
-	std::string m_referrer;//SAMSUNG_CHANGES MPSG100002728
     net::SSLInfo m_sslInfo;
 
     struct CaseInsensitiveLessThan {

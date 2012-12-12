@@ -90,15 +90,6 @@ LOCAL_C_INCLUDES:= \
 LOCAL_SHARED_LIBRARIES := \
 	libcutils
 
-ifneq ($(findstring DGLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT=TRUE, $(COMMON_GLOBAL_CFLAGS)),)
-LOCAL_SHARED_LIBRARIES += \
-	libbt-aptx-4.0.3
-
-PRODUCT_COPY_FILES += \
-	$(LOCAL_PATH)/libbt-aptx-4.0.3.so:obj/lib/libbt-aptx-4.0.3.so \
-	$(LOCAL_PATH)/libbt-aptx-4.0.3.so:system/lib/libbt-aptx-4.0.3.so
-endif
-
 ifneq ($(wildcard system/bluetooth/legacy.mk),)
 LOCAL_STATIC_LIBRARIES := \
 	libpower
@@ -107,12 +98,6 @@ LOCAL_MODULE := liba2dp
 else
 LOCAL_SHARED_LIBRARIES += \
 	libpower
-# SS_BLUETOOTH(is80.hwang) 2012.02.10
-ifeq ($(BOARD_HAVE_BLUETOOTH_CSR),true)
-LOCAL_SHARED_LIBRARIES += \
-	libbluetooth
-endif	
-# SS_BLUETOOTH(is80.hwang) End
 
 LOCAL_MODULE := audio.a2dp.default
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
@@ -121,3 +106,7 @@ endif
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+include $(BUILD_MULTI_PREBUILT)

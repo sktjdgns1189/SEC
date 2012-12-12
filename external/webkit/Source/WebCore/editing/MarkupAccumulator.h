@@ -68,12 +68,12 @@ class MarkupAccumulator {
 public:
     MarkupAccumulator(Vector<Node*>* nodes, EAbsoluteURLs shouldResolveURLs, const Range* range = 0);
     virtual ~MarkupAccumulator();
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
     String serializeNodes(Node* node, Node* nodeToSkip, EChildrenOnly childrenOnly,const String& basePath = String()/*SAMSUNG_HTML_EDIT_EXTENSION*/, android::WebHTMLMarkupData* markupData = 0);
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 
 protected:
-    void appendString(const String&);
+    virtual void appendString(const String&);
     void appendStartTag(Node*, Namespaces* = 0, const String& basePath = String()/*SAMSUNG_HTML_EDIT_EXTENSION*/, android::WebHTMLMarkupData* markupData = 0);
     void appendEndTag(Node*);
     static size_t totalLength(const Vector<String>&);

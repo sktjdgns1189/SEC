@@ -435,6 +435,13 @@ static struct modem_io_t cdma_io_devices[] = {
 		.io_type = IODEV_MISC,
 		.link = LINKDEV_DPRAM,
 	},
+		[13] = {
+		.name = "cdma_router", /* AT commands */
+		.id = 0x39,
+		.format = IPC_RAW,
+		.io_type = IODEV_MISC,
+		.link = LINKDEV_DPRAM,
+	},
 };
 
 static struct modem_data cdma_modem_data = {
@@ -712,8 +719,8 @@ static struct resource lte_modem_res[] = {
 	[0] = {
 		.name = "lte_phone_active",
 		/* phone active irq */
-		.start = (GPIO_LTE_ACTIVE),
-		.end = (GPIO_LTE_ACTIVE),
+		.start = IRQ_LTE_ACTIVE,
+		.end = IRQ_LTE_ACTIVE,
 		.flags = IORESOURCE_IRQ,
 		},
 	[1] = {
@@ -755,37 +762,46 @@ static void lte_modem_cfg_gpio(void)
 	if (gpio_cp_on) {
 		gpio_request(gpio_cp_on, "LTE_ON");
 		gpio_direction_output(gpio_cp_on, 0);
+		s3c_gpio_setpull(gpio_cp_on, S3C_GPIO_PULL_NONE);
 	}
 
 	if (gpio_cp_rst) {
 		gpio_request(gpio_cp_rst, "LTE_RST");
 		gpio_direction_output(gpio_cp_rst, 0);
+		s3c_gpio_setpull(gpio_cp_rst, S3C_GPIO_PULL_NONE);
 	}
 
 	if (gpio_phone_active) {
 		gpio_request(gpio_phone_active, "LTE_ACTIVE");
 		gpio_direction_input(gpio_phone_active);
+		s3c_gpio_setpull(gpio_phone_active, S3C_GPIO_PULL_DOWN);
+		s3c_gpio_cfgpin(gpio_phone_active, S3C_GPIO_SFN(0xF));
 	}
 
 #ifdef CONFIG_LTE_MODEM_CMC220
 	if (gpio_cp_off) {
 		gpio_request(gpio_cp_off, "LTE_OFF");
 		gpio_direction_output(gpio_cp_off, 1);
+		s3c_gpio_setpull(gpio_cp_off, S3C_GPIO_PULL_NONE);
 	}
 
 	if (gpio_slave_wakeup) {
 		gpio_request(gpio_slave_wakeup, "LTE_SLAVE_WAKEUP");
 		gpio_direction_output(gpio_slave_wakeup, 0);
+		s3c_gpio_setpull(gpio_slave_wakeup, S3C_GPIO_PULL_NONE);
 	}
 
 	if (gpio_host_wakeup) {
 		gpio_request(gpio_host_wakeup, "LTE_HOST_WAKEUP");
 		gpio_direction_input(gpio_host_wakeup);
+		s3c_gpio_setpull(gpio_host_wakeup, S3C_GPIO_PULL_DOWN);
+		s3c_gpio_cfgpin(gpio_host_wakeup, S3C_GPIO_SFN(0xF));
 	}
 
 	if (gpio_host_active) {
 		gpio_request(gpio_host_active, "LTE_HOST_ACTIVE");
 		gpio_direction_output(gpio_host_active, 1);
+		s3c_gpio_setpull(gpio_host_active, S3C_GPIO_PULL_NONE);
 	}
 #endif
 }

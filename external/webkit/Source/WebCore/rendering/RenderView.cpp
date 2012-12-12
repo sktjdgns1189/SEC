@@ -57,9 +57,6 @@ RenderView::RenderView(Node* node, FrameView* view)
     , m_pageLogicalHeightChanged(false)
     , m_layoutState(0)
     , m_layoutStateDisableCount(0)
-#if ENABLE(WEBGL)
-    , m_forceRelayoutChildren(false)
-#endif
 {
     // Clear our anonymous bit, set because RenderObject assumes
     // any renderer with document as the node is anonymous.
@@ -118,15 +115,8 @@ void RenderView::layout()
         m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth = logicalWidth();
 
     // Use calcWidth/Height to get the new width/height, since this will take the full page zoom factor into account.
-    bool relayoutChildren = !printing() && (!m_frameView || width() != viewWidth() || height() != viewHeight()
-#if ENABLE(WEBGL)
-        || m_forceRelayoutChildren
-#endif
-        );
+    bool relayoutChildren = !printing() && (!m_frameView || width() != viewWidth() || height() != viewHeight());
     if (relayoutChildren) {
-#if ENABLE(WEBGL)
-        m_forceRelayoutChildren = false;
-#endif
         setChildNeedsLayout(true, false);
         for (RenderObject* child = firstChild(); child; child = child->nextSibling()) {
             if (child->style()->logicalHeight().isPercent() || child->style()->logicalMinHeight().isPercent() || child->style()->logicalMaxHeight().isPercent())

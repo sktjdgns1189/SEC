@@ -192,15 +192,6 @@
 #include "Settings.h"
 #endif
 
-#ifdef ANDROID_RESET_SELECTION
-#include "CacheBuilder.h"
-#include "HTMLTextAreaElement.h"
-#endif
-
-#ifdef ANDROID_INSTRUMENT
-#include "TimeCounter.h"
-#endif
-
 #if ENABLE(TOUCH_EVENTS)
 #if USE(V8)
 #include "RuntimeEnabledFeatures.h"
@@ -233,13 +224,13 @@
 #include "RequestAnimationFrameCallback.h"
 #include "ScriptedAnimationController.h"
 #endif
-
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 #include "MicroDataItemList.h"
 #include "NodeRareData.h"
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
+
 using namespace std;
 using namespace WTF;
 using namespace Unicode;
@@ -473,10 +464,6 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
 
     m_frame = frame;
 
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-	m_getBackOrForward = false;
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
-
     // We depend on the url getting immediately set in subframes, but we
     // also depend on the url NOT getting immediately set in opened windows.
     // See fast/dom/early-frame-url.html
@@ -585,6 +572,8 @@ Document::~Document()
         for (size_t i = 0; i < m_pageGroupUserSheets->size(); ++i)
             (*m_pageGroupUserSheets)[i]->clearOwnerNode();
     }
+
+    deleteRetiredCustomFonts();
 
     m_weakReference->clear();
 
@@ -1366,6 +1355,7 @@ void Document::removeTitle(Element* titleElement)
         updateTitle(StringWithDirection());
 }
 
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
 PageVisibilityState Document::visibilityState() const
 {
@@ -1393,8 +1383,7 @@ void Document::dispatchVisibilityStateChangeEvent()
     dispatchEvent(Event::create(eventNames().webkitvisibilitychangeEvent, false, false));
 }
 #endif
-
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 String Document::nodeName() const
 {
     return "#document";
@@ -1520,10 +1509,6 @@ void Document::recalcStyle(StyleChange change)
         frameView->beginDeferredRepaints();
     }
 
-#ifdef ANDROID_INSTRUMENT
-    android::TimeCounter::start(android::TimeCounter::CalculateStyleTimeCounter);
-#endif
-
     ASSERT(!renderer() || renderArena());
     if (!renderer() || !renderArena())
         goto bail_out;
@@ -1545,9 +1530,14 @@ void Document::recalcStyle(StyleChange change)
         if (change >= Inherit || n->childNeedsStyleRecalc() || n->needsStyleRecalc())
             n->recalcStyle(change);
 
-#ifdef ANDROID_INSTRUMENT
-    android::TimeCounter::record(android::TimeCounter::CalculateStyleTimeCounter, __FUNCTION__);
-#endif
+    // FIXME: Disabling the deletion of retired custom font data until
+    // we fix all the stale style bugs (68804, 68624, etc). These bugs
+    // indicate problems where some styles were not updated in recalcStyle,
+    // thereby retaining stale copy of font data. To prevent that, we
+    // disable this code for now and only delete retired custom font data
+    // in Document destructor.
+    // Now that all RenderStyles that pointed to retired fonts have been updated, the fonts can safely be deleted.
+    // deleteRetiredCustomFonts();
 
 #if USE(ACCELERATED_COMPOSITING)
     if (view()) {
@@ -1683,6 +1673,20 @@ PassRefPtr<RenderStyle> Document::styleForPage(int pageIndex)
 {
     RefPtr<RenderStyle> style = styleSelector()->styleForPage(pageIndex);
     return style.release();
+}
+
+void Document::retireCustomFont(FontData* fontData)
+{
+    m_retiredCustomFonts.append(adoptPtr(fontData));
+}
+
+void Document::deleteRetiredCustomFonts()
+{
+    size_t size = m_retiredCustomFonts.size();
+    for (size_t i = 0; i < size; ++i)
+        GlyphPageTreeNode::pruneTreeCustomFontData(m_retiredCustomFonts[i].get());
+
+    m_retiredCustomFonts.clear();
 }
 
 bool Document::isPageBoxVisible(int pageIndex)
@@ -2155,7 +2159,11 @@ void Document::implicitClose()
     // But those add a dynamic component to the favicon that has UI 
     // ramifications, and we need to decide what is the Right Thing To Do(tm)
     Frame* f = frame();
-    if (f)
+    if (f 
+// SAMSUNG CHANGE : not sending favicon request when 404 not found error or DNS failure of main page
+		&& (loader()->response().httpStatusCode() != 404) //&& (loader()->unreachableURL().isEmpty())
+// SAMSUNG CHANGE
+	)
         f->loader()->startIconLoader();
 
     // Resume the animations (or start them)
@@ -2781,8 +2789,8 @@ void Document::processArguments(const String& features, void* data, ArgumentsCal
 #ifdef ANDROID_META_SUPPORT
         if (frame())
             frame()->settings()->setMetadataSettings(keyString, valueString);
-#endif
         if (callback && data)
+#endif
             callback(keyString, valueString, this, data);
     }
 }
@@ -3250,16 +3258,6 @@ void Document::setDashboardRegions(const Vector<DashboardRegionValue>& regions)
 }
 #endif
 
-
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)>>>
-void Document::setCheckNode(PassRefPtr<Node> newCheckNode)
-{
-	//set the check node
-	m_checkNode = newCheckNode.get();
-}
-//SAMSUNG CHANGES : FACEBOOK PERFORMANCE IMPROVEMENT : Praveen Munukutla(sataya.m@samsung.com)<<<
-
-
 bool Document::setFocusedNode(PassRefPtr<Node> newFocusedNode)
 {    
     // Make sure newFocusedNode is actually in this document
@@ -3674,6 +3672,10 @@ PassRefPtr<Event> Document::createEvent(const String& eventType, ExceptionCode& 
     else if (eventType == "OrientationEvent")
         event = Event::create();
 #endif
+//SAMSUNG CHANGES HISTORY POP STATE rng.io <<
+    else if (eventType == "PopStateEvent")
+        event = PopStateEvent::create();
+//SAMSUNG CHANGES HISTORY POP STATE rng.io >>
     if (event)
         return event.release();
 
@@ -3715,10 +3717,12 @@ void Document::addListenerTypeIfNeeded(const AtomicString& eventType)
     else if (eventType == eventNames().touchstartEvent
              || eventType == eventNames().touchmoveEvent
              || eventType == eventNames().touchendEvent
-             || eventType == eventNames().touchcancelEvent
-             || eventType == eventNames().mousemoveEvent
-             || eventType == eventNames().mousedownEvent
-             || eventType == eventNames().mouseupEvent) {
+             || eventType == eventNames().touchcancelEvent				 
+// SERI - add support for mouse events >>>          	
+             || eventType == eventNames().mousemoveEvent	
+             || eventType == eventNames().mousedownEvent	
+             || eventType == eventNames().mouseupEvent) {	
+// SERI - add support for mouse events <<<
         addListenerType(TOUCH_LISTENER);
         if (Page* page = this->page())
             page->chrome()->client()->needTouchEvents(true);
@@ -4165,6 +4169,8 @@ void Document::setTransformSource(PassOwnPtr<TransformSource> source)
 void Document::setDesignMode(InheritedBool value)
 {
     m_designMode = value;
+    for (Frame* frame = m_frame; frame && frame->document(); frame = frame->tree()->traverseNext(m_frame))
+        frame->document()->scheduleForcedStyleRecalc();
 }
 
 Document::InheritedBool Document::getDesignMode() const
@@ -4742,287 +4748,7 @@ HTMLCanvasElement* Document::getCSSCanvasElement(const String& name)
     }
     return result.get();
 }
-#ifdef WEBKIT_TEXT_SIZE_ADJUST
-//SAMSUNG CHANGE BEGIN webkit-text-size-adjust >>
 
-static PassRefPtr<RenderStyle> cloneRenderStyleWithState(const RenderStyle* currentStyle)
-{
-    RefPtr<RenderStyle> newStyle = RenderStyle::clone(currentStyle);
-
-    if (currentStyle->childrenAffectedByForwardPositionalRules())
-        newStyle->setChildrenAffectedByForwardPositionalRules();
-    if (currentStyle->childrenAffectedByBackwardPositionalRules())
-        newStyle->setChildrenAffectedByBackwardPositionalRules();
-    if (currentStyle->childrenAffectedByFirstChildRules())
-        newStyle->setChildrenAffectedByFirstChildRules();
-    if (currentStyle->childrenAffectedByLastChildRules())
-        newStyle->setChildrenAffectedByLastChildRules();
-    if (currentStyle->childrenAffectedByDirectAdjacentRules())
-        newStyle->setChildrenAffectedByDirectAdjacentRules();
-
-    if (currentStyle->lastChildState())
-        newStyle->setLastChildState();
-    if (currentStyle->firstChildState())
-        newStyle->setFirstChildState();
-
-    newStyle->setChildIndex(currentStyle->childIndex());
-
-    if (currentStyle->affectedByEmpty())
-        newStyle->setEmptyState(currentStyle->emptyState());
-
-    return newStyle.release();
-}
-
-TextAutoSizingKey::TextAutoSizingKey() : m_style(0), m_doc(0)
-{
-}
-
-TextAutoSizingKey::TextAutoSizingKey(RenderStyle* style, Document* doc)
-    : m_style(style), m_doc(doc)
-{
-    ref();
-}
-
-TextAutoSizingKey::TextAutoSizingKey(const TextAutoSizingKey& other)
-    : m_style(other.m_style), m_doc(other.m_doc)
-{
-    ref();
-}
-
-TextAutoSizingKey::~TextAutoSizingKey()
-{
-    deref();
-}
-
-TextAutoSizingKey& TextAutoSizingKey::operator=(const TextAutoSizingKey& other)
-{
-    other.ref();
-    deref();
-    m_style = other.m_style;
-    m_doc = other.m_doc;
-    return *this;
-}
-
-void TextAutoSizingKey::ref() const
-{
-    if (isValidStyle())
-        m_style->ref();
-}
-
-void TextAutoSizingKey::deref() const
-{
-    if (isValidStyle() && isValidDoc() && m_doc->renderArena())
-        m_style->deref();
-}
-
-void TextAutoSizingTraits::constructDeletedValue(TextAutoSizingKey& slot)
-{
-    new (&slot) TextAutoSizingKey(TextAutoSizingKey::deletedKeyStyle(), TextAutoSizingKey::deletedKeyDoc());
-}
-
-bool TextAutoSizingTraits::isDeletedValue(const TextAutoSizingKey& value)
-{
-    return value.style() == TextAutoSizingKey::deletedKeyStyle() && value.doc() == TextAutoSizingKey::deletedKeyDoc();
-}
-
-int TextAutoSizingValue::numNodes() const
-{
-    return m_autoSizedNodes.size();
-}
-
-void TextAutoSizingValue::addNode(Node* node, float size)
-{
-    ASSERT(node);
-    ASSERT(node->renderer());
-    RenderText* renderText = static_cast<RenderText*>(node->renderer());
-    renderText->setCandidateComputedTextSize(size);
-    m_autoSizedNodes.add(node);
-}
-
-#define MAX_SCALE_INCREASE 1.7f
-
-bool TextAutoSizingValue::adjustNodeSizes()
-{
-    bool objectsRemoved = false;
-    
-    // Remove stale nodes.  Nodes may have had their renderers detached.  We'll
-    // also need to remove the style from the documents m_textAutoSizedNodes
-    // collection.  Return true indicates we need to do that removal.
-    Vector<RefPtr<Node> > nodesForRemoval;
-    HashSet<RefPtr<Node> >::iterator end = m_autoSizedNodes.end();
-    for (HashSet<RefPtr<Node> >::iterator i = m_autoSizedNodes.begin(); i != end; ++i) {
-        RefPtr<Node> autoSizingNode = *i;
-        RenderText* text = static_cast<RenderText*>(autoSizingNode->renderer());
-        if (!text || (text->style() && !text->style()->textSizeAdjust().isAuto()) || !text->candidateComputedTextSize()) {
-            // remove node.
-            nodesForRemoval.append(autoSizingNode);
-            objectsRemoved = true;
-        }
-    }
-
-    unsigned count = nodesForRemoval.size();
-    for (unsigned i = 0; i < count; i++)
-        m_autoSizedNodes.remove(nodesForRemoval[i]);
-
-    // If we only have one piece of text with the style on the page don't 
-    // adjust it's size.
-    if (m_autoSizedNodes.size() <= 1)
-        return objectsRemoved;
-
-    // Compute average size
-    float cumulativeSize = 0;
-    end = m_autoSizedNodes.end();
-    for (HashSet<RefPtr<Node> >::iterator i = m_autoSizedNodes.begin(); i != end; ++i) {
-        RefPtr<Node> autoSizingNode = *i;
-        RenderText* renderText = static_cast<RenderText*>(autoSizingNode->renderer());
-        cumulativeSize += renderText->candidateComputedTextSize();
-    }   
-
-    float averageSize = roundf(cumulativeSize / m_autoSizedNodes.size());
-    
-    // Adjust sizes
-    bool firstPass = true;
-    end = m_autoSizedNodes.end();
-    for (HashSet<RefPtr<Node> >::iterator i = m_autoSizedNodes.begin(); i != end; ++i) {
-        RefPtr<Node> autoSizingNode = *i;
-        RenderText* text = static_cast<RenderText*>(autoSizingNode->renderer());
-        if (text && text->style()->fontDescription().computedSize() <= averageSize) {
-            float specifiedSize = text->style()->fontDescription().specifiedSize();
-            float scaleChange = averageSize / specifiedSize;
-            if (scaleChange > MAX_SCALE_INCREASE && firstPass) {
-                firstPass = false;
-                averageSize = roundf(specifiedSize * MAX_SCALE_INCREASE);
-                scaleChange = averageSize / specifiedSize;
-            }
-
-            RefPtr<RenderStyle> style = cloneRenderStyleWithState(text->style());
-            FontDescription fontDescription = style->fontDescription();
-            fontDescription.setComputedSize(averageSize);
-            style->setFontDescription(fontDescription);
-            style->font().update(autoSizingNode->document()->styleSelector()->fontSelector());
-            text->setStyle(style.release());
-
-            RenderObject* parentRenderer = text->parent();
-
-            // If we have a list we should resize ListMarkers separately.
-            RenderObject* listMarkerRenderer = parentRenderer->firstChild();
-            if (listMarkerRenderer->isListMarker()) {
-                RefPtr<RenderStyle> style = cloneRenderStyleWithState(listMarkerRenderer->style());
-                style->setFontDescription(fontDescription);
-                style->font().update(autoSizingNode->document()->styleSelector()->fontSelector());
-                listMarkerRenderer->setStyle(style.release());
-            }
-
-            // Resize the line height of the parent.
-            const RenderStyle* parentStyle = parentRenderer->style();
-            Length lineHeightLength = parentStyle->specifiedLineHeight();
-
-            int specifiedLineHeight = 0;
-            if (lineHeightLength.isPercent())
-                specifiedLineHeight = lineHeightLength.calcMinValue(fontDescription.specifiedSize());
-            else
-                specifiedLineHeight = lineHeightLength.value();
-
-            int lineHeight = specifiedLineHeight * scaleChange;            
-            if (!lineHeightLength.isFixed() || lineHeightLength.value() != lineHeight) {
-                RefPtr<RenderStyle> newParentStyle = cloneRenderStyleWithState(parentStyle);
-                newParentStyle->setLineHeight(Length(lineHeight, Fixed));
-                newParentStyle->setSpecifiedLineHeight(lineHeightLength);
-                newParentStyle->setFontDescription(fontDescription);
-                newParentStyle->font().update(autoSizingNode->document()->styleSelector()->fontSelector());
-                parentRenderer->setStyle(newParentStyle.release());          
-            }
-        }
-    }
-    
-    return objectsRemoved;
-}
-    
-void TextAutoSizingValue::reset()
-{
-    HashSet<RefPtr<Node> >::iterator end = m_autoSizedNodes.end();
-    for (HashSet<RefPtr<Node> >::iterator i = m_autoSizedNodes.begin(); i != end; ++i) {
-        RefPtr<Node> autoSizingNode = *i;
-        RenderText* text = static_cast<RenderText*>(autoSizingNode->renderer());
-        if (!text)
-            continue;
-        // Reset the font size back to the original specified size
-        FontDescription fontDescription = text->style()->fontDescription();
-        float originalSize = fontDescription.specifiedSize();
-        if (fontDescription.computedSize() != originalSize) {
-            fontDescription.setComputedSize(originalSize);
-            RefPtr<RenderStyle> style = cloneRenderStyleWithState(text->style());
-            style->setFontDescription(fontDescription);
-            style->font().update(autoSizingNode->document()->styleSelector()->fontSelector());
-            text->setStyle(style.release());
-        }
-        // Reset the line height of the parent.
-        RenderObject* parentRenderer = text->parent();
-        if (!parentRenderer)
-            continue;
-        const RenderStyle* parentStyle = parentRenderer->style();
-        Length originalLineHeight = parentStyle->specifiedLineHeight();   
-        if (originalLineHeight != parentStyle->lineHeight()) {
-            RefPtr<RenderStyle> newParentStyle = cloneRenderStyleWithState(parentStyle);
-            newParentStyle->setLineHeight(originalLineHeight);
-            newParentStyle->setFontDescription(fontDescription);
-            newParentStyle->font().update(autoSizingNode->document()->styleSelector()->fontSelector());
-            parentRenderer->setStyle(newParentStyle.release());          
-        }
-    }
-}
-
-void Document::addAutoSizingNode(Node* node, float candidateSize)
-{
-    TextAutoSizingKey key(node->renderer()->style(), document());
-    RefPtr<TextAutoSizingValue> value;
-    
-    // Do we already have a collection of nodes associated with
-    // this style?  If not create one.
-    if (m_textAutoSizedNodes.contains(key))
-        value = m_textAutoSizedNodes.get(key);
-    else {
-        value = TextAutoSizingValue::create();
-        m_textAutoSizedNodes.set(key, value);
-    }
-    
-    // Add the node to the collection associated with this style.
-    value->addNode(node, candidateSize);
-}
-
-void Document::validateAutoSizingNodes ()
-{
-    Vector<TextAutoSizingKey> nodesForRemoval;
-    TextAutoSizingMap::iterator end = m_textAutoSizedNodes.end();
-    for (TextAutoSizingMap::iterator i = m_textAutoSizedNodes.begin(); i != end; ++i) {
-        TextAutoSizingKey key = i->first;
-        RefPtr<TextAutoSizingValue> value = i->second;
-        // Update all the nodes in the collection to reflect the new
-        // candidate size.
-        if (!value)
-            continue;
-        
-        value->adjustNodeSizes();
-        if (!value->numNodes())
-            nodesForRemoval.append(key);
-    }
-    unsigned count = nodesForRemoval.size();
-    for (unsigned i = 0; i < count; i++)
-        m_textAutoSizedNodes.remove(nodesForRemoval[i]);
-}
-    
-void Document::resetAutoSizingNodes()
-{
-    TextAutoSizingMap::iterator end = m_textAutoSizedNodes.end();
-    for (TextAutoSizingMap::iterator i = m_textAutoSizedNodes.begin(); i != end; ++i) {
-        RefPtr<TextAutoSizingValue> value = i->second;
-        if (value)
-            value->reset();
-    }
-    m_textAutoSizedNodes.clear();
-}
-//SAMSUNG CHANGE END webkit-text-size-adjust <<
-#endif
 void Document::initDNSPrefetch()
 {
     Settings* settings = this->settings();
@@ -5247,7 +4973,11 @@ void Document::webkitWillEnterFullScreenForElement(Element* element)
         m_fullScreenRenderer->setAnimating(true);
 #if USE(ACCELERATED_COMPOSITING)
         view()->updateCompositingLayers();
-        if (m_fullScreenRenderer->layer() && m_fullScreenRenderer->layer()->isComposited()) // SAMSUNG CHANGE - Added NULL check for layer as it is coming NULL
+#if PLATFORM(ANDROID)
+        if (!m_fullScreenRenderer->layer())
+            return;
+#endif
+        if (m_fullScreenRenderer->layer()->isComposited())
             page()->chrome()->client()->setRootFullScreenLayer(m_fullScreenRenderer->layer()->backing()->graphicsLayer());
 #endif
     }
@@ -5284,8 +5014,10 @@ void Document::webkitDidExitFullScreenForElement(Element*)
     if (m_fullScreenRenderer)
         m_fullScreenRenderer->remove();
     
-    if (m_fullScreenElement != documentElement())
+    // SAMSUNG CHANGE >> P120929-0159 Randomly exits out to idle screen from Internet : added null checking logic for m_fullScreenElement
+    if (m_fullScreenElement && m_fullScreenElement != documentElement())
         m_fullScreenElement->detach();
+    // SAMSUNG CHANGE <<
 
     m_fullScreenElement = 0;
     setFullScreenRenderer(0);
@@ -5386,6 +5118,22 @@ void Document::serviceScriptedAnimations(DOMTimeStamp time)
         return;
     m_scriptedAnimationController->serviceScriptedAnimations(time);
 }
+
+void Document::pauseScriptedAnimations()
+{
+    if (!m_scriptedAnimationController)
+        return;
+	m_scriptedAnimationController->suspend();
+
+}
+void Document::resumeScriptedAnimations()
+{
+    if (!m_scriptedAnimationController)
+        return;
+	m_scriptedAnimationController->resume();
+}
+
+
 #endif
 
 #if ENABLE(TOUCH_EVENTS)
@@ -5395,14 +5143,8 @@ PassRefPtr<Touch> Document::createTouch(DOMWindow* window, EventTarget* target, 
     // http://developer.apple.com/library/safari/#documentation/UserExperience/Reference/DocumentAdditionsReference/DocumentAdditions/DocumentAdditions.html
     // when this method should throw and nor is it by inspection of iOS behavior. It would be nice to verify any cases where it throws under iOS
     // and implement them here. See https://bugs.webkit.org/show_bug.cgi?id=47819
-    // Ditto for the createTouchList method below.
     Frame* frame = window ? window->frame() : this->frame();
     return Touch::create(frame, target, identifier, screenX, screenY, pageX, pageY);
-}
-
-PassRefPtr<TouchList> Document::createTouchList(ExceptionCode&) const
-{
-    return TouchList::create();
 }
 #endif
 
@@ -5427,7 +5169,7 @@ DocumentLoader* Document::loader() const
     return loader;
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 
 #if ENABLE(MICRODATA)
 PassRefPtr<NodeList> Document::getItems()
@@ -5468,6 +5210,5 @@ void Document::removeCachedMicroDataItemList(MicroDataItemList* list, const Stri
     data->m_microDataItemListCache.remove(localTypeNames);
 }
 #endif
-///SAMSUNG MICRODATA CHANGES >>
-
+///SAMSUNG HTML5 MICRODATA CHANGES >>
 } // namespace WebCore

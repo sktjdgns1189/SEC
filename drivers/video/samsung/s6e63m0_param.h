@@ -69,42 +69,6 @@ enum {
 };
 
 #else
-#if defined(CONFIG_MACH_Q1_BD)
-#define ELVSS_OFFSET_100		0x11
-#else
-#define ELVSS_OFFSET_100		0x12
-#endif
-
-#if defined(CONFIG_MACH_Q1_BD)
-#define ELVSS_OFFSET_MAX		ELVSS_OFFSET_300
-#define ELVSS_OFFSET_1		ELVSS_OFFSET_200
-#define ELVSS_OFFSET_2		ELVSS_OFFSET_160
-#define ELVSS_OFFSET_MIN		ELVSS_OFFSET_100
-#else
-#define ELVSS_OFFSET_MAX		ELVSS_OFFSET_300
-#define ELVSS_OFFSET_1		ELVSS_OFFSET_160
-#define ELVSS_OFFSET_2		ELVSS_OFFSET_1
-#define ELVSS_OFFSET_MIN		ELVSS_OFFSET_100
-#endif
-
-#if defined(CONFIG_S6E8AA0_AMS529HA01)
-#define ELVSS_OFFSET_100		0x11
-#else
-#define ELVSS_OFFSET_100		0x12
-#endif
-
-#if defined(CONFIG_S6E8AA0_AMS529HA01)
-#define ELVSS_OFFSET_MAX		ELVSS_OFFSET_300
-#define ELVSS_OFFSET_1		ELVSS_OFFSET_200
-#define ELVSS_OFFSET_2		ELVSS_OFFSET_160
-#define ELVSS_OFFSET_MIN		ELVSS_OFFSET_100
-#else
-#define ELVSS_OFFSET_MAX		ELVSS_OFFSET_300
-#define ELVSS_OFFSET_1		ELVSS_OFFSET_160
-#define ELVSS_OFFSET_2		ELVSS_OFFSET_1
-#define ELVSS_OFFSET_MIN		ELVSS_OFFSET_100
-#endif
-
 enum {
 	ELVSS_MIN = 0,
 	ELVSS_1,
@@ -243,7 +207,7 @@ static const unsigned char *ELVSS_TABLE[] = {
 };
 #endif
 
-#if defined(CONFIG_MACH_M0_GRANDECTC)	/* W2013 sw reset */
+#if defined(CONFIG_MACH_M0_GRANDECTC) || defined(CONFIG_MACH_IRON)
 static const unsigned char SEQ_SW_RESET[] = {
 	0x01,
 	0x00, 0x00
@@ -285,7 +249,7 @@ const unsigned char SEQ_DISPLAY_CONDITION_SET1[] = {
 
 const unsigned char SEQ_DISPLAY_CONDITION_SET2[] = {
 	0xF7,
-	0x03, 0x00, 0x00,
+	0x10, 0x00, 0x00,
 };
 
 static const unsigned char SEQ_GAMMA_UPDATE[] = {

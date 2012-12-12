@@ -123,7 +123,7 @@ bool HTMLTrackElement::isURLAttribute(Attribute* attribute) const
     return attribute->name() == srcAttr;
 }
 
-//SAMSUNG MICRODATA CHANGES <<
+//SAMSUNG HTML5 MICRODATA CHANGES <<
 #if ENABLE(MICRODATA)
 String HTMLTrackElement::itemValueText() const
 {
@@ -135,7 +135,7 @@ void HTMLTrackElement::setItemValueText(const String& value, ExceptionCode& ec)
     setAttribute(srcAttr, value, ec);
 }
 #endif
-//SAMSUNG MICRODATA CHANGES >>
+//SAMSUNG HTML5 MICRODATA CHANGES >>
 }
 
 #endif

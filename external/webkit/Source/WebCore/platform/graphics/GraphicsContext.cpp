@@ -26,9 +26,6 @@
 #include "config.h"
 #include "GraphicsContext.h"
 
-#if PLATFORM(ANDROID)
-#include "AnimationTimeCounter.h"
-#endif
 #include "BidiResolver.h"
 #include "Font.h"
 #include "Generator.h"
@@ -81,9 +78,6 @@ private:
 
 GraphicsContext::GraphicsContext(PlatformGraphicsContext* platformGraphicsContext)
     : m_updatingControlTints(false)
-#if PLATFORM(ANDROID)
-    , m_animationTimeCounter(new AnimationTimeCounter())
-#endif
 {
     platformInit(platformGraphicsContext);
 }
@@ -438,6 +432,7 @@ void GraphicsContext::drawBidiText(const Font& font, const TextRun& run, const F
     bidiRuns.deleteRuns();
 }
 
+#if !PLATFORM(ANDROID)
 void GraphicsContext::drawHighlightForText(const Font& font, const TextRun& run, const FloatPoint& point, int h, const Color& backgroundColor, ColorSpace colorSpace, int from, int to)
 {
     if (paintingDisabled())
@@ -445,6 +440,7 @@ void GraphicsContext::drawHighlightForText(const Font& font, const TextRun& run,
 
     fillRect(font.selectionRectForText(run, point, h, from, to), backgroundColor, colorSpace);
 }
+#endif
 
 void GraphicsContext::drawImage(Image* image, ColorSpace styleColorSpace, const FloatRect& dest, const FloatRect& src, CompositeOperator op, bool useLowQualityScale)
 {
@@ -666,7 +662,7 @@ CompositeOperator GraphicsContext::compositeOperation() const
     return m_state.compositeOperator;
 }
 
-#if !(USE(SKIA) && !PLATFORM(ANDROID))
+#if !USE(SKIA)
 void GraphicsContext::setPlatformFillGradient(Gradient*)
 {
 }
@@ -692,7 +688,7 @@ void GraphicsContext::setPlatformTextDrawingMode(TextDrawingModeFlags mode)
 }
 #endif
 
-#if !PLATFORM(QT) && !USE(CAIRO) && !(USE(SKIA) && !PLATFORM(ANDROID)) && !PLATFORM(HAIKU) && !PLATFORM(OPENVG)
+#if !PLATFORM(QT) && !USE(CAIRO) && !USE(SKIA) && !PLATFORM(OPENVG)
 void GraphicsContext::setPlatformStrokeStyle(StrokeStyle)
 {
 }

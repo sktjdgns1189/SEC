@@ -227,9 +227,6 @@ public:
     virtual PlatformLayer* platformLayer() const;
 #endif
 
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-	//virtual void syncCanvasToHardware();
-#endif
 private:
     struct State : FontSelectorClient {
         State();

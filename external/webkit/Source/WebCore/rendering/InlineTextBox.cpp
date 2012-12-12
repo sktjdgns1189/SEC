@@ -44,8 +44,12 @@
 #include "break_lines.h"
 #include "Settings.h" // SAMSUNG CHANGE ADVANCED TEXT SELECTION
 #include <wtf/AlwaysInline.h>
-#include <utils/Log.h>
+#include <wtf/text/CString.h>
+//SISO_HTMLComposer start
 #include "RenderView.h"    
+//SISO_HTMLComposer end
+//#include "SecNativeFeature.h"       // OSS_Modify
+#include "ThaiReshaperWebkit.h"
 
 using namespace std;
 
@@ -195,16 +199,21 @@ IntRect InlineTextBox::selectionRect(int tx, int ty, int startPos, int endPos)
         ePos = len;
     }
 
-//    IntRect r = enclosingIntRect(f.selectionRectForText(TextRun(characters, len, textObj->allowTabs(), textPos(), m_expansion, expansionBehavior(), !isLeftToRightDirection(), m_dirOverride),
-//                                                        IntPoint(), selHeight, sPos, ePos));
     IntRect r = enclosingIntRect(f.selectionRectForText(TextRun(characters, len, textObj->allowTabs(), textPos(), m_expansion, expansionBehavior(), !isLeftToRightDirection(), m_dirOverride),
-                                                        IntPoint(), selHeight, sPos, ePos, textObj->isRtl() ));
+                                                        IntPoint(), selHeight, sPos, ePos));
                                                         
     int logicalWidth = r.width();
-    if (r.x() > m_logicalWidth)
+    // SAMSUNG: Advanced Copy & Paste >>
+    // WAS: if (r.x() > m_logicalWidth)
+    // WAS:     logicalWidth  = 0;
+    // WAS: else if (r.maxX() > m_logicalWidth)
+    // WAS:     logicalWidth = m_logicalWidth - r.x();
+    int maxLogicalX =  floorf(m_x) + ceilf(m_logicalWidth);
+    if (r.x() >  maxLogicalX)
         logicalWidth  = 0;
-    else if (r.maxX() > m_logicalWidth)
-        logicalWidth = m_logicalWidth - r.x();
+    else if (r.maxX() > maxLogicalX)
+        logicalWidth = maxLogicalX - r.x();
+    // SAMSUNG: Advanced Copy & Paste <<
     
     IntPoint topPoint = isHorizontal() ? IntPoint(tx + m_x + r.x(), ty + selTop) : IntPoint(tx + selTop, ty + m_y + r.x());
     int width = isHorizontal() ? logicalWidth : selHeight;
@@ -485,9 +494,18 @@ void InlineTextBox::paint(PaintInfo& paintInfo, int tx, int ty, int /*lineTop*/,
     int paintEnd = isHorizontal() ? paintInfo.rect.maxX() : paintInfo.rect.maxY();
     int paintStart = isHorizontal() ? paintInfo.rect.x() : paintInfo.rect.y();
     
+//SISO_HTMLComposer Start-Checking for boundary condition
+    if(renderer()->document() && renderer()->document()->settings()  && renderer()->document()->settings()->editableSupportEnabled()){
+        if (logicalStart >= paintEnd || logicalStart + logicalExtent < paintStart)
+            return;
+    }
+    else{
+//SISO_HTMLComposer End
     if (logicalStart >= paintEnd || logicalStart + logicalExtent <= paintStart)
         return;
-
+//SISO_HTMLComposer Start
+    }
+//SISO_HTMLComposer End
     bool isPrinting = textRenderer()->document()->printing();
     
     // Determine whether or not we're selected.
@@ -603,8 +621,10 @@ void InlineTextBox::paint(PaintInfo& paintInfo, int tx, int ty, int /*lineTop*/,
     Color selectionEmphasisMarkColor = emphasisMarkColor;
     float selectionStrokeWidth = textStrokeWidth;
     const ShadowData* selectionShadow = textShadow;
-    //SAMSUNG CHANGE BEGIN :  Advance Text Selection 
-    if( false ==( renderer()->document()->settings()  &&  renderer()->document()->settings()->advancedSelectionEnabled() )){
+
+    //SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+    if (!(renderer()->document()->settings() && renderer()->document()->settings()->advancedSelectionEnabled())) {
+    //SAMSUNG ADVANCED TEXT SELECTION - END
     if (haveSelection) {
         // Check foreground color first.
         Color foreground = paintInfo.forceBlackText ? Color::black : renderer()->selectionForegroundColor();
@@ -644,8 +664,10 @@ void InlineTextBox::paint(PaintInfo& paintInfo, int tx, int ty, int /*lineTop*/,
             }
         }
     }
-    }
-    //SAMSUNG END  
+    //SAMSUNG ADVANCED TEXT SELECTION - BEGIN
+	}
+//SAMSUNG ADVANCED TEXT SELECTION - END
+
     int length = m_len;
     const UChar* characters;
     if (!combinedText)
@@ -741,11 +763,13 @@ void InlineTextBox::paint(PaintInfo& paintInfo, int tx, int ty, int /*lineTop*/,
     // Paint decorations
     int textDecorations = styleToUse->textDecorationsInEffect();
     // SAMSUNG CHANGES+ added the check renderer()->document()->settings()->getIsContinousSpellCheck()
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 	#if ENABLE(SPELLCHECK)
     	if ((textDecorations != TDNONE && paintInfo.phase != PaintPhaseSelection) ||  renderer()->document()->settings()->getIsContinousSpellCheck())
 	#else
 		if (textDecorations != TDNONE && paintInfo.phase != PaintPhaseSelection)
 	#endif
+	//SAMSUNG CHANGES <<<	
 		{
         updateGraphicsContext(context, textFillColor, textStrokeColor, textStrokeWidth, styleToUse->colorSpace());
         paintDecoration(context, boxOrigin, textDecorations, textShadow);
@@ -772,9 +796,9 @@ void InlineTextBox::paint(PaintInfo& paintInfo, int tx, int ty, int /*lineTop*/,
                     paintCompositionUnderline(context, boxOrigin, underline);
                     if (underline.endOffset > end() + 1)
                         // underline also runs into the next run. Bail now, no more marker advancement.
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
                         continue; //break; //SISO_HTMLCOMPOSER break->continue;
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
                 } else
                     // underline is completely after this run, bail.  A later run will paint it.
                     break;
@@ -809,6 +833,21 @@ void InlineTextBox::paintSelection(GraphicsContext* context, const FloatPoint& b
     // See if we have a selection to paint at all.
     int sPos, ePos;
     selectionStartEnd(sPos, ePos);
+    Node* shadowAncestor = 0;
+    if (renderer() && renderer()->node())
+        shadowAncestor = renderer()->node()->shadowAncestorNode();
+    if (shadowAncestor && (shadowAncestor->renderer()->isTextField() || shadowAncestor->renderer()->isTextArea())) {
+
+        if (selectionState() != RenderObject::SelectionBoth){
+
+			RenderObject* startObj = textRenderer()->view()->selectionStart();
+			RenderObject* EndObj =  textRenderer()->view()->selectionEnd();
+
+			if (!(startObj->node()->isInShadowTree() && EndObj->node()->isInShadowTree()))
+	       			return;
+        }
+    }
+
     if (sPos >= ePos)
         return;
 
@@ -910,9 +949,9 @@ void InlineTextBox::paintDecoration(GraphicsContext* context, const FloatPoint& 
     
     // Use a special function for underlines to get the positioning exactly right.
     bool isPrinting = textRenderer()->document()->printing();
-	context->setStrokeThickness(1.0f); // FIXME: We should improve this rule and not always just assume 1.
-	//SAMSUNG CHANGES >>> 
+    context->setStrokeThickness(1.0f); // FIXME: We should improve this rule and not always just assume 1.
 	//Praveen Munukutla(sataya.m@samsung.com):Fix for MPSG100003612.This change is included as per the Email Spellcheck UI requirement.
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 	#if ENABLE(SPELLCHECK)
 	if(renderer()->document()->settings()->getIsContinousSpellCheck())
 			context->setStrokeThickness(2.0f); 
@@ -1072,15 +1111,25 @@ void InlineTextBox::paintTextMatchMarker(GraphicsContext* pt, const FloatPoint& 
 {
     // Use same y positioning and height as for selection, so that when the selection and this highlight are on
     // the same word there are no pieces sticking out.
-    int deltaY = renderer()->style()->isFlippedLinesWritingMode() ? selectionBottom() - logicalBottom() : logicalTop() - selectionTop();
-    int selHeight = selectionHeight();
+
+//SAMSUNG CHANGES : MPSG100006193 - use selectionTop instead of previousBottom >>
+    //WAS: int deltaY = renderer()->style()->isFlippedLinesWritingMode() ? selectionBottom() - logicalBottom() : logicalTop() - selectionTop();
+    //     int selHeight = selectionHeight();
+    int deltaY = renderer()->style()->isFlippedLinesWritingMode() ? selectionBottom() - logicalBottom() : logicalTop() - root()->selectionTop(true);
+    int selHeight = root()->selectionHeight(true);
+//SAMSUNG CHANGES <<
 
     int sPos = max(marker.startOffset - m_start, (unsigned)0);
     int ePos = min(marker.endOffset - m_start, (unsigned)m_len);    
     TextRun run(textRenderer()->text()->characters() + m_start, m_len, textRenderer()->allowTabs(), textPos(), m_expansion, expansionBehavior(), !isLeftToRightDirection(), m_dirOverride || style->visuallyOrdered());
     
     // Always compute and store the rect associated with this marker. The computed rect is in absolute coordinates.
-    IntRect markerRect = enclosingIntRect(font.selectionRectForText(run, IntPoint(m_x, selectionTop()), selHeight, sPos, ePos));
+
+//SAMSUNG CHANGES : MPSG100006193 - use selectionTop instead of previousBottom >>    
+    //WAS: IntRect markerRect = enclosingIntRect(font.selectionRectForText(run, IntPoint(m_x, selectionTop()), selHeight, sPos, ePos));
+    IntRect markerRect = enclosingIntRect(font.selectionRectForText(run, IntPoint(m_x, root()->selectionTop(true)), selHeight, sPos, ePos));
+//SAMSUNG CHANGES <<
+
     markerRect = renderer()->localToAbsoluteQuad(FloatRect(markerRect)).enclosingBoundingBox();
     renderer()->document()->markers()->setRenderedRectForMarker(renderer()->node(), marker, markerRect);
     
@@ -1091,8 +1140,12 @@ void InlineTextBox::paintTextMatchMarker(GraphicsContext* pt, const FloatPoint& 
             renderer()->theme()->platformInactiveTextSearchHighlightColor();
         pt->save();
         updateGraphicsContext(pt, color, color, 0, style->colorSpace());  // Don't draw text at all!
+#if PLATFORM(ANDROID)
+        pt->drawHighlightForText(font, run, FloatPoint(boxOrigin.x(), boxOrigin.y() - deltaY), selHeight, color, style->colorSpace(), sPos, ePos, marker.activeMatch);
+#else
         pt->clip(FloatRect(boxOrigin.x(), boxOrigin.y() - deltaY, m_logicalWidth, selHeight));
         pt->drawHighlightForText(font, run, FloatPoint(boxOrigin.x(), boxOrigin.y() - deltaY), selHeight, color, style->colorSpace(), sPos, ePos);
+#endif
         pt->restore();
     }
 }
@@ -1179,18 +1232,18 @@ void InlineTextBox::paintDocumentMarkers(GraphicsContext* pt, const FloatPoint& 
 
 void InlineTextBox::paintCompositionUnderline(GraphicsContext* ctx, const FloatPoint& boxOrigin, const CompositionUnderline& underline)
 {
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
     int tx = boxOrigin.x();
     int ty = boxOrigin.y();
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
     if (m_truncation == cFullTruncation)
         return;
     
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 // float to int change 
     int start = 0;                 // start of line to draw, relative to tx
     int width = m_logicalWidth;           // how much line to draw
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
     bool useWholeWidth = true;
     unsigned paintStart = m_start;
     unsigned paintEnd = end() + 1; // end points at the last char, not past it
@@ -1219,15 +1272,14 @@ void InlineTextBox::paintCompositionUnderline(GraphicsContext* ctx, const FloatP
     if (underline.thick && logicalHeight() - baseline >= 2)
         lineThickness = 2;
 
-//+HTML_COMPOSER
+//SISO_HTMLComposer start
     if (underline.thickness > 1 ) {
         lineThickness = underline.thickness;
     }
-//-HTML_COMPOSER
-
+//SISO_HTMLComposer end
     // We need to have some space between underlines of subsequent clauses, because some input methods do not use different underline styles for those.
     // We make each line shorter, which has a harmless side effect of shortening the first and last clauses, too.
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
     if(renderer()->document()->settings()  &&  renderer()->document()->settings()->editableSupportEnabled() /*&& 
             renderer()->document()->frame()->editor() && renderer()->document()->frame()->editor()->getUnderLineUpdateFlag()*/)
     {
@@ -1246,7 +1298,7 @@ void InlineTextBox::paintCompositionUnderline(GraphicsContext* ctx, const FloatP
             Color undColor = underline.color;
             ctx->setStrokeColor(undColor, renderer()->style()->colorSpace());
             ctx->setStrokeThickness(lineThickness);
-	
+            
 			if(isLeftToRightDirection())
             	ctx->drawLineForText(IntPoint(tx + start, ty + height() - lineThickness), width, textRenderer()->document()->printing());
             else
@@ -1257,17 +1309,17 @@ void InlineTextBox::paintCompositionUnderline(GraphicsContext* ctx, const FloatP
      }
      else
      {
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
     start += 1;
     width -= 2;
 
         ctx->setStrokeColor(underline.color, renderer()->style()->colorSpace());
         ctx->setStrokeThickness(lineThickness);
-//SISO_HTMLCOMPOSER begin
+//SISO_HTMLComposer start
 // floatPoint to IntPoint change
         ctx->drawLineForText(IntPoint(boxOrigin.x() + start, boxOrigin.y() + logicalHeight() - lineThickness), width, textRenderer()->document()->printing());
      }    
-//SISO_HTMLCOMPOSER end
+//SISO_HTMLComposer end
 }
 
 int InlineTextBox::caretMinOffset() const
@@ -1330,14 +1382,41 @@ float InlineTextBox::positionForOffset(int offset) const
         return logicalLeft();
 
     RenderText* text = toRenderText(renderer());
+// OSS_Modify
+#if 0
+    if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
+            const UChar* character = text->text()->characters();
+            int oldOffset=offset;
+            for(int i=m_start;i<oldOffset;i++){
+                    if(character[i] == SARA_AM){
+                            if(isThai(character[i-1])){
+                                    int cT = isThaiReshaperCharhw(character[i-1]);
+                                    if(cT == THAIRESHAPESHIFTLEFT){
+                                            if(isThaiReshaperTonehw(character[i],cT) == THAIRESHAPESHIFTLEFT){
+                                                    offset++;
+                                            }
+                                    }
+                                    bool isCharacterReplaced=isThai(character[i-2])&& !isNotThaiTone(character[i-1]);
+                                    if(isCharacterReplaced==true){
+                                            int cT2 = isThaiReshaperCharhw(character[i-2]);
+                                            if(cT2 == THAIRESHAPESHIFTLEFT){
+                                                    if(isThaiReshaperTonehw(character[i],cT2) == THAIRESHAPESHIFTLEFT){
+                                                            offset++;
+                                                    }
+                                            }
+                                    }
+                            }
+                    }
+
+            }
+    }	
+#endif
     const Font& f = text->style(m_firstLine)->font();
     int from = !isLeftToRightDirection() ? offset - m_start : 0;
     int to = !isLeftToRightDirection() ? m_len : offset - m_start;
     // FIXME: Do we need to add rightBearing here?
-//    return f.selectionRectForText(TextRun(text->text()->characters() + m_start, m_len, textRenderer()->allowTabs(), textPos(), m_expansion, expansionBehavior(), !isLeftToRightDirection(), m_dirOverride),
-//                                  IntPoint(logicalLeft(), 0), 0, from, to).maxX();
     return f.selectionRectForText(TextRun(text->text()->characters() + m_start, m_len, textRenderer()->allowTabs(), textPos(), m_expansion, expansionBehavior(), !isLeftToRightDirection(), m_dirOverride),
-                                  IntPoint(logicalLeft(), 0), 0, from, to, text->isRtl()).maxX();	
+                                  IntPoint(logicalLeft(), 0), 0, from, to).maxX();
 }
 
 bool InlineTextBox::containsCaretOffset(int offset) const

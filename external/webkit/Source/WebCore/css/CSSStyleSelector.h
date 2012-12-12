@@ -34,6 +34,8 @@
 #include <wtf/Vector.h>
 #include <wtf/text/StringHash.h>
 
+// SAMSUNG CHANGE - Modified some of the functions in this file for CSS3 Ring Mark test cases
+
 namespace WebCore {
 
 class CSSMutableStyleDeclaration;
@@ -308,6 +310,10 @@ public:
         void mapAnimationTimingFunction(Animation*, CSSValue*);
 
         void mapNinePieceImage(CSSPropertyID, CSSValue*, NinePieceImage&);
+        void mapNinePieceImageSlice(CSSValue*, NinePieceImage&);
+    LengthBox mapNinePieceImageQuad(CSSValue*);
+        void mapNinePieceImageRepeat(CSSValue*, NinePieceImage&);
+    
 
         void applyProperty(int id, CSSValue*);
         void applyPageSizeProperty(CSSValue*);

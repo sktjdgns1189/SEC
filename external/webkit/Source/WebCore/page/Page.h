@@ -28,26 +28,27 @@
 #include <wtf/Forward.h>
 #include <wtf/HashSet.h>
 #include <wtf/Noncopyable.h>
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
 #include "PageVisibilityState.h"
 #endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 
 #if OS(SOLARIS)
 #include <sys/time.h> // For time_t structure.
 #endif
-
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
 #include "dictionary.h"
-
 using namespace browserspellcheck;
-#if PLATFORM(MAC)
-#include "SchedulePair.h"
-#endif
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-#include "HTMLCanvasElement.h"
-#endif
 namespace android{
 	class Asset;
 }
+#endif
+//SAMSUNG CHANGES <<<	
+#if PLATFORM(MAC)
+#include "SchedulePair.h"
+#endif
 
 namespace JSC {
     class Debugger;
@@ -272,17 +273,15 @@ namespace WebCore {
 
         static void allVisitedStateChanged(PageGroup*);
         static void visitedStateChanged(PageGroup*, LinkHash visitedHash);
-#if PLATFORM(ANDROID) && ENABLE(ACCELERATED_2D_CANVAS)
-	SharedGraphicsContext3D* sharedGraphicsContext3D(HTMLCanvasElement* canvas);
-#else
+
         SharedGraphicsContext3D* sharedGraphicsContext3D();
-#endif
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
 		void initDictionary();
 		void deleteDictionary();
 		browserspellcheck::Dictionary * getDictionary(){return m_dictionary;}
 #endif
-
+//SAMSUNG CHANGES <<<	
 #if ENABLE(DOM_STORAGE)
         StorageNamespace* sessionStorage(bool optionalCreate = true);
         void setSessionStorage(PassRefPtr<StorageNamespace>);
@@ -320,12 +319,12 @@ namespace WebCore {
 
         void setEditable(bool isEditable) { m_isEditable = isEditable; }
         bool isEditable() { return m_isEditable; }
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
         PageVisibilityState visibilityState() const;
         void setVisibilityState(PageVisibilityState, bool);
 #endif
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 
     private:
         void initGroup();
@@ -409,11 +408,13 @@ namespace WebCore {
         int m_customHTMLTokenizerChunkSize;
 
         bool m_canStartMedia;
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
 		browserspellcheck::Dictionary *m_dictionary;
 		android::Asset  *m_asset;
 #endif
-        OwnPtr<PluginHalter> m_pluginHalter;
+//SAMSUNG CHANGES <<<	
+       OwnPtr<PluginHalter> m_pluginHalter;
 
 #if ENABLE(DOM_STORAGE)
         RefPtr<StorageNamespace> m_sessionStorage;
@@ -436,11 +437,11 @@ namespace WebCore {
         OwnPtr<ScrollableAreaSet> m_scrollableAreaSet;
 
         bool m_isEditable;
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
         PageVisibilityState m_visibilityState;
 #endif
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
     };
 
 } // namespace WebCore

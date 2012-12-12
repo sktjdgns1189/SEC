@@ -125,19 +125,7 @@ public:
     void setOrientation(FontOrientation orientation) { m_orientation = orientation; }
     void setTextOrientation(TextOrientation textOrientation) { m_textOrientation = textOrientation; }
     void setWidthVariant(FontWidthVariant widthVariant) { m_widthVariant = widthVariant; }
-	
-	#ifdef WEBKIT_TEXT_SIZE_ADJUST
-    //SAMSUNG CHANGE BEGIN webkit-text-size-adjust <<
-    bool equalForTextAutoSizing (const FontDescription& other) const {
-        return m_familyList == other.m_familyList
-            && m_specifiedSize == other.m_specifiedSize
-            && m_smallCaps == other.m_smallCaps
-            && m_isAbsoluteSize == other.m_isAbsoluteSize
-            && m_genericFamily == other.m_genericFamily
-            && m_usePrinterFont == other.m_usePrinterFont;
-    }
-    //SAMSUNG CHANGE END webkit-text-size-adjust >>
-    #endif
+
 private:
     FontFamily m_familyList; // The list of font families to be used.
 

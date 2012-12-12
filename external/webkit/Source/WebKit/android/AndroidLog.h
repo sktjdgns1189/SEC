@@ -26,17 +26,25 @@
 #ifndef AndroidLog_h
 #define AndroidLog_h
 
+#ifndef LOG_TAG
+#define LOG_TAG __FILE__
+#endif
+
+#include <cutils/log.h>
+#include <utils/Trace.h>
+#include <wtf/CurrentTime.h>
+
 #ifdef ANDROID_DOM_LOGGING
 #include <stdio.h>
 extern FILE* gDomTreeFile;
 #define DOM_TREE_LOG_FILE "/sdcard/domTree.txt"
 #define DUMP_DOM_LOGD(...) { if (gDomTreeFile) \
-    fprintf(gDomTreeFile, __VA_ARGS__); else LOGD(__VA_ARGS__); }
+    fprintf(gDomTreeFile, __VA_ARGS__); else ALOGD(__VA_ARGS__); }
 
 extern FILE* gRenderTreeFile;
 #define RENDER_TREE_LOG_FILE "/sdcard/renderTree.txt"
 #define DUMP_RENDER_LOGD(...) { if (gRenderTreeFile) \
-    fprintf(gRenderTreeFile, __VA_ARGS__); else LOGD(__VA_ARGS__); }
+    fprintf(gRenderTreeFile, __VA_ARGS__); else ALOGD(__VA_ARGS__); }
 #else
 #define DUMP_DOM_LOGD(...) ((void)0)
 #define DUMP_RENDER_LOGD(...) ((void)0)
@@ -44,5 +52,53 @@ extern FILE* gRenderTreeFile;
 
 #define DISPLAY_TREE_LOG_FILE "/sdcard/displayTree.txt"
 #define LAYERS_TREE_LOG_FILE "/sdcard/layersTree.plist"
+
+#define FLOAT_RECT_FORMAT "[x=%.2f,y=%.2f,w=%.2f,h=%.2f]"
+#define FLOAT_RECT_ARGS(fr) fr.x(), fr.y(), fr.width(), fr.height()
+#define INT_RECT_FORMAT "[x=%d,y=%d,w=%d,h=%d]"
+#define INT_RECT_ARGS(ir) ir.x(), ir.y(), ir.width(), ir.height()
+
+#define TRACE_METHOD() android::ScopedTrace __st(ATRACE_TAG_WEBVIEW, __func__);
+#define TRACE_METHOD_ARGS(...) ScopedTraceArgs __st( __VA_ARGS__ );
+
+#define TIME_METHOD() MethodTimer __method_timer(__func__)
+class MethodTimer {
+public:
+    MethodTimer(const char* name)
+        : m_methodName(name)
+    {
+        m_startTime = currentTimeMS();
+    }
+    virtual ~MethodTimer() {
+        double duration = currentTimeMS() - m_startTime;
+        ALOGD("%s took %.2fms", m_methodName, duration);
+    }
+private:
+    const char* m_methodName;
+    double m_startTime;
+};
+
+ class ScopedTraceArgs {
+ public:
+	inline ScopedTraceArgs( char* format, ...)
+	{
+		va_list list;
+		char args_buf[1024] = "no_name";
+
+		if( android::Tracer::isTagEnabled(ATRACE_TAG_WEBVIEW) )
+		{
+			va_start( list, format );
+			vsprintf( args_buf, format, list );
+			va_end( list);
+		}
+		
+	 	android::Tracer::traceBegin(ATRACE_TAG_WEBVIEW, args_buf );
+	}
+	
+	inline ~ScopedTraceArgs() {
+	 	android::Tracer::traceEnd(ATRACE_TAG_WEBVIEW);
+	}
+
+ };
 
 #endif // AndroidLog_h

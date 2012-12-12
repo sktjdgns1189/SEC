@@ -25,8 +25,6 @@
 
 #include "config.h"
 
-#if USE(CHROME_NETWORK_STACK)
-
 #include "ChromiumIncludes.h"
 #include "WebCache.h"
 #include "WebCoreJni.h"
@@ -133,12 +131,10 @@ int registerCacheManager(JNIEnv* env)
 {
 #ifndef NDEBUG
     jclass cacheManager = env->FindClass(javaCacheManagerClass);
-    LOG_ASSERT(cacheManager, "Unable to find class");
+    ALOG_ASSERT(cacheManager, "Unable to find class");
     env->DeleteLocalRef(cacheManager);
 #endif
     return jniRegisterNativeMethods(env, javaCacheManagerClass, gCacheManagerMethods, NELEM(gCacheManagerMethods));
 }
 
 } // namespace android
-
-#endif //  USE(CHROME_NETWORK_STACK)

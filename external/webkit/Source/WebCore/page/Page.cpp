@@ -73,13 +73,18 @@
 #include <wtf/RefCountedLeakCounter.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/StringHash.h>
-#include <utils/AssetManager.h>
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
+#include <androidfw/AssetManager.h>
 #include <android/log.h>
 
 #define typedLetterMultiplier 2
 #define fullWordMultiplier 2
 
 extern android::AssetManager* globalAssetManager();
+using namespace android;
+#endif
+//SAMSUNG CHANGES <<<
 #if ENABLE(ACCELERATED_2D_CANVAS)
 #include "SharedGraphicsContext3D.h"
 #endif
@@ -101,8 +106,6 @@ extern android::AssetManager* globalAssetManager();
 #include "PackageNotifier.h"
 #endif
 
-
-using namespace android;
 namespace WebCore {
 
 static HashSet<Page*>* allPages;
@@ -113,7 +116,9 @@ static WTF::RefCountedLeakCounter pageCounter("Page");
 
 static void networkStateChanged()
 {
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
     WTF::Vector<RefPtr<Frame> > frames;
+//SAMSUNG CHANGES <<<	
     
     // Get all the frames of all the pages in all the page groups
     HashSet<Page*>::iterator end = allPages->end();
@@ -124,8 +129,36 @@ static void networkStateChanged()
     }
 
     AtomicString eventName = networkStateNotifier().onLine() ? eventNames().onlineEvent : eventNames().offlineEvent;
-    for (unsigned i = 0; i < frames.size(); i++)
-        frames[i]->document()->dispatchWindowEvent(Event::create(eventName, false, false));
+
+//SAMSUNG CHANGE - MPSG5821 >>
+//We should pass the online/offline event to the DOMWindow only if the networkStateChanged function
+//is called due to an actual on/off of the network due to the setNetworkAvailable callback from frameworks side. 
+//If the networkStateChanged is called due to a change in network type (either as HSPA, HSDPA, HSPA+ within 
+// 3G or as EDGE or GPRS within 2G), we should not pass the online/offline event to DOMWindow - 
+//the online/offline event functionality is defined in HTML5, sec. 5.7.7
+
+    if (networkStateNotifier().getdidOnlineOfflineToggleHappen()) {
+    	   networkStateNotifier().resetdidOnlineOfflineToggleHappen();
+          
+	   for (unsigned i = 0; i < frames.size(); i++)
+       	 frames[i]->document()->dispatchWindowEvent(Event::create(eventName, false, false));
+    }
+//SAMSUNG CHANGE - MPSG6020 >>
+   if (networkStateNotifier().getdidNetworkTypeChangeHappen()){
+	   networkStateNotifier().resetdidNetworkTypeChangeHappen();
+
+	   for (unsigned i = 0; i < frames.size(); i++)
+       	 frames[i]->existingDOMWindow()->navigator()->connection()->fireEvent(eventNames().changeEvent);
+    }
+//SAMSUNG CHANGE - MPSG6020 <<    	   
+// if we have reached this point due to on/off network, we can do dispatchWindowEvent after resetting the
+// didOnlineOfflineToggleHappen variable in NetworkStateNotifier so that future network toggles pass through this check
+//else if this point is reached just due to a network type change, we can return without doing anything.
+//SAMSUNG CHANGE - MPSG5821 <<
+
+//Comment: A much better patch might be to modify the networkTypeChange call from the WifiManager side - 
+//but for the moment, this will work
+
 }
 
 #if PLATFORM(ANDROID) && ENABLE(APPLICATION_INSTALLED)
@@ -186,12 +219,16 @@ Page::Page(const PageClients& pageClients)
     , m_viewMode(ViewModeWindowed)
     , m_minimumTimerInterval(Settings::defaultMinDOMTimerInterval())
     , m_isEditable(false)
-#if ENABLE(SPELLCHECK)
-	,m_dictionary(NULL)
-#endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
     , m_visibilityState(PageVisibilityStateVisible)
 #endif
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
+#if ENABLE(SPELLCHECK)
+	,m_dictionary(NULL)
+#endif
+//SAMSUNG CHANGES <<<	
 {
     if (!allPages) {
         allPages = new HashSet<Page*>;
@@ -231,11 +268,12 @@ Page::~Page()
     }
 
     m_editorClient->pageDestroyed();
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)	
 	if(m_dictionary)
 		deleteDictionary();
 #endif
-
+//SAMSUNG CHANGES <<<
     InspectorInstrumentation::inspectedPageDestroyed(this);
 
     backForward()->close();
@@ -271,7 +309,7 @@ Page::ViewMode Page::stringToViewMode(const String& text)
     }
     return Page::ViewModeInvalid;
 }
-
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
 #if ENABLE(SPELLCHECK)
 void Page::initDictionary()
 {
@@ -302,7 +340,7 @@ void Page::deleteDictionary()
 }
 
 #endif
-
+//SAMSUNG CHANGES <<<	
 void Page::setViewMode(ViewMode viewMode)
 {
     if (viewMode == m_viewMode || viewMode == ViewModeInvalid)
@@ -479,9 +517,9 @@ void Page::refreshPlugins(bool reload)
         return;
 
     PluginData::refresh();
-
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
     WTF::Vector<RefPtr<Frame> > framesNeedingReload;
-
+//SAMSUNG CHANGES <<<	
     HashSet<Page*>::iterator end = allPages->end();
     for (HashSet<Page*>::iterator it = allPages->begin(); it != end; ++it) {
         Page* page = *it;
@@ -692,8 +730,9 @@ void Page::userStyleSheetLocationChanged()
     // synchronously and avoid using a loader. 
     if (url.protocolIsData() && url.string().startsWith("data:text/css;charset=utf-8;base64,")) {
         m_didLoadUserStyleSheet = true;
-
+//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
         WTF::Vector<char> styleSheetAsUTF8;
+//SAMSUNG CHANGES <<<	
         if (base64Decode(decodeURLEscapeSequences(url.string().substring(35)), styleSheetAsUTF8, IgnoreWhitespace))
             m_userStyleSheet = String::fromUTF8(styleSheetAsUTF8.data(), styleSheetAsUTF8.size());
     }
@@ -816,19 +855,6 @@ void Page::setDebugger(JSC::Debugger* debugger)
         frame->script()->attachDebugger(m_debugger);
 }
 
-#if PLATFORM(ANDROID) &&  ENABLE(ACCELERATED_2D_CANVAS)
-SharedGraphicsContext3D* Page::sharedGraphicsContext3D(HTMLCanvasElement* canvas)
-{
-#if ENABLE(ACCELERATED_2D_CANVAS)
-    if (!m_sharedGraphicsContext3D)
-        m_sharedGraphicsContext3D = SharedGraphicsContext3D::create(canvas,chrome());
-
-    return m_sharedGraphicsContext3D.get();
-#else
-    return 0;
-#endif
-}
-#else
 SharedGraphicsContext3D* Page::sharedGraphicsContext3D()
 {
 #if ENABLE(ACCELERATED_2D_CANVAS)
@@ -840,7 +866,6 @@ SharedGraphicsContext3D* Page::sharedGraphicsContext3D()
     return 0;
 #endif
 }
-#endif
 
 #if ENABLE(DOM_STORAGE)
 StorageNamespace* Page::sessionStorage(bool optionalCreate)
@@ -947,7 +972,9 @@ void Page::privateBrowsingStateChanged()
 
     // Collect the PluginViews in to a vector to ensure that action the plug-in takes
     // from below privateBrowsingStateChanged does not affect their lifetime.
+	//SAMSUNG CHANGES >>> SPELLCHECK(sataya.m@samsung.com)
     WTF::Vector<RefPtr<PluginViewBase>, 32> pluginViewBases;
+	//SAMSUNG CHANGES <<<	
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext()) {
         FrameView* view = frame->view();
         if (!view)
@@ -1020,6 +1047,7 @@ void Page::checkFrameCountConsistency() const
 }
 #endif
 
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY <<
 #if ENABLE(PAGE_VISIBILITY_API)
 void Page::setVisibilityState(PageVisibilityState visibilityState, bool isInitialState)
 {
@@ -1036,8 +1064,7 @@ PageVisibilityState Page::visibilityState() const
     return m_visibilityState;
 }
 #endif
-
-
+//SAMSUNG CHANGES HTML5 PAGE VISIBILITY >>
 Page::PageClients::PageClients()
     : chromeClient(0)
     , contextMenuClient(0)

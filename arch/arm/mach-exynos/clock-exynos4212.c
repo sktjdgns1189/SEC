@@ -982,6 +982,7 @@ static struct vpll_div_data vpll_div_4212[] = {
 	{333000000, 2, 111, 2, 0, 0, 0, 0},
 	{350000000, 3, 175, 2, 0, 0, 0, 0},
 	{440000000, 3, 110, 1, 0, 0, 0, 0},
+	{533000000, 3, 133, 1, 16384, 0, 0, 0},
 };
 
 static unsigned long exynos4212_vpll_get_rate(struct clk *clk)
@@ -1039,6 +1040,7 @@ static int exynos4212_clock_suspend(void)
 	s3c_pm_do_save(exynos4212_clock_save, ARRAY_SIZE(exynos4212_clock_save));
 	s3c_pm_do_save(exynos4212_vpll_save, ARRAY_SIZE(exynos4212_vpll_save));
 	s3c_pm_do_save(exynos4212_epll_save, ARRAY_SIZE(exynos4212_epll_save));
+
 	return 0;
 }
 
@@ -1048,6 +1050,7 @@ static void exynos4212_clock_resume(void)
 
 	s3c_pm_do_restore_core(exynos4212_vpll_save, ARRAY_SIZE(exynos4212_vpll_save));
 	s3c_pm_do_restore_core(exynos4212_epll_save, ARRAY_SIZE(exynos4212_epll_save));
+
 	/* waiting epll & vpll locking time */
 	do {
 		tmp = __raw_readl(EXYNOS4_EPLL_CON0);

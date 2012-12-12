@@ -41,19 +41,24 @@ using namespace HTMLNames;
 
 RenderHTMLCanvas::RenderHTMLCanvas(HTMLCanvasElement* element)
     : RenderReplaced(element, element->size())
-    , m_acceleratedCanvas(false)
-    , m_requiresLayer(false)
 {
     view()->frameView()->setIsVisuallyNonEmpty();
 }
 
 bool RenderHTMLCanvas::requiresLayer() const
 {
+#if PLATFORM(ANDROID)
+    // All Canvas are drawn on their own composited layer
+    // This improves performances a lot (as this simplify
+    // the repaint/inval chain dealing with the PictureSet)
+    return true;
+#endif
+
     if (RenderReplaced::requiresLayer())
         return true;
     
     HTMLCanvasElement* canvas = static_cast<HTMLCanvasElement*>(node());
-    return (m_requiresLayer || (canvas && canvas->renderingContext() && canvas->renderingContext()->isAccelerated()));
+    return canvas && canvas->renderingContext() && canvas->renderingContext()->isAccelerated();
 }
 
 void RenderHTMLCanvas::paintReplaced(PaintInfo& paintInfo, int tx, int ty)
@@ -61,14 +66,6 @@ void RenderHTMLCanvas::paintReplaced(PaintInfo& paintInfo, int tx, int ty)
     IntRect rect = contentBoxRect();
     rect.move(tx, ty);
     static_cast<HTMLCanvasElement*>(node())->paint(paintInfo.context, rect);
-    bool canUseGPU = static_cast<HTMLCanvasElement*>(node())->canUseGpuRendering();
-    if(canUseGPU && !m_acceleratedCanvas)
-    {
-        static_cast<HTMLCanvasElement*>(node())->setNeedsStyleRecalc(SyntheticStyleChange);
-        static_cast<HTMLCanvasElement*>(node())->enableGpuRendering();
-        m_requiresLayer = true;
-        m_acceleratedCanvas = true;
-    }
 }
 
 void RenderHTMLCanvas::canvasSizeChanged()

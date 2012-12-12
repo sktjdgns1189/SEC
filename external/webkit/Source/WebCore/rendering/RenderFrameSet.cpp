@@ -497,8 +497,9 @@ void RenderFrameSet::layout()
 #ifdef ANDROID_FLATTEN_FRAMESET
     }
 #endif
-
-    if (flattenFrameSet())
+//SAMSUNG CHANGE
+    if (!flattenFrameSet())
+//SAMSUNG CHANGE		
         positionFramesWithFlattening();
     else
         positionFrames();
