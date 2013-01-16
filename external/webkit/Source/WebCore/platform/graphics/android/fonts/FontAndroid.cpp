@@ -50,7 +50,7 @@
 // It is very hard to avoid build error for a variety of unpredictable situations. Hence, wekit use ThaiReshaperWebkit in webkit, not skia, is copied from skia.
 #include "ThaiReshaperWebkit.h"
 
-//#include "SecNativeFeature.h"         // OSS_Modify
+#include "SecNativeFeature.h"
 
 #ifdef SUPPORT_COMPLEX_SCRIPTS
 #include "HarfbuzzSkia.h"
@@ -552,12 +552,9 @@ const char* TextRunWalker::paths[] = {
         "/system/fonts/GS_Thai_111220.ttf"
 };
 
-// OSS_Modify
-#if 0
 // CSC Feature initialization
 const bool TextRunWalker::enableHarfbuzz = SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLEHARFBUZZ);
 const bool TextRunWalker::enableThaiVietReshaping = SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING);
-#endif
 TextRunWalker::TextRunWalker(const TextRun& run, int startingX, int startingY, const Font* font)
     : m_font(font)
     , m_startingX(startingX)
@@ -586,8 +583,6 @@ TextRunWalker::TextRunWalker(const TextRun& run, int startingX, int startingY, c
     m_item.font = allocHarfbuzzFont();
 
     m_item.item.bidiLevel = m_run.rtl();
-// OSS_Modify
-#if 0
     if (enableThaiVietReshaping == true) {
        //SNMC_Thai reshaping issue in Email and Browser FIX_Start
         replaceThaiCharsBeforeReshaping();
@@ -596,7 +591,6 @@ TextRunWalker::TextRunWalker(const TextRun& run, int startingX, int startingY, c
         m_item.string = m_run.characters();
         m_item.stringLength = m_run.length();
     }
-#endif
     reset();
 }
 

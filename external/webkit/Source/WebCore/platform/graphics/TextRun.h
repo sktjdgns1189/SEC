@@ -24,7 +24,7 @@
 #ifndef TextRun_h
 #define TextRun_h
 
-//#include "SecNativeFeature.h"      // OSS_Modify
+#include "SecNativeFeature.h"
 
 #include "PlatformString.h"
 #include "ThaiReshaperWebkit.h"
@@ -139,12 +139,9 @@ public:
 #endif
         {
                 //SNMC:- SARA_AM changes in thai reshaping_start(yogendra.s)
-// OSS_Modify
-#if 0
                 if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
                         processText();
                 }
-#endif
                 //SNMC:- SARA_AM changes in thai reshaping_end(yogendra.s)
         }
 
@@ -167,12 +164,9 @@ public:
 #endif
         {
                 //SNMC:- SARA_AM changes in thai reshaping_start(yogendra.s)
-// OSS_Modify
-#if 0
                 if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
                         processText();
                 }
-#endif
                 //SNMC:- SARA_AM changes in thai reshaping_end(yogendra.s)
         }
 
@@ -186,12 +180,10 @@ public:
             m_characters = c;
             m_len = len;
             //SNMC:- SARA_AM changes in thai reshaping_start(yogendra.s)
-// OSS_Modify
-#if 0
+
             if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
                     processText();
             }
-#endif
             //SNMC:- SARA_AM changes in thai reshaping_end(yogendra.s)
     }
 

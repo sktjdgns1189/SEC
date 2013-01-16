@@ -34,8 +34,8 @@
 #include <wtf/text/CString.h>
 
 // SAMSUNG CHANGE >>
-//#include "SecNativeFeature.h"                    // OSS_Modify
-//#include "SecNativeFeatureTagWeb.h"
+#include "SecNativeFeature.h"
+#include "SecNativeFeatureTagWeb.h"
 #include <cutils/properties.h>
 #include <string>
 // SAMSUNG CHANGE <<
@@ -79,13 +79,10 @@ WebRequestContext::WebRequestContext(bool isPrivateBrowsing)
     // SAMSUNG CHANGE >>    
     set_accept_charset("utf-8, iso-8859-1, utf-16, *;q=0.7");
     // Add additional accept charset  to Accept Header (CTC Requirement)
-// OSS_Modify
-#if 0
     if(strcmp(SecNativeFeature::getInstance()->getString(CscFeature_Web_AddCharSetToHttpHeader), "") != 0){
         const char *sCscValue = SecNativeFeature::getInstance()->getString(CscFeature_Web_AddCharSetToHttpHeader);
         set_accept_charset(sCscValue);
     }
-#endif
     // SAMSUNG CHANGE <<
 }
 

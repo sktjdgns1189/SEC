@@ -48,7 +48,7 @@
 //SISO_HTMLComposer start
 #include "RenderView.h"    
 //SISO_HTMLComposer end
-//#include "SecNativeFeature.h"       // OSS_Modify
+#include "SecNativeFeature.h"
 #include "ThaiReshaperWebkit.h"
 
 using namespace std;
@@ -1382,8 +1382,6 @@ float InlineTextBox::positionForOffset(int offset) const
         return logicalLeft();
 
     RenderText* text = toRenderText(renderer());
-// OSS_Modify
-#if 0
     if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING)) {
             const UChar* character = text->text()->characters();
             int oldOffset=offset;
@@ -1410,7 +1408,6 @@ float InlineTextBox::positionForOffset(int offset) const
 
             }
     }	
-#endif
     const Font& f = text->style(m_firstLine)->font();
     int from = !isLeftToRightDirection() ? offset - m_start : 0;
     int to = !isLeftToRightDirection() ? m_len : offset - m_start;

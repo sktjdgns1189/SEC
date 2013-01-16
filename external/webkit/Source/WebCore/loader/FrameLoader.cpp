@@ -101,8 +101,8 @@
 #include <wtf/text/StringConcatenate.h>
 
 // SAMSUNG CHANGE >>
-//#include "SecNativeFeature.h"         // OSS_Modify
-//#include "SecNativeFeatureTagWeb.h"
+#include "SecNativeFeature.h"
+#include "SecNativeFeatureTagWeb.h"
 #include <cutils/properties.h>
 #include <string>
 // SAMSUNG CHANGE <<
@@ -2767,8 +2767,6 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
     
 // SAMSUNG CHANGE >>
     if (mainResource) {
-    // OSS_Modify
-    #if 0
         if (strcmp(SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4), "") != 0 ){
             const char *sCscValue = SecNativeFeature::getInstance()->getString(CscFeatureTagWeb_AddWmlToHttpAcceptHeader4);
             const char *WMLAcceptHeader = "text/html,application/xhtml+xml,text/vnd.wap.wml,application/xml;q=0.9,*/*;q=0.8";
@@ -2793,9 +2791,7 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
             } else {
                 request.setHTTPAccept(defaultAcceptHeader);
             }
-        } else
-    #endif
-        {
+        } else {
             request.setHTTPAccept(defaultAcceptHeader);
         }
     }
@@ -2811,8 +2807,6 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
     char UAPStr[100] = {0,};	
     char Model[30] = {0,};
 
-// OSS_Modify
-#if 0
     if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_COMMON_USECHAMELEON) == true) {
 // SAMSUNG CHANGE : chameleon >>
         XLOGC("Frameloader fetching extra UA String - UAProfURL");
@@ -2894,7 +2888,7 @@ void FrameLoader::addExtraFieldsToRequest(ResourceRequest& request, FrameLoadTyp
    }
 //-Enable DeviceID at Header(USA ATT Requirement) NAGSM_HYKim
 // SAMSUNG CHANGE <<
-#endif
+
     // Make sure we send the Origin header.
     addHTTPOriginIfNeeded(request, String());
 

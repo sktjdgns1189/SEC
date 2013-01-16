@@ -37,7 +37,7 @@
 #define LOG_TAG "PhoneNumberDetector"
 #include <cutils/log.h>
 
-//#include <SecNativeFeature.h>    // OSS_Modify
+#include <SecNativeFeature.h>
 
 #define PHONE_PATTERN "(200) /-.\\ 100 -. 0000"
 // CscFeature_Web_RecognizeTelNumber >>
@@ -85,13 +85,9 @@ bool PhoneEmailDetector::FindContent(const string16::const_iterator& begin,
     m_foundResult = FOUND_NONE;
     if (m_isPhoneDetectionEnabled) {
         // CscFeature_Web_RecognizeTelNumber >>
-// OSS_Modify
-#if 0
         if (SecNativeFeature::getInstance()->getInteger(CscFeature_Web_RecognizeTelNumber) == 4) {
             m_foundResult = FindPartialNumber_4(begin, end - begin, &m_findState);
-        } else 
-#endif
-{
+        } else {
             m_foundResult = FindPartialNumber(begin, end - begin, &m_findState);
         }
         // CscFeature_Web_RecognizeTelNumber <<
@@ -137,13 +133,9 @@ void FindResetNumber(FindState* state)
 {
     state->mOpenParen = false;
     // CscFeature_Web_RecognizeTelNumber >>
-// OSS_Modify
-#if 0
     if(SecNativeFeature::getInstance()->getInteger(CscFeature_Web_RecognizeTelNumber) == 4) {
         state->mPattern = (char*) PHONE_PATTERN_4;
-    } else 
-#endif
-{
+    } else {
         state->mPattern = (char*) PHONE_PATTERN;
     }
     // CscFeature_Web_RecognizeTelNumber <<

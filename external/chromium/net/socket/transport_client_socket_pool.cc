@@ -18,9 +18,9 @@
 #include "net/socket/client_socket_handle.h"
 #include "net/socket/client_socket_pool_base.h"
 #include "net/socket/tcp_client_socket.h"
-// OSS_Modify
-//#include "SecNativeFeature.h"
-//#include "SecNativeFeatureTagWeb.h"
+
+#include "SecNativeFeature.h"
+#include "SecNativeFeatureTagWeb.h"
 
 using base::TimeDelta;
 
@@ -423,10 +423,10 @@ ConnectJob*
 base::TimeDelta
     TransportClientSocketPool::TransportConnectJobFactory::ConnectionTimeout()
     const {
-// OSS_Modify
-  /*if (SecNativeFeature::getInstance()->getInteger(CscFeatureTagWeb_SetTcpConnTimeoutAs) > 0) {
+
+  if (SecNativeFeature::getInstance()->getInteger(CscFeatureTagWeb_SetTcpConnTimeoutAs) > 0) {
     return base::TimeDelta::FromSeconds(SecNativeFeature::getInstance()->getInteger(CscFeatureTagWeb_SetTcpConnTimeoutAs));
-  }*/
+  }
   return base::TimeDelta::FromSeconds(kTransportConnectJobTimeoutInSeconds);
 }
 

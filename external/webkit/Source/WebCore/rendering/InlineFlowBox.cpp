@@ -39,7 +39,7 @@
 #include "RootInlineBox.h"
 #include "Text.h"
 //SISO_HTMLComposer Start
-// #include "SecNativeFeature.h"   // OSS_Modify
+#include "SecNativeFeature.h"
 //SISO_HTMLComposer End
 
 #include <math.h>
@@ -1008,8 +1008,6 @@ void InlineFlowBox::paint(PaintInfo& paintInfo, int tx, int ty, int lineTop, int
     if (!paintInfo.rect.intersects(overflowRect)){
         bool visibleLeaf = false;
         //Handling Zero Width Characters
-// OSS_Modify
-#if 0
         if(SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING) == true){
             if(overflowRect.width() == 0
                 && renderer()->document()->settings()  
@@ -1022,7 +1020,6 @@ void InlineFlowBox::paint(PaintInfo& paintInfo, int tx, int ty, int lineTop, int
                 }
             }
         }
-#endif
         if(!visibleLeaf)
             return;
     }

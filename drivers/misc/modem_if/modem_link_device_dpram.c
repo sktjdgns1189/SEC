@@ -1603,13 +1603,13 @@ static void recv_ipc_msg(struct dpram_link_device *dpld,
 			mif_debug("%s: %s_RXQ is empty\n",
 				ld->name, get_dev_name(i));
 		} else {
-		/* Invoke an RX function only when there is data in the RXQ */
-		if (dpld->rx_with_skb)
-			ret = recv_ipc_with_skb(dpld, i, stat);
-		else
-			ret = recv_ipc_with_rxb(dpld, i, stat);
-		if (ret < 0)
-			reset_rxq_circ(dpld, i);
+			/* Invoke an RX function only when there is data in the RXQ */
+			if (dpld->rx_with_skb)
+				ret = recv_ipc_with_skb(dpld, i, stat);
+			else
+				ret = recv_ipc_with_rxb(dpld, i, stat);
+			if (ret < 0)
+				reset_rxq_circ(dpld, i);
 		}
 
 		/* Check and process REQ_ACK (at this time, in == out) */
