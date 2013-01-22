@@ -123,8 +123,9 @@
 #define DUMP_TIMEOUT		(30 * HZ)
 #define DUMP_START_TIMEOUT	(100 * HZ)
 #define DUMP_WAIT_TIMEOUT	(HZ >> 10)	/* 1/1024 second */
-#define RES_ACK_WAIT_TIMEOUT	(HZ >> 8)	/* 1/256 second */
-#define REQ_ACK_DELAY		(HZ >> 7)	/* 1/128 second */
+
+#define RES_ACK_WAIT_TIMEOUT	10		/* 10 ms */
+#define REQ_ACK_DELAY		10		/* 10 ms */
 
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 #define MAX_RETRY_CNT	1

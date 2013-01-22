@@ -140,6 +140,10 @@ static struct device *bus_dev;
 
 int touch_is_pressed = 0;
 
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+static int noise_mode_indicator;
+#endif
+
 #define ISC_DL_MODE	1
 
 /* 4.8" OCTA LCD */
@@ -643,8 +647,21 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 
 	if (buf[0] == 0x0E) { /* NOISE MODE */
 		dev_dbg(&client->dev, "[TSP] noise mode enter!!\n");
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+		if (noise_mode_indicator == 0) {
+			noise_mode_indicator++;
+			dev_dbg(&client->dev, "[TSP] mms reset by noise mode!!\n");
+			reset_mms_ts(info);
+			info->noise_mode = 0;
+		} else {
+			info->noise_mode = 1 ;
+			dev_dbg(&client->dev, "[TSP] set noise mode!!\n");
+			mms_set_noise_mode(info);
+		}
+#else
 		info->noise_mode = 1 ;
 		mms_set_noise_mode(info);
+#endif
 		goto out;
 	}
 
@@ -2924,6 +2941,10 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 #endif
 	touch_is_pressed = 0;
 
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	noise_mode_indicator = 0;
+#endif
+
 #if 0
 	gpio_request(GPIO_OLED_DET, "OLED_DET");
 	ret = gpio_get_value(GPIO_OLED_DET);
@@ -3119,6 +3140,9 @@ static int mms_ts_suspend(struct device *dev)
 	disable_irq(info->irq);
 	info->enabled = false;
 	touch_is_pressed = 0;
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	noise_mode_indicator = 0;
+#endif
 	release_all_fingers(info);
 	info->pdata->power(false);
 	/* This delay needs to prevent unstable POR by
@@ -3138,8 +3162,12 @@ static int mms_ts_resume(struct device *dev)
 
 	dev_notice(&info->client->dev, "%s: users=%d\n", __func__,
 		   info->input_dev->users);
+// jk45.kim: To up TSP init speed.
+#if !defined(CONFIG_TARGET_LOCALE_KOR)
 	info->pdata->power(true);
 	msleep(120);
+#endif
+// jk45.kim
 
 	if (info->ta_status) {
 		dev_notice(&client->dev, "TA connect!!!\n");

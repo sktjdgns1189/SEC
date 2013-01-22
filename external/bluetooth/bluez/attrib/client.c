@@ -573,6 +573,7 @@ static void gatt_write_client_config_desc_resp(guint8 status, const guint8 *pdu,
 	DBusMessageIter iter, sub, sub_value;
 	DBusMessageIter dict;
 	uint8_t *value;
+	const char* returnStr;
 	int vlen;
 
 	DBG("status %d",status);
@@ -597,9 +598,18 @@ static void gatt_write_client_config_desc_resp(guint8 status, const guint8 *pdu,
 			return;
 		}
 
+		if (!dec_write_resp(pdu, len)) {
+			returnStr = "Protocol error";
+			DBG("Protocol error");
+		} else {
+			returnStr = "Client Characteristic Descriptor Value was written sucessfully";
+			DBG("Client Characteristic Descriptor Value was written sucessfully");
+		}
+
 		g_dbus_send_message(gatt->conn, reply);
-		current->msg = NULL;		
+		current->msg = NULL;
 	} else {
+		returnStr = att_ecode2str(status);
 		reply = btd_error_invalid_args(current->msg);
 		if (!reply) {
 			current->msg = NULL;
@@ -608,6 +618,8 @@ static void gatt_write_client_config_desc_resp(guint8 status, const guint8 *pdu,
 			current->msg = NULL;
 		}
 	}
+	emit_property_changed(gatt->conn, chr->path,CHAR_INTERFACE,
+	                        "ClientConfiguration", DBUS_TYPE_STRING , &returnStr);
 }
 
 static DBusMessage *set_client_config_desc(DBusConnection *conn, DBusMessage *msg,
@@ -1276,6 +1288,31 @@ static DBusMessage *discover_char(DBusConnection *conn, DBusMessage *msg,
 	return NULL;
 }
 
+static DBusMessage *is_discovery_in_progress(DBusConnection *conn, DBusMessage *msg,
+								void *data)
+{
+	struct gatt_service *gatt = data;
+	DBusMessage *reply;
+	dbus_bool_t inProgress = FALSE;
+
+	reply = dbus_message_new_method_return(msg);
+	if (!reply)
+		return NULL;
+
+	if (gatt->query) {
+		DBG("gatt->query exists");
+		inProgress = TRUE;
+		dbus_message_append_args(reply, DBUS_TYPE_BOOLEAN, &inProgress,
+			DBUS_TYPE_INVALID);
+		return reply;
+	}
+
+	DBG("I am not busy");
+	dbus_message_append_args(reply, DBUS_TYPE_BOOLEAN, &inProgress,
+		DBUS_TYPE_INVALID);
+	return reply;
+}
+
 static DBusMessage *prim_get_properties(DBusConnection *conn, DBusMessage *msg,
 								void *data)
 {
@@ -1326,6 +1363,7 @@ static GDBusMethodTable prim_methods[] = {
 						register_watcher	},
 	{ "UnregisterCharacteristicsWatcher",	"o", "",
 						unregister_watcher	},
+	{ "IsDiscoveryInProgress",	"",	"b", is_discovery_in_progress	},
 	{ "GetProperties",	"",	"a{sv}",prim_get_properties	},
 	{ }
 };

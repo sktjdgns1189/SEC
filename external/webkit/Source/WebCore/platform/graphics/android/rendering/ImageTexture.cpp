@@ -135,11 +135,9 @@ unsigned ImageTexture::computeCRC(const SkBitmap* bitmap)
         return 0;
     bitmap->lockPixels();
     uint8_t* img = static_cast<uint8_t*>(bitmap->getPixels());
-    if (!img){
-        bitmap->unlockPixels();
-        return 0;
-    }
-    unsigned crc = computeCrc(img, bitmap->getSize());
+    unsigned crc = 0;
+    if (img)
+        crc = computeCrc(img, bitmap->getSize());
     bitmap->unlockPixels();
     return crc;
 }

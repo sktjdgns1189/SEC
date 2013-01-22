@@ -172,6 +172,9 @@
 //SAMSUNG_WEB_WORKER_CHANGES >>
 #include "V8Binding.h"
 //SAMSUNG_WEB_WORKER_CHANGES <<
+//Samsung Change MPSG100006560++
+#include "SecNativeFeature.h"
+//Samsung Change MPSG100006560--
 #include <wtf/text/CString.h>
 #include <wtf/text/StringImpl.h>
 
@@ -684,8 +687,9 @@ WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* m
 //SAMSUNG_WEB_WORKER_CHANGES >>
     WebCore::V8BindingPerIsolateData::ensureInitialized(v8::Isolate::GetCurrent());
 //SAMSUNG_WEB_WORKER_CHANGES <<
-
-
+//Samsung Change MPSG100006560++
+	m_isThaiVietCSC = SecNativeFeature::getInstance()->getEnableStatus(TAG_CSCFEATURE_FRAMEWORK_ENABLETHAIVIETRESHAPING);
+//Samsung Change MPSG100006560--
     // Configure any RuntimeEnabled features that we need to change from their default now.
     // See WebCore/bindings/generic/RuntimeEnabledFeatures.h
 
@@ -4519,14 +4523,16 @@ void WebViewCore::replaceTextfieldText(int oldStart,
     WebCore::Node* focus = currentFocus();
     if (!focus)
         return;
-	if (isDateTime(focus))
-	{
-	    setSelection(oldStart, oldEnd);
-	}
-	else
+//Samsung Change MPSG100006560++
+	if (m_isThaiVietCSC && !isDateTime(focus))
 	{
 	    setSelectionWithoutValidation(oldStart, oldEnd);
 	}
+	else
+	{
+	    setSelection(oldStart, oldEnd);
+	}
+//Samsung Change MPSG100006560--
     // Prevent our editor client from passing a message to change the
     // selection.
     EditorClientAndroid* client = static_cast<EditorClientAndroid*>(
@@ -6627,6 +6633,8 @@ bool WebViewCore::tryEditFieldSelection(int x , int y ) {
     bool wordSelected = false;
     if (!sc->contains(point) && (node->isContentEditable() || node->isTextNode()) && !result.isLiveLink()
             && node->dispatchEvent(Event::create(eventNames().selectstartEvent, true, true))) {
+        if( !node->renderer() ) return false;
+
         VisiblePosition pos(node->renderer()->positionForPoint(result.localPoint()));
         //wordSelected = selectWordAroundPosition(node->document()->frame(), pos);
 
@@ -8556,6 +8564,10 @@ static jobjectArray nativeGetWebFeedLinks ( JNIEnv* env, jobject obj, jint nativ
         env->SetObjectArrayElement ( infos, i, fi );
 
         delete feedInfoList[i] ;
+        env->DeleteLocalRef(urlobj);
+        env->DeleteLocalRef(titleobj);
+        env->DeleteLocalRef(typeobj);
+        env->DeleteLocalRef(fi);
 
         start = limit;
     }

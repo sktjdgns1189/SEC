@@ -1901,9 +1901,9 @@ struct gpio_keys_button m0_rev11_buttons[] = {
 	defined(CONFIG_MACH_BAFFIN))
 struct gpio_keys_button c1_rev04_buttons[] = {
 	GPIO_KEYS(KEY_VOLUMEUP, GPIO_VOL_UP_00,
-		  1, 0, sec_debug_check_crash_key),
+		  1, 1, sec_debug_check_crash_key),
 	GPIO_KEYS(KEY_VOLUMEDOWN, GPIO_VOL_DOWN_00,
-		  1, 0, sec_debug_check_crash_key),
+		  1, 1, sec_debug_check_crash_key),
 	GPIO_KEYS(KEY_POWER, GPIO_nPOWER,
 		  1, 1, sec_debug_check_crash_key),
 	GPIO_KEYS(KEY_HOMEPAGE, GPIO_OK_KEY_ANDROID,
@@ -1912,6 +1912,18 @@ struct gpio_keys_button c1_rev04_buttons[] = {
 #endif
 
 #if defined(CONFIG_MACH_T0) || defined(CONFIG_MACH_M3)
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+struct gpio_keys_button t0_buttons[] = {
+	GPIO_KEYS(KEY_VOLUMEUP, GPIO_VOL_UP,
+		  1, 1, sec_debug_check_crash_key),
+	GPIO_KEYS(KEY_VOLUMEDOWN, GPIO_VOL_DOWN,
+		  1, 1, sec_debug_check_crash_key),
+	GPIO_KEYS(KEY_POWER, GPIO_nPOWER,
+		  1, 1, sec_debug_check_crash_key),
+	GPIO_KEYS(KEY_HOMEPAGE, GPIO_OK_KEY,
+		  1, 1, sec_debug_check_crash_key),
+};
+#else
 struct gpio_keys_button t0_buttons[] = {
 	GPIO_KEYS(KEY_VOLUMEUP, GPIO_VOL_UP,
 		  1, 0, sec_debug_check_crash_key),
@@ -1923,7 +1935,7 @@ struct gpio_keys_button t0_buttons[] = {
 		  1, 1, sec_debug_check_crash_key),
 };
 #endif
-
+#endif
 #if defined(CONFIG_MACH_M3_USA_TMO)
 struct gpio_keys_button m3_uas_tmo_00_buttons[] = {
 	GPIO_KEYS(KEY_VOLUMEUP, GPIO_VOL_UP_00,

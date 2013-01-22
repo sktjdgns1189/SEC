@@ -1106,7 +1106,9 @@ class WebFeedLink{
         bool m_isPaused;
         int m_cacheMode;
         bool m_fullscreenVideoMode;
-
+//Samsung Change MPSG100006560++
+        bool m_isThaiVietCSC;
+//Samsung Change MPSG100006560--
         // find on page data
         WTF::String m_searchText;
         int m_matchCount;

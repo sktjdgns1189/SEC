@@ -151,7 +151,9 @@ struct dpram_link_device {
 	/* For locking TX process */
 	spinlock_t tx_lock[MAX_IPC_DEV];
 
-	/* For TX under DPRAM flow control */
+	/* For retransmission under DPRAM flow control after TXQ full state */
+	atomic_t res_required[MAX_IPC_DEV];
+	u16 res_ack[MAX_IPC_DEV];
 	struct completion req_ack_cmpl[MAX_IPC_DEV];
 
 	/* For efficient RX process */
@@ -159,10 +161,6 @@ struct dpram_link_device {
 	struct mif_rxb_queue rxbq[MAX_IPC_DEV];
 	struct io_device *iod[MAX_IPC_DEV];
 	bool rx_with_skb;
-
-	/* For retransmission after buffer full state */
-	atomic_t res_required[MAX_IPC_DEV];
-	struct mem_status res_ack_stat[MAX_IPC_DEV];
 
 	/* For wake-up/sleep control */
 	atomic_t accessing;

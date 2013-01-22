@@ -23,9 +23,12 @@
 #include <linux/wakelock.h>
 #include <linux/rbtree.h>
 #include <linux/spinlock.h>
+#include <linux/cdev.h>
 #include <linux/types.h>
 
 #define MAX_CPINFO_SIZE		512
+
+#define MAX_LINK_DEVTYPE	3
 
 #define MAX_FMT_DEVS	10
 #define MAX_RAW_DEVS	32
@@ -56,6 +59,10 @@
 #define IOCTL_MODEM_FORCE_CRASH_EXIT	_IO('o', 0x34)
 #define IOCTL_MODEM_CP_UPLOAD		_IO('o', 0x35)
 #define IOCTL_MODEM_DUMP_RESET		_IO('o', 0x36)
+
+#if defined(CONFIG_SEC_DUAL_MODEM_MODE)
+#define IOCTL_MODEM_SWITCH_MODEM	_IO('o', 0x37)
+#endif
 
 #define IOCTL_DPRAM_SEND_BOOT		_IO('o', 0x40)
 #define IOCTL_DPRAM_INIT_STATUS		_IO('o', 0x43)
@@ -117,6 +124,9 @@ enum modem_state {
 	STATE_LOADER_DONE,
 	STATE_SIM_ATTACH,
 	STATE_SIM_DETACH,
+#if defined(CONFIG_SEC_DUAL_MODEM_MODE)
+	STATE_MODEM_SWITCH,
+#endif
 };
 
 enum com_state {
@@ -583,11 +593,7 @@ struct modem_ctl {
 	struct delayed_work work_cpu_unlock;
 #endif
 #endif /*CONFIG_LTE_MODEM_CMC221*/
-#if defined(CONFIG_MACH_GRANDE)
-	struct delayed_work sim_det_dwork;
-	unsigned gpio_host_wakeup;
-	struct wake_lock host_wake_lock;
-#endif /* For checking sim detect pin */
+
 	struct work_struct work;
 
 #if defined(CONFIG_MACH_U1_KOR_LGT)
@@ -598,9 +604,19 @@ struct modem_ctl {
 	bool usb_boot;
 #endif
 
-#if defined(CONFIG_SEC_MODEM_IRON_TD)
-	unsigned gpio_cp_uart_sel;
-	unsigned gpio_fpga1_cs_n;
+#ifdef CONFIG_TDSCDMA_MODEM_SPRD8803
+	unsigned gpio_ap_cp_int1;
+	unsigned gpio_ap_cp_int2;
+#endif
+
+#ifdef CONFIG_SEC_DUAL_MODEM_MODE
+	unsigned gpio_sim_io_sel;
+	unsigned gpio_cp_ctrl1;
+	unsigned gpio_cp_ctrl2;
+#endif
+
+#ifdef CONFIG_LINK_DEVICE_PLD
+	unsigned gpio_fpga_cs_n;
 #endif
 
 	struct modemctl_ops ops;
@@ -615,6 +631,10 @@ struct modem_ctl {
 
 	bool need_switch_to_usb;
 	bool sim_polarity;
+
+	bool sim_shutdown_req;
+	void (*modem_complete)(struct modem_ctl *mc);
+
 };
 
 int sipc4_init_io_device(struct io_device *iod);
@@ -761,5 +781,10 @@ static inline int sipc5_check_frame_in_dev(struct link_device *ld, int dev,
 }
 
 extern void set_sromc_access(bool access);
+
+#if defined(CONFIG_TDSCDMA_MODEM_SPRD8803) && defined(CONFIG_LINK_DEVICE_SPI)
+extern int spi_sema_init(void);
+extern int sprd_boot_done;
+#endif
 
 #endif

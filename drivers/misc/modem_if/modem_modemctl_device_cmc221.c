@@ -362,6 +362,9 @@ int cmc221_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 	}
 
 #ifdef CONFIG_EXYNOS4_CPUFREQ
+	INIT_DELAYED_WORK(&mc->work_cpu_lock, cmc221_cpufreq_lock);
+	INIT_DELAYED_WORK(&mc->work_cpu_unlock, cmc221_cpufreq_unlock);
+
 	flag = IRQF_TRIGGER_RISING;
 	if (mc->gpio_cpufreq_lock) {
 		irq = gpio_to_irq(mc->gpio_cpufreq_lock);
@@ -374,9 +377,6 @@ int cmc221_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 			return ret;
 		}
 	}
-
-	INIT_DELAYED_WORK(&mc->work_cpu_lock, cmc221_cpufreq_lock);
-	INIT_DELAYED_WORK(&mc->work_cpu_unlock, cmc221_cpufreq_unlock);
 #endif
 
 	return 0;

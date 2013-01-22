@@ -200,6 +200,13 @@ static int wm8994_write(struct snd_soc_codec *codec, unsigned int reg,
 
 	BUG_ON(reg > WM8994_MAX_REGISTER);
 
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	if ((reg == WM8994_GPIO_1) && (value != WM8994_GP_FN_IRQ)) {
+		dev_err(codec->dev, "Invalid value for 700h\n");
+		return 0;
+	}
+#endif
+
 	if (!wm8994_volatile(codec, reg)) {
 		ret = snd_soc_cache_write(codec, reg, value);
 		if (ret != 0)
@@ -2328,6 +2335,21 @@ static int opclk_divs[] = { 10, 20, 30, 40, 55, 60, 80, 120, 160 };
 static int wm8994_set_fll(struct snd_soc_dai *dai, int id, int src,
 			  unsigned int freq_in, unsigned int freq_out)
 {
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	/*  workaround for jack detection
+	 * sometimes WM8994_GPIO_1 type changed wrong function type
+	 * so if type mismatched, update to IRQ type
+	 */
+	struct snd_soc_codec *codec = dai->codec;
+	unsigned int reg = 0;
+
+	reg = snd_soc_read(codec, WM8994_GPIO_1);
+	if ((reg & WM8994_GPN_FN_MASK) != WM8994_GP_FN_IRQ) {
+		dev_err(codec->dev, "%s: GPIO1 Type [%#x]\n", __func__, reg);
+		snd_soc_write(codec, WM8994_GPIO_1, WM8994_GP_FN_IRQ);
+	}
+#endif
+
 	return _wm8994_set_fll(dai->codec, id, src, freq_in, freq_out);
 }
 

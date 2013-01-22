@@ -944,7 +944,8 @@ void HTMLInputElement::setValue(const String& value, bool sendChangeEvent)
         unsigned max = m_data.value().length();
 #ifdef ANDROID_ACCEPT_CHANGES_TO_FOCUSED_TEXTFIELDS
         // Make sure our UI side textfield changes to match the RenderTextControl
-        PlatformBridge::updateTextfield(document()->view(), this, false, value);
+	// Currently engine is updating the data in input field and hence UI not required an extra update.
+        //PlatformBridge::updateTextfield(document()->view(), this, false, value);
 #endif
         if (document()->focusedNode() == this)
             InputElement::updateSelectionRange(this, this, max, max);

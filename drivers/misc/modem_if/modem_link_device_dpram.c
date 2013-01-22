@@ -420,6 +420,7 @@ static inline void reset_rxq_circ(struct dpram_link_device *dpld, int dev)
 /**
  * get_dpram_status
  * @dpld: pointer to an instance of dpram_link_device structure
+ * @dir: direction of communication (TX or RX)
  * @stat: pointer to an instance of mem_status structure
  *
  * Takes a snapshot of the current status of a DPRAM.
@@ -473,6 +474,63 @@ static void set_dpram_map(struct dpram_link_device *dpld,
 }
 
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+/**
+ * print_circ_status
+ * @dpld: pointer to an instance of dpram_link_device structure
+ * @dev: IPC device (IPC_FMT, IPC_RAW, etc.)
+ * @mst: pointer to an instance of mem_status structure
+ *
+ * Prints a snapshot of the status of a DPRAM.
+ */
+static void print_circ_status(struct dpram_link_device *dpld, int dev,
+			struct mem_status *mst)
+{
+	struct link_device *ld = &dpld->ld;
+	struct utc_time utc;
+
+	if (dev > IPC_RAW)
+		return;
+
+	ts2utc(&mst->ts, &utc);
+	pr_info("%s: [%02d:%02d:%02d.%06d] "
+		"[%s] <%s> %s | TXQ{in:%u out:%u} RXQ{in:%u out:%u} "
+		"INTR{RX:0x%X TX:0x%X}\n",
+		MIF_TAG, utc.hour, utc.min, utc.sec, ns2us(mst->ts.tv_nsec),
+		get_dir_str(mst->dir), ld->name, get_dev_name(dev),
+		mst->head[dev][TX], mst->tail[dev][TX],
+		mst->head[dev][RX], mst->tail[dev][RX],
+		mst->int2ap, mst->int2cp);
+}
+
+/**
+ * print_dpram_status
+ * @dpld: pointer to an instance of dpram_link_device structure
+ * @mst: pointer to an instance of mem_status structure
+ *
+ * Prints a snapshot of the status of a DPRAM.
+ */
+static void print_dpram_status(struct dpram_link_device *dpld,
+			struct mem_status *mst)
+{
+	struct link_device *ld = &dpld->ld;
+	int us = ns2us(mst->ts.tv_nsec);
+	struct utc_time utc;
+
+	ts2utc(&mst->ts, &utc);
+	pr_info("%s: %s: [%02d:%02d:%02d.%06d] "
+		"[%s] ACC{%X %d} "
+		"FMT{TI:%u TO:%u RI:%u RO:%u} "
+		"RAW{TI:%u TO:%u RI:%u RO:%u} "
+		"INTR{RX:0x%X TX:0x%X}\n",
+		MIF_TAG, ld->name, utc.hour, utc.min, utc.sec, us,
+		get_dir_str(mst->dir), mst->magic, mst->access,
+		mst->head[IPC_FMT][TX], mst->tail[IPC_FMT][TX],
+		mst->head[IPC_FMT][RX], mst->tail[IPC_FMT][RX],
+		mst->head[IPC_RAW][TX], mst->tail[IPC_RAW][TX],
+		mst->head[IPC_RAW][RX], mst->tail[IPC_RAW][RX],
+		mst->int2ap, mst->int2cp);
+}
+
 /**
  * save_dpram_dump_work
  * @work: pointer to an instance of work_struct structure
@@ -980,9 +1038,7 @@ static void trigger_force_cp_crash(struct dpram_link_device *dpld)
 
 	/* Send CRASH_EXIT command to a CP */
 	send_int2cp(dpld, INT_CMD(INT_CMD_CRASH_EXIT));
-#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	get_dpram_status(dpld, TX, msq_get_free_slot(&dpld->stat_list));
-#endif
 
 	/* If there is no CRASH_ACK from a CP in FORCE_CRASH_ACK_TIMEOUT,
 	   handle_no_cp_crash_ack() will be executed. */
@@ -1235,20 +1291,17 @@ static int init_dpram_ipc(struct dpram_link_device *dpld)
 static void cmd_phone_start_handler(struct dpram_link_device *dpld)
 {
 	struct link_device *ld = &dpld->ld;
-	struct io_device *iod = NULL;
+	struct io_device *iod;
 
 	mif_info("%s: Recv 0xC8 (CP_START)\n", ld->name);
 
-	init_dpram_ipc(dpld);
-
 	iod = link_get_iod_with_format(ld, IPC_FMT);
 	if (!iod) {
-		mif_info("%s: ERR! no iod\n", ld->name);
+		mif_err("%s: ERR! no iod\n", ld->name);
 		return;
 	}
 
-	if (dpld->ext_op && dpld->ext_op->cp_start_handler)
-		dpld->ext_op->cp_start_handler(dpld);
+	init_dpram_ipc(dpld);
 
 	if (ld->mc->phone_state != STATE_ONLINE) {
 		mif_info("%s: phone_state: %d -> ONLINE\n",
@@ -1256,8 +1309,12 @@ static void cmd_phone_start_handler(struct dpram_link_device *dpld)
 		iod->modem_state_changed(iod, STATE_ONLINE);
 	}
 
-	mif_info("%s: Send 0xC2 (INIT_END)\n", ld->name);
-	send_int2cp(dpld, INT_CMD(INT_CMD_INIT_END));
+	if (dpld->ext_op && dpld->ext_op->cp_start_handler) {
+		dpld->ext_op->cp_start_handler(dpld);
+	} else {
+		mif_info("%s: Send 0xC2 (INIT_END)\n", ld->name);
+		send_int2cp(dpld, INT_CMD(INT_CMD_INIT_END));
+	}
 }
 
 /**
@@ -1599,11 +1656,11 @@ static void recv_ipc_msg(struct dpram_link_device *dpld,
 
 	/* Read data from DPRAM */
 	for (i = 0; i < ld->max_ipc_dev; i++) {
+		/* Invoke an RX function only when there is data in the RXQ */
 		if (stat->head[i][RX] == stat->tail[i][RX]) {
 			mif_debug("%s: %s_RXQ is empty\n",
 				ld->name, get_dev_name(i));
 		} else {
-			/* Invoke an RX function only when there is data in the RXQ */
 			if (dpld->rx_with_skb)
 				ret = recv_ipc_with_skb(dpld, i, stat);
 			else
@@ -1625,20 +1682,24 @@ static void recv_ipc_msg(struct dpram_link_device *dpld,
 		tasklet_hi_schedule(&dpld->rx_tsk);
 	}
 
-	if (mask) {
+	if (mask)
 		send_int2cp(dpld, INT_NON_CMD(mask));
-#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
-		get_dpram_status(dpld, TX, msq_get_free_slot(&dpld->stat_list));
-#endif
-	}
 
 	if (intr & INT_MASK_RES_ACK_SET) {
-		if (intr & INT_MASK_RES_ACK_R)
-			complete_all(&dpld->req_ack_cmpl[IPC_RAW]);
-		if (intr & INT_MASK_RES_ACK_F)
-			complete_all(&dpld->req_ack_cmpl[IPC_FMT]);
-		if (intr & INT_MASK_RES_ACK_RFS)
-			complete_all(&dpld->req_ack_cmpl[IPC_RFS]);
+		for (i = 0; i < ld->max_ipc_dev; i++) {
+			if (intr & dpld->res_ack[i])
+				complete_all(&dpld->req_ack_cmpl[i]);
+		}
+	} else {
+		/*
+		** The TXQ must be checked whether or not it is empty, because
+		** the interrupt mask can be overwritten by the next interrupt.
+		*/
+		for (i = 0; i < ld->max_ipc_dev; i++) {
+			if ((atomic_read(&dpld->res_required[i]) > 0)
+			    && (stat->head[i][TX] == stat->tail[i][TX]))
+				complete_all(&dpld->req_ack_cmpl[i]);
+		}
 	}
 }
 
@@ -1937,8 +1998,8 @@ static int xmit_ipc_msg(struct dpram_link_device *dpld, int dev)
 			atomic_set(&dpld->res_required[dev], 1);
 			/* Take the skb back to the skb_txq */
 			skb_queue_head(txq, skb);
-			mif_info("%s: %s qsize[%u] "
-				"in[%u] out[%u] free[%u] < len[%u]\n",
+			mif_info("%s: NOSPC in %s_TXQ (qsize[%u] "
+				"in[%u] out[%u] free[%u] < len[%u])\n",
 				ld->name, get_dev_name(dev), stat.qsize,
 				stat.in, stat.out, space, skb->len);
 			copied = -ENOSPC;
@@ -1971,30 +2032,29 @@ static int wait_for_res_ack(struct dpram_link_device *dpld, int dev)
 {
 	struct link_device *ld = &dpld->ld;
 	struct completion *cmpl = &dpld->req_ack_cmpl[dev];
-	unsigned long timeout = RES_ACK_WAIT_TIMEOUT;
+	unsigned long timeout = msecs_to_jiffies(RES_ACK_WAIT_TIMEOUT);
+	struct mem_status *mst;
 	int ret;
 	u16 mask;
 
-	mask = get_mask_req_ack(dpld, dev);
+	mst = msq_get_free_slot(&dpld->stat_list);
+	get_dpram_status(dpld, TX, mst);
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+	print_circ_status(dpld, dev, mst);
 	mif_info("%s: send %s_REQ_ACK\n", ld->name, get_dev_name(dev));
+#endif
+
+	mask = get_mask_req_ack(dpld, dev);
 	send_int2cp(dpld, INT_NON_CMD(mask));
 
 	ret = wait_for_completion_interruptible_timeout(cmpl, timeout);
 	/* ret == 0 on timeout, ret < 0 if interrupted */
-	if (ret == 0) {
-		/*
-		** The TXQ must be checked whether or not it is empty, because
-		** the interrupt mask can be overwritten by the next interrupt.
-		*/
-		if (get_txq_head(dpld, dev) == get_txq_tail(dpld, dev))
-			return timeout;
-
+	if (ret == 0)
 		mif_info("%s: wait_for_completion TIMEOUT! (no %s_RES_ACK)\n",
 			ld->name, get_dev_name(dev));
-	} else if (ret < 0) {
+	else if (ret < 0)
 		mif_info("%s: %s: wait_for_completion interrupted! (ret %d)\n",
 			ld->name, get_dev_name(dev), ret);
-	}
 
 	return ret;
 }
@@ -2014,35 +2074,28 @@ static int wait_for_res_ack(struct dpram_link_device *dpld, int dev)
 static int process_res_ack(struct dpram_link_device *dpld, int dev)
 {
 	struct link_device *ld = &dpld->ld;
+	struct mem_status *mst;
 	int ret;
 	u16 mask;
+
+	mst = msq_get_free_slot(&dpld->stat_list);
+	get_dpram_status(dpld, RX, mst);
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+	mif_info("%s: recv %s_RES_ACK\n", ld->name, get_dev_name(dev));
+	print_circ_status(dpld, dev, mst);
+#endif
 
 	ret = xmit_ipc_msg(dpld, dev);
 	if (ret > 0) {
 		mask = get_mask_send(dpld, dev);
 		send_int2cp(dpld, INT_NON_CMD(mask));
 		atomic_set(&dpld->res_required[dev], 0);
-#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
-		get_dpram_status(dpld, TX, msq_get_free_slot(&dpld->stat_list));
-		mif_info("%s: xmit_ipc_msg done (%d bytes)\n", ld->name, ret);
-#endif
-		goto exit;
-	}
-
-	if (ret == 0) {
+		mif_debug("%s: xmit_ipc_msg done (%d bytes)\n", ld->name, ret);
+	} else if (ret == 0) {
 		mif_info("%s: %s skb_txq empty\n", ld->name, get_dev_name(dev));
 		atomic_set(&dpld->res_required[dev], 0);
-		goto exit;
 	}
 
-	/* At this point, ret < 0 */
-	if (ret == -ENOSPC)
-		/* dpld->res_required[dev] is set in xmit_ipc_msg() */
-		mif_info("%s: ERR! xmit_ipc_msg fail (-ENOSPC)\n", ld->name);
-	else
-		mif_err("%s: ERR! xmit_ipc_msg fail (err %d)\n", ld->name, ret);
-
-exit:
 	return ret;
 }
 
@@ -2059,7 +2112,7 @@ static void fmt_tx_work(struct work_struct *work)
 {
 	struct link_device *ld;
 	struct dpram_link_device *dpld;
-	unsigned long delay = REQ_ACK_DELAY;
+	unsigned long delay = msecs_to_jiffies(REQ_ACK_DELAY);
 	int ret;
 
 	ld = container_of(work, struct link_device, fmt_tx_dwork.work);
@@ -2100,7 +2153,7 @@ static void raw_tx_work(struct work_struct *work)
 {
 	struct link_device *ld;
 	struct dpram_link_device *dpld;
-	unsigned long delay = REQ_ACK_DELAY;
+	unsigned long delay = msecs_to_jiffies(REQ_ACK_DELAY);
 	int ret;
 
 	ld = container_of(work, struct link_device, raw_tx_dwork.work);
@@ -2142,7 +2195,7 @@ static void rfs_tx_work(struct work_struct *work)
 {
 	struct link_device *ld;
 	struct dpram_link_device *dpld;
-	unsigned long delay = REQ_ACK_DELAY;
+	unsigned long delay = msecs_to_jiffies(REQ_ACK_DELAY);
 	int ret;
 
 	ld = container_of(work, struct link_device, rfs_tx_dwork.work);
@@ -2194,10 +2247,8 @@ static void dpram_send_ipc(struct dpram_link_device *dpld, int dev,
 	if (unlikely(txq->qlen >= MAX_SKB_TXQ_DEPTH)) {
 		mif_err("%s: %s txq->qlen %d >= %d\n", ld->name,
 			get_dev_name(dev), txq->qlen, MAX_SKB_TXQ_DEPTH);
-		if (iod->io_typ == IODEV_NET || iod->format == IPC_MULTI_RAW) {
-			dev_kfree_skb_any(skb);
-			return;
-		}
+		dev_kfree_skb_any(skb);
+		return;
 	}
 
 	skb_queue_tail(txq, skb);
@@ -2213,7 +2264,7 @@ static void dpram_send_ipc(struct dpram_link_device *dpld, int dev,
 	}
 
 	if (atomic_read(&dpld->res_required[dev]) > 0) {
-		mif_info("%s: %s_TXQ is full\n", ld->name, get_dev_name(dev));
+		mif_debug("%s: %s_TXQ is full\n", ld->name, get_dev_name(dev));
 		goto exit;
 	}
 
@@ -2221,9 +2272,7 @@ static void dpram_send_ipc(struct dpram_link_device *dpld, int dev,
 	if (likely(ret > 0)) {
 		mask = get_mask_send(dpld, dev);
 		send_int2cp(dpld, INT_NON_CMD(mask));
-#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 		get_dpram_status(dpld, TX, msq_get_free_slot(&dpld->stat_list));
-#endif
 		goto exit;
 	}
 
@@ -2704,6 +2753,10 @@ struct link_device *dpram_create_link_device(struct platform_device *pdev)
 	init_completion(&dpld->udl_cmd_complete);
 	init_completion(&dpld->crash_start_complete);
 	init_completion(&dpld->crash_recv_done);
+
+	dpld->res_ack[IPC_FMT] = INT_MASK_RES_ACK_F;
+	dpld->res_ack[IPC_RAW] = INT_MASK_RES_ACK_R;
+	dpld->res_ack[IPC_RFS] = INT_MASK_RES_ACK_RFS;
 	for (i = 0; i < ld->max_ipc_dev; i++)
 		init_completion(&dpld->req_ack_cmpl[i]);
 

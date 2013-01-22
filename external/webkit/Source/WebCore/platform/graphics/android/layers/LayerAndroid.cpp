@@ -263,10 +263,11 @@ bool LayerAndroid::evaluateAnimations()
 
 bool LayerAndroid::hasAnimations() const
 {
+/* Remove this logic due to Gmail issue : select any email > flick to the next email > keep showing loading animation
     if (state() && state()->isScrolling()) {
         return false;
     }
-    
+ */
     for (int i = 0; i < countChildren(); i++) {
         if (getChild(i)->hasAnimations())
             return true;
@@ -276,9 +277,11 @@ bool LayerAndroid::hasAnimations() const
 
 bool LayerAndroid::evaluateAnimations(double time)
 {
+/* Remove this logic due to Gmail issue : select any email > flick to the next email > keep showing loading animation
     if (state() && state()->isScrolling()) {
         return false;
     }
+ */
     
     bool hasRunningAnimations = false;
     for (int i = 0; i < countChildren(); i++) {

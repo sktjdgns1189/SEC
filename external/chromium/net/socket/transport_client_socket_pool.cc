@@ -423,7 +423,6 @@ ConnectJob*
 base::TimeDelta
     TransportClientSocketPool::TransportConnectJobFactory::ConnectionTimeout()
     const {
-
   if (SecNativeFeature::getInstance()->getInteger(CscFeatureTagWeb_SetTcpConnTimeoutAs) > 0) {
     return base::TimeDelta::FromSeconds(SecNativeFeature::getInstance()->getInteger(CscFeatureTagWeb_SetTcpConnTimeoutAs));
   }
