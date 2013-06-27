@@ -61,6 +61,7 @@ PicturePile::PicturePile(const PicturePile& other)
     : m_size(other.m_size)
     , m_pile(other.m_pile)
     , m_webkitInvals(other.m_webkitInvals)
+    , m_prerenderedInvals(true) // P121120-4441 Lets avoid prerendering when the call is initiated from HTMLComposer
 {
 }
 
@@ -217,6 +218,7 @@ void PicturePile::reset()
     m_size = IntSize(0,0);
     m_pile.clear();
     m_webkitInvals.clear();
+	m_prerenderedInvals = true; // P121120-4441 Lets avoid prerendering when the call is initiated from HTMLComposer
 }
 
 void PicturePile::applyWebkitInvals()
@@ -285,7 +287,8 @@ void PicturePile::appendToPile(const IntRect& inval, const IntRect& originalInva
             m_pile.remove(i);
     }
     PictureContainer container(inval);
-    if (ENABLE_PRERENDERED_INVALS) {
+    // P121120-4441 Lets avoid prerendering when the call is initiated from HTMLComposer
+    if (m_prerenderedInvals) {
         container.prerendered = PrerenderedInval::create(originalInval.isEmpty()
                                                          ? inval : originalInval);
     }

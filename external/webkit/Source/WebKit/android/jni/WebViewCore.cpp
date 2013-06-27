@@ -864,7 +864,9 @@ void WebViewCore::recordPicturePile()
     int height = view ? view->contentsHeight() : 0;
 
     m_content.setSize(IntSize(width, height));
-
+    // P121120-4441 Lets avoid prerendering when the call is initiated from HTMLComposer
+    if( m_content.getPreRenderedInvalsVar() && m_mainFrame->document() && m_mainFrame->document()->settings() && m_mainFrame->document()->settings()->editableSupportEnabled() )
+        m_content.setPreRenderedInvalsVar(false);
     // Rebuild the pictureset (webkit repaint)
     m_content.updatePicturesIfNeeded(this);
 }
@@ -4981,18 +4983,21 @@ bool WebViewCore::performMouseClick()
 	 const WTF::String& typestring = typestr.string();
          const AtomicString &valuestr = ele->getAttribute(HTMLNames::valueAttr);
 	 WebCore::RenderTextControl* rtc = toRenderTextControl(focusNode);		        	
-	 const WTF::String& text = rtc->text();
-	 if(!text){	
-	     if((valuestr.isNull()))			    		                   
-		requestDateTimePickers(typestring,"");
-	     else{
-		const WTF::String& valuestring = valuestr.string();
-		requestDateTimePickers(typestring,valuestring);	
-	     }
-	}
-	else{
-            requestDateTimePickers(typestring,text);	
-	}						
+	 if (NULL != rtc) //SAMSUNG CHANGE
+	 {
+		 const WTF::String& text = rtc->text();
+		 if(!text){	
+		     if((valuestr.isNull()))			    		                   
+			requestDateTimePickers(typestring,"");
+		     else{
+			const WTF::String& valuestring = valuestr.string();
+			requestDateTimePickers(typestring,valuestring);	
+		     }
+		}
+		else{
+	            requestDateTimePickers(typestring,text);	
+		}						
+	 }
     }//SAMSUNG HTML5 INPUT TYPE DATE/TIME CHANGES <<
     else {
         initializeTextInput(focusNode, false);

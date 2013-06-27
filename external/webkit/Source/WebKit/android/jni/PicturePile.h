@@ -103,6 +103,9 @@ public:
     void reset();
     SkRegion& dirtyRegion() { return m_dirtyRegion; }
     PrerenderedInval* prerenderedInvalForArea(const IntRect& area);
+	// P121120-4441 Lets avoid prerendering when the call is initiated from HTMLComposer
+	void setPreRenderedInvalsVar(bool preRenderInval) { m_prerenderedInvals=preRenderInval; }
+	bool getPreRenderedInvalsVar(){return m_prerenderedInvals;}
 
 private:
     void applyWebkitInvals();
@@ -114,6 +117,7 @@ private:
     Vector<PictureContainer> m_pile;
     Vector<IntRect> m_webkitInvals;
     SkRegion m_dirtyRegion;
+	bool m_prerenderedInvals; // P121120-4441 Lets avoid prerendering when the call is initiated from HTMLComposer 
 };
 
 } // namespace android
