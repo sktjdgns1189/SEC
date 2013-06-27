@@ -95,12 +95,8 @@ extern int write_TS_program_data3(void 	*id,
                                   uint32_t    program_number,
                                   uint32_t    pmt_pid,
                                   uint32_t    pcr_pid,
-#ifdef TS_WRITE
                                   int         num_progs, 
                                   int 		  codecType); 
-#else
-                                  int         num_progs); 
-#endif
 /*
  * Write out a Transport Stream PAT.
  * 
@@ -123,12 +119,8 @@ extern int write_pat1(void	    *id,
  * Returns 0 if it worked, 1 if something went wrong.
  */
 extern int write_pmt1(void *id,
-#ifdef TS_WRITE
 		     uint32_t    pmt_pid,
 		     int codecType);
-#else
-		     uint32_t    pmt_pid);
-#endif
 
 /*
  * Write out our ES data as a Transport Stream PES packet, with PTS and/or DTS
@@ -177,6 +169,11 @@ extern int write_ES_as_TS_PES_packet_with_pts_dts(void		*id,
 extern void setHDCPmode(void* id, int* tData);
 
 extern void setAudioCodecType(void* id, int codecType);
+
+extern int write_ES_as_TS_with_pcr(void     *id,
+                                              uint32_t    pid,
+                                              uint64_t    pcr_base,
+                                              uint32_t    pcr_extn);
 
 /*
  * Write out our ES data as a Transport Stream PES packet, with PCR.
@@ -229,7 +226,7 @@ extern int change_TS_RTPSocketBufferSize(int aIncrease);
 extern int change_TS_RTPTransport(int aType, unsigned aPort);
 #endif
 
-extern int set_RTPdeinit (); //ygkim
+extern int set_RTPdeinit (void); //ygkim
 #endif // _ts_fns
 
 

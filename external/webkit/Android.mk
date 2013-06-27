@@ -122,6 +122,7 @@ LOCAL_C_INCLUDES := \
 	frameworks/base/core/jni/android/graphics \
 	frameworks/base/include \
         external/webkit/libsecnativefeature
+        # --- OSS_Modify --- #
 
 # Add Source/ for the include of <JavaScriptCore/config.h> from WebCore/config.h
 LOCAL_C_INCLUDES := $(LOCAL_C_INCLUDES) \
@@ -416,10 +417,12 @@ endif
 LOCAL_ADDITIONAL_DEPENDENCIES := $(filter %.h, $(WEBKIT_GENERATED_SOURCES))
 include $(BUILD_SHARED_LIBRARY)
 
+# --- OSS_Modify 
 include $(CLEAR_VARS)
 LOCAL_PREBUILT_LIBS := libsecnativefeature.so
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_MULTI_PREBUILT)
+# ---
 
 # Build the wds client
 include $(WEBKIT_PATH)/android/wds/client/Android.mk

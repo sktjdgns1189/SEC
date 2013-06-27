@@ -790,8 +790,8 @@ void set_hsic_lpa_states(int states)
 			break;
 		case STATE_HSIC_LPA_WAKE:
 			mif_info("lpa_wake\n");
-			gpio_set_value(umts_modem_data.gpio_host_active, 1);
-			mif_info("> H-ACT %d\n", 1);
+			if (!modem_using_hub() && active_ctl.gpio_initialized)
+				set_slave_wake();
 			break;
 		case STATE_HSIC_LPA_PHY_INIT:
 			mif_info("lpa_phy_init\n");

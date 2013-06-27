@@ -552,8 +552,14 @@ void FrameView::calculateScrollbarModesForLayout(ScrollbarMode& hMode, Scrollbar
         Node* body = document->body();
         if (body && body->renderer()) {
             if (body->hasTagName(framesetTag) && m_frame->settings() && !m_frame->settings()->frameFlatteningEnabled()) {
-                vMode = ScrollbarAlwaysOff;
-                hMode = ScrollbarAlwaysOff;
+		// SAMSUNG CHANGE >>
+		Element* ownerElement = document->ownerElement();
+                if (!ownerElement || !ownerElement->hasTagName(iframeTag)) 
+		// SAMSUNG CHANGE <<
+                {
+	                vMode = ScrollbarAlwaysOff;
+	                hMode = ScrollbarAlwaysOff;
+                }
             } else if (body->hasTagName(bodyTag)) {
                 // It's sufficient to just check the X overflow,
                 // since it's illegal to have visible in only one direction.

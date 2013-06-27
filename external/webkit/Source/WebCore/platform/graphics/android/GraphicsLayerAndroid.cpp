@@ -688,9 +688,18 @@ int GraphicsLayerAndroid::getContentLayerId() {
 static void setScrollLimits(ScrollableLayerAndroid* scrollableLayer, RenderLayer* renderLayer)
 {
     RenderBox* box = renderLayer->renderBox();
+    
+    float scrollHeight = renderLayer->scrollHeight();
+    
+    if ( scrollableLayer->isIFrameContent() && box && !box->hasOverflowClip() ) {
+        if ( box->layoutOverflowRect().height() > scrollHeight ) {
+            scrollHeight = box->layoutOverflowRect().height();
+        }
+    }
+        
     scrollableLayer->setScrollLimits(0, 0,
             renderLayer->scrollWidth() - box->clientWidth(),
-            renderLayer->scrollHeight() - box->clientHeight());
+            scrollHeight - box->clientHeight());
 }
 
 bool GraphicsLayerAndroid::repaint()

@@ -164,7 +164,7 @@ typedef void *   void_p;
 #define DEFAULT_VIDEO_PID  0x1011
 #define DEFAULT_AUDIO_PID  0x1100
 #define DEFAULT_PMT_PID    0x100
-
+#define DEFAULT_PCR_PID    0x1000
 
 
 

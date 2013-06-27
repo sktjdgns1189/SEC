@@ -570,7 +570,7 @@ WebViewCore::WebViewCore(JNIEnv* env, jobject javaWebViewCore, WebCore::Frame* m
     m_javaGlue->m_updateTextfield = GetJMethod(env, clazz, "updateTextfield", "(IZLjava/lang/String;I)V");
     m_javaGlue->m_updateTextSelection = GetJMethod(env, clazz, "updateTextSelection", "(IIIII)V");
 //SAMSUNG CHANGES MPSG100006129 >>
-    m_javaGlue->m_updateTextSelectionStartAndEnd = GetJMethod(env, clazz, "updateTextSelectionStartAndEnd", "(IIIII)V");
+    m_javaGlue->m_updateTextSelectionStartAndEnd = GetJMethod(env, clazz, "updateTextSelectionStartAndEnd", "(IIIIILjava/lang/String;)V");
 //SAMSUNG CHANGES MPSG100006129 <<
     m_javaGlue->m_updateTextSizeAndScroll = GetJMethod(env, clazz, "updateTextSizeAndScroll", "(IIIII)V");
     m_javaGlue->m_clearTextEntry = GetJMethod(env, clazz, "clearTextEntry", "()V");
@@ -5685,10 +5685,17 @@ void WebViewCore::updateTextSelectionStartAndEnd()
     int end = 0;
     if (selection.isCaretOrRange())
         getSelectionOffsets(selection.start().anchorNode(), start, end);
+    Node *focusNode = currentFocus();
+    jstring text = NULL;
+    if (focusNode && isTextInput(focusNode)) {
+        getSelectionOffsets(focusNode, start, end);
+        text = wtfStringToJstring(env, getInputText(focusNode));
+    }
     SelectText* selectText = createSelectText(selection);
     env->CallVoidMethod(javaObject.get(),
             m_javaGlue->m_updateTextSelectionStartAndEnd, reinterpret_cast<int>(currentFocus()),
-            start, end, m_textGeneration, reinterpret_cast<int>(selectText));
+            start, end, m_textGeneration, reinterpret_cast<int>(selectText), text);
+    env->DeleteLocalRef(text);
     checkException(env);
 }
 //SAMSUNG CHANGES MPSG100006129 <<

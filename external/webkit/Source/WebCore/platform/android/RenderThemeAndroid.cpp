@@ -631,30 +631,33 @@ bool RenderThemeAndroid::paintCombo(RenderObject* obj, const PaintInfo& info,  c
         // without doing anything, this means that
         // RenderBox::PaintBoxDecorationWithSize will end up painting the
         // border, so we shouldn't paint a border here.
+
+        // SAMSUNG CHANGE : MPSG100006766 - Arrow of ComboBox having border-color >>
+        const int arrowSize = bounds.height();
         if (style->appearance() != MenulistButtonPart &&
                 style->appearance() != ListboxPart &&
                 style->appearance() != TextFieldPart &&
                 style->appearance() != TextAreaPart) {
-            const int arrowSize = bounds.height();
-            // dropdown button bg
-            context->setFillColor(Color(defaultBgColor), context->fillColorSpace());
-            context->fillRect(FloatRect(bounds.maxX() - arrowSize + 0.5f, bounds.y() + .5f,
-                    arrowSize - 1, bounds.height() - 1));
             // outline
             context->setStrokeThickness(1.0f);
             context->setStrokeColor(Color(defaultBgDark), context->strokeColorSpace());
             context->strokeRect(bounds, 1.0f);
-            // arrow
-            context->setFillColor(Color(defaultFgColor), context->fillColorSpace());
-            Path tri = Path();
-            tri.clear();
-            const float aw = arrowSize - 10;
-            FloatPoint br = FloatPoint(bounds.maxX() - 4, bounds.maxY() - 4);
-            tri.moveTo(br);
-            tri.addLineTo(FloatPoint(br.x() - aw, br.y()));
-            tri.addLineTo(FloatPoint(br.x(), br.y() - aw));
-            context->fillPath(tri);
         }
+        // dropdown button bg
+        context->setFillColor(Color(defaultBgColor), context->fillColorSpace());
+        context->fillRect(FloatRect(bounds.maxX() - arrowSize + 0.5f, bounds.y() + .5f,
+                arrowSize - 1, bounds.height() - 1));
+        // arrow
+        context->setFillColor(Color(defaultFgColor), context->fillColorSpace());
+        Path tri = Path();
+        tri.clear();
+        const float aw = arrowSize - 10;
+        FloatPoint br = FloatPoint(bounds.maxX() - 4, bounds.maxY() - 4);
+        tri.moveTo(br);
+        tri.addLineTo(FloatPoint(br.x() - aw, br.y()));
+        tri.addLineTo(FloatPoint(br.x(), br.y() - aw));
+        context->fillPath(tri);
+        // SAMSUNG CHANGE : MPSG100006766 - Arrow of ComboBox having border-color <<
     }
     return false;
 }

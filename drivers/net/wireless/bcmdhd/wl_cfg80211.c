@@ -115,7 +115,7 @@ u32 wl_dbg_level = WL_DBG_ERR;
 
 #ifdef VSDB
 /* sleep time to keep STA's connecting or connection for continuous af tx or finding a peer */
-#define DEFAULT_SLEEP_TIME_VSDB		200
+#define DEFAULT_SLEEP_TIME_VSDB 	200
 #define OFF_CHAN_TIME_THRESHOLD_MS	200
 
 /* if sta is connected or connecting, sleep for a while before retry af tx or finding a peer */
@@ -3798,6 +3798,7 @@ int wl_cfg80211_update_power_mode(struct net_device *dev)
 	}
 	return err;
 }
+
 static s32
 wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	bool enabled, s32 timeout)
@@ -3806,16 +3807,24 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	s32 err = 0;
 	struct wl_priv *wl = wiphy_priv(wiphy);
 	struct net_info *_net_info = wl_get_netinfo_by_netdev(wl, dev);
+#if !defined(SUPPORT_PM2_ONLY)
 	dhd_pub_t *dhd = (dhd_pub_t *)(wl->pub);
+#endif /* SUPPORT_PM2_ONLY */
 	CHECK_SYS_UP(wl);
 
-	if (wl->p2p_net == dev || _net_info == NULL) {
+	if (wl->p2p_net == dev || _net_info == NULL || wl->vsdb_mode) {
 		return err;
 	}
 	WL_DBG(("%s: Enter power save enabled %d\n", dev->name, enabled));
+
+#if !defined(SUPPORT_PM2_ONLY)
 	/* android has special hooks to change pm when kernel suspended */
 	pm = enabled ? ((dhd->in_suspend) ? PM_MAX : PM_FAST) : PM_OFF;
-	if (_net_info->pm_block || wl->vsdb_mode) {
+#else
+	pm = enabled ? PM_FAST : PM_OFF;
+#endif /* SUPPORT_PM2_ONLY */
+
+	if (_net_info->pm_block) {
 		/* Do not enable the power save if it is p2p interface or vsdb mode is set */
 		WL_DBG(("%s:Do not enable the power save for pm_block %d or vsdb_mode %d\n",
 			dev->name, _net_info->pm_block, wl->vsdb_mode));
@@ -6225,17 +6234,17 @@ static s32 wl_inform_single_bss(struct wl_priv *wl, struct wl_bss_info *bi, u8 i
 		((int)(*(ie_offset+1)) == 0 || (int)(*(ie_offset+2)) == 0))) {
 		u8 *ie_new_offset = NULL;
 		uint8 ie_new_length;
-		
+
 		WL_ERR(("WAR trace: Changing the SSID Info, from beacon %d\n",
 			bi->flags & WL_BSS_FLAGS_FROM_BEACON));
 
 		ie_new_offset = (u8 *)kzalloc(WL_BSS_INFO_MAX, GFP_KERNEL);
 		if (ie_new_offset) {
-			*(ie_new_offset) = WLAN_EID_SSID; 
+			*(ie_new_offset) = WLAN_EID_SSID;
 			*(ie_new_offset+1) = bi->SSID_len;
 			memcpy(ie_new_offset+2, bi->SSID, bi->SSID_len);
 			ie_new_length = bi->ie_length - *(ie_offset+1) + bi->SSID_len;
-			
+
 			/* Copy the remaining IE apart from SSID IE from bi */
 			memcpy(ie_new_offset+2 + bi->SSID_len,
 				ie_offset+2 + *(ie_offset+1),
@@ -6519,6 +6528,7 @@ exit:
 		}
 		sinfo.assoc_req_ies = data;
 		sinfo.assoc_req_ies_len = len;
+		cfg80211_del_sta(ndev, e->addr.octet, GFP_ATOMIC);
 		cfg80211_new_sta(ndev, e->addr.octet, &sinfo, GFP_ATOMIC);
 	} else if (event == WLC_E_DISASSOC_IND) {
 		cfg80211_del_sta(ndev, e->addr.octet, GFP_ATOMIC);
@@ -8459,44 +8469,35 @@ static s32 wl_notifier_change_state(struct wl_priv *wl, struct net_info *_net_in
 
 	if (set) {
 		if (wl_get_mode_by_netdev(wl, _net_info->ndev) == WL_MODE_AP) {
-			pm = PM_OFF;
-			WL_DBG(("%s:AP power save %s\n", _net_info->ndev->name,
-				pm ? "enabled" : "disabled"));
-			if ((err = wldev_ioctl(_net_info->ndev, WLC_SET_PM,
-				&pm, sizeof(pm), true)) != 0) {
-				if (err == -ENODEV)
-					WL_DBG(("%s:net_device is not ready\n",
-						_net_info->ndev->name));
-				else
-					WL_ERR(("%s:error (%d)\n", _net_info->ndev->name, err));
-			}
 			if (wl_add_remove_eventmsg(primary_dev, WLC_E_P2P_PROBREQ_MSG, false))
 				WL_ERR((" failed to unset WLC_E_P2P_PROPREQ_MSG\n"));
-			return 0;
 		}
 		wl_cfg80211_concurrent_roam(wl, 1);
 		wl_cfg80211_determine_vsdb_mode(wl);
+		if (wl->vsdb_mode || _net_info->pm_block) {
 		pm = PM_OFF;
 		for_each_ndev(wl, iter, next) {
-			if ((!wl->vsdb_mode) && (iter->ndev != _net_info->ndev)) {
-				/* Do not touch the other interfaces power save
-				 * if we are not in vsdb mode
-				 */
+				if (iter->pm_restore)
 				continue;
-			}
 			/* Save the current power mode */
-			iter->pm_restore = true;
 			err = wldev_ioctl(iter->ndev, WLC_GET_PM, &iter->pm,
-				sizeof(iter->pm), false);
+						sizeof(iter->pm), false);
 			WL_DBG(("%s:power save %s\n", iter->ndev->name,
 				iter->pm ? "enabled" : "disabled"));
+				if (!err && iter->pm) {
+					iter->pm_restore = true;
+				}
+			}
+
+			for_each_ndev(wl, iter, next) {
 			if ((err = wldev_ioctl(iter->ndev, WLC_SET_PM, &pm,
 				sizeof(pm), true)) != 0) {
 				if (err == -ENODEV)
 					WL_DBG(("%s:netdev not ready\n", iter->ndev->name));
 				else
 					WL_ERR(("%s:error (%d)\n", iter->ndev->name, err));
-				iter->ndev->ieee80211_ptr->ps = pm ? true: false;
+					iter->ndev->ieee80211_ptr->ps = false;
+				}
 			}
 		}
 	}
@@ -8506,7 +8507,7 @@ static s32 wl_notifier_change_state(struct wl_priv *wl, struct net_info *_net_in
 		wl_update_prof(wl, _net_info->ndev, NULL, &chan, WL_PROF_CHAN);
 		wl_cfg80211_determine_vsdb_mode(wl);
 		for_each_ndev(wl, iter, next) {
-			if (iter->pm_restore) {
+			if (iter->pm_restore && iter->pm) {
 				WL_DBG(("%s:restoring power save %s\n",
 					iter->ndev->name, (iter->pm ? "enabled" : "disabled")));
 				err = wldev_ioctl(iter->ndev,
@@ -8519,6 +8520,7 @@ static s32 wl_notifier_change_state(struct wl_priv *wl, struct net_info *_net_in
 					break;
 				}
 				iter->pm_restore = 0;
+				iter->ndev->ieee80211_ptr->ps = true;
 			}
 		}
 		wl_cfg80211_concurrent_roam(wl, 0);
@@ -9383,8 +9385,12 @@ static s32 __wl_cfg80211_down(struct wl_priv *wl)
 	}
 	wl_to_prmry_ndev(wl)->ieee80211_ptr->iftype =
 		NL80211_IFTYPE_STATION;
+#if defined(WL_CFG80211) && defined(SUPPORT_DEEP_SLEEP)
+	if (!sleep_never) {
 	if (p2p_net)
 		dev_close(p2p_net);
+	}
+#endif
 	DNGL_FUNC(dhd_cfg80211_down, (wl));
 	wl_flush_eq(wl);
 	wl_link_down(wl);
@@ -9534,6 +9540,7 @@ wl_update_prof(struct wl_priv *wl, struct net_device *ndev,
 		break;
 	case WL_PROF_CHAN:
 		profile->channel = *(u32*)data;
+		break;
 	default:
 		err = -EOPNOTSUPP;
 		break;
